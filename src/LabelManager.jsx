@@ -1,15 +1,15 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 const FIELDS = [
-  { key: "code",    label: "Code",    placeholder: "e.g. INV-2024-001" },
-  { key: "project", label: "Project", placeholder: "e.g. Office Renovation" },
-  { key: "type",    label: "Type",    placeholder: "e.g. Invoice" },
-  { key: "date",    label: "Date",    placeholder: "e.g. 1403/02/15" },
-  { key: "party",   label: "Party",   placeholder: "e.g. Vendor Name" },
-  { key: "amount",  label: "Amount",  placeholder: "e.g. 5,000,000" },
-  { key: "related", label: "Related", placeholder: "e.g. Contract #42" },
+  { key: "code",    label: "Code",    placeholder: "e.g. INV-2024-001", icon: "ti-hash" },
+  { key: "project", label: "Project", placeholder: "e.g. Office Renovation", icon: "ti-briefcase" },
+  { key: "type",    label: "Type",    placeholder: "e.g. Invoice", icon: "ti-category" },
+  { key: "date",    label: "Date",    placeholder: "e.g. 1403/02/15", icon: "ti-calendar" },
+  { key: "party",   label: "Party",   placeholder: "e.g. Vendor Name", icon: "ti-user" },
+  { key: "amount",  label: "Amount",  placeholder: "e.g. 5,000,000", icon: "ti-coin" },
+  { key: "related", label: "Related", placeholder: "e.g. Contract #42", icon: "ti-link" },
 ];
 
 const EMPTY_FORM = Object.fromEntries(FIELDS.map(f => [f.key, ""]));
@@ -19,45 +19,60 @@ const CSV_TEMPLATE = [FIELDS.map(f => f.key).join(","), "INV-2024-001,Office Ren
 const LABEL_PRINT_COLS = 3;
 const LABEL_WIDTH = 180;
 const LABEL_HEIGHT = 130;
-const LABEL_FONT = "Tahoma, Arial, sans-serif";
 
 function LabelCard({ record, selected, onToggle, index, onEdit }) {
   return (
     <div
       onClick={() => onToggle(index)}
-      className={`card h-100 cursor-pointer transition-all duration-200 hover:shadow-lg ${selected ? 'border-indigo-500 shadow-md' : 'shadow-sm'}`}
+      className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 cursor-pointer
+        ${selected
+          ? 'border-primary-500 bg-primary-50/50 dark:bg-primary-500/10 shadow-lg shadow-primary-500/20'
+          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#2f3349] hover:shadow-xl hover:border-primary-400 dark:hover:border-primary-500/50'
+        }`}
     >
-      <div className="card-body p-3">
-        <div className="d-flex justify-content-between align-items-start mb-3">
-          <span className={`badge fs-6 font-mono ${selected ? 'bg-indigo-500' : 'bg-secondary'}`}>
-            {record.code || "—"}
-          </span>
-          <div className="form-check">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              checked={selected}
-              onChange={() => onToggle(index)}
-              onClick={e => e.stopPropagation()}
-            />
+      <div className="p-5">
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 mb-1">Record Code</span>
+            <span className={`font-mono text-base font-bold ${selected ? 'text-primary-600 dark:text-primary-400' : 'text-slate-700 dark:text-slate-200'}`}>
+              {record.code || "—"}
+            </span>
+          </div>
+          <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors
+            ${selected ? 'bg-primary-500 border-primary-500' : 'border-slate-300 dark:border-slate-600 bg-transparent'}`}>
+            {selected && <i className="ti ti-check text-white text-xs"></i>}
           </div>
         </div>
-        <div className="row g-2">
-          {FIELDS.filter(f => f.key !== "code").map(f => (
-            <div key={f.key} className="col-6">
-              <small className="text-muted fw-bold">{f.label}</small>
-              <div className="fw-medium text-truncate" style={{ fontSize: "0.85rem" }}>
+
+        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+          {FIELDS.filter(f => f.key !== "code").slice(0, 4).map(f => (
+            <div key={f.key}>
+              <p className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">{f.label}</p>
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-300 truncate">
                 {record[f.key] || "—"}
-              </div>
+              </p>
             </div>
           ))}
         </div>
-        <button
-          className="btn btn-sm btn-outline-primary w-100 mt-3"
-          onClick={e => { e.stopPropagation(); onEdit(index); }}
-        >
-          <i className="ti ti-edit me-1"></i> Edit
-        </button>
+
+        <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700/50 flex gap-2">
+          <button
+            className="flex-1 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            onClick={e => { e.stopPropagation(); onEdit(index); }}
+          >
+            <i className="ti ti-edit mr-1"></i> Edit
+          </button>
+          <button
+            className={`px-3 py-2 rounded-lg border text-xs font-semibold transition-colors
+              ${selected
+                ? 'bg-primary-500 border-primary-500 text-white'
+                : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+              }`}
+            onClick={e => { e.stopPropagation(); onToggle(index); }}
+          >
+            {selected ? 'Selected' : 'Select'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -76,7 +91,20 @@ export default function LabelManager() {
   const [editIndex, setEditIndex] = useState(null);
   const [importMsg, setImportMsg] = useState("");
   const [search, setSearch] = useState("");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const fileRef = useRef();
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   const toggleSelect = useCallback((i) => {
     setSelected(prev => {
@@ -153,46 +181,6 @@ export default function LabelManager() {
     a.href = URL.createObjectURL(blob);
     a.download = "labels_template.csv";
     a.click();
-  };
-
-  const generateLabelHTML = (record) => {
-    const rows = FIELDS.filter(f => f.key !== "code").map(f => `
-      <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px;">
-        <span style="font-weight: bold; min-width: 60px; color: #555;">${f.label}:</span>
-        <span style="max-width: 110px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;">${record[f.key] || ""}</span>
-      </div>
-    `).join('');
-    
-    return `
-      <div style="
-        width: ${LABEL_WIDTH}px;
-        height: ${LABEL_HEIGHT}px;
-        border: 1px solid #333;
-        padding: 12px;
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        break-inside: avoid;
-        font-family: ${LABEL_FONT};
-        font-size: 11px;
-        background: #fff;
-        color: #000;
-        box-sizing: border-box;
-      ">
-        <div style="
-          font-weight: bold;
-          font-size: 13px;
-          border-bottom: 2px solid #ccc;
-          padding-bottom: 4px;
-          margin-bottom: 6px;
-          text-align: center;
-          font-family: monospace;
-        ">${record.code}</div>
-        <div style="display: flex; flex-direction: column; gap: 2px;">
-          ${rows}
-        </div>
-      </div>
-    `;
   };
 
   const printLabels = () => {
@@ -314,7 +302,7 @@ export default function LabelManager() {
     ${Array.from({ length: totalRows }, (_, row) => {
       const rowLabels = selectedRecords.slice(row * totalCols, (row + 1) * totalCols);
       return `<div class="label-row">` + 
-        rowLabels.map((r, idx) => `
+        rowLabels.map((r) => `
           <div class="label-wrapper">
             <span class="cut-indicator">✂</span>
             <div class="label">
@@ -358,15 +346,6 @@ export default function LabelManager() {
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = FIELDS.map(() => ({ wch: 18 }));
     
-    Object.keys(ws).forEach(cell => {
-      if (cell !== '!cols' && cell !== '!ref') {
-        ws[cell].s = {
-          font: { name: "Tahoma", sz: 11 },
-          alignment: { horizontal: "left", vertical: "middle" }
-        };
-      }
-    });
-    
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Labels");
     
@@ -375,301 +354,365 @@ export default function LabelManager() {
 
   const fr = filteredRecords();
 
+  const navItems = [
+    { id: 'records', label: 'Records', icon: 'ti-smart-home' },
+    { id: 'add', label: 'Add New', icon: 'ti-plus' },
+    { id: 'import', label: 'Import CSV', icon: 'ti-upload' },
+    { id: 'preview', label: 'Print Preview', icon: 'ti-printer' },
+  ];
+
   return (
-    <div className="min-vh-100 bg-gray-100">
-      <header className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white py-5 mb-6 shadow-lg">
-        <div className="container">
-          <h1 className="mb-2 fw-bold fs-3">
-            <i className="ti ti-tags me-3"></i>Label Studio
-          </h1>
-          <p className="mb-0 opacity-75">Document Archiving & Label Printing Tool</p>
+    <div className="flex min-h-screen bg-slate-50 dark:bg-[#161d31]">
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-[#2f3349] border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 transform ${isSidebarOpen ? 'translate-x-0' : '-translate-x-64'} lg:static lg:translate-x-0`}>
+        <div className="flex items-center justify-between h-20 px-6 border-b border-slate-100 dark:border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary-600 flex items-center justify-center shadow-lg shadow-primary-500/30">
+              <i className="ti ti-tags text-white text-xl"></i>
+            </div>
+            <span className="text-xl font-bold tracking-tight text-slate-800 dark:text-slate-100">Studio</span>
+          </div>
+          <button onClick={() => setIsSidebarOpen(false)} className="lg:hidden text-slate-500 hover:text-slate-700 dark:text-slate-400">
+            <i className="ti ti-x text-2xl"></i>
+          </button>
         </div>
-      </header>
 
-      <main className="container pb-5">
-        <ul className="nav nav-pills mb-5 gap-3 flex-wrap bg-white p-3 rounded-3 shadow-sm">
-          <li className="nav-item">
-            <button className={`nav-link px-4 py-2 rounded-pill fw-medium ${tab === "records" ? "active bg-indigo-500 text-white" : "text-dark bg-gray-100 hover:bg-gray-200"}`} onClick={() => { setTab("records"); setEditIndex(null); setForm(EMPTY_FORM); setFormErrors({}); }}>
-              <i className="ti ti-files me-2"></i> Records
-            </button>
-          </li>
-          <li className="nav-item">
-            <button className={`nav-link px-4 py-2 rounded-pill fw-medium ${tab === "add" ? "active bg-indigo-500 text-white" : "text-dark bg-gray-100 hover:bg-gray-200"}`} onClick={() => { setTab("add"); setEditIndex(null); setForm(EMPTY_FORM); setFormErrors({}); }}>
-              <i className="ti ti-plus me-2"></i> Add Record
-            </button>
-          </li>
-          <li className="nav-item">
-            <button className={`nav-link px-4 py-2 rounded-pill fw-medium ${tab === "import" ? "active bg-indigo-500 text-white" : "text-dark bg-gray-100 hover:bg-gray-200"}`} onClick={() => { setTab("import"); setImportMsg(""); }}>
-              <i className="ti ti-upload me-2"></i> Import CSV
-            </button>
-          </li>
-          <li className="nav-item">
-            <button className={`nav-link px-4 py-2 rounded-pill fw-medium ${tab === "preview" ? "active bg-indigo-500 text-white" : "text-dark bg-gray-100 hover:bg-gray-200"}`} onClick={() => setTab("preview")}>
-              <i className="ti ti-printer me-2"></i> Preview Labels
-            </button>
-          </li>
-        </ul>
-
-        {tab === "records" && (
-          <div>
-            <div className="row g-3 mb-4">
-              <div className="col-md-6">
-                <div className="input-group shadow-sm">
-                  <span className="input-group-text bg-white"><i className="ti ti-search"></i></span>
-                  <input
-                    className="form-control border-start-0"
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    placeholder="Search records..."
-                  />
-                </div>
-              </div>
-              <div className="col-md-6 d-flex gap-3 justify-content-md-end">
-                <button className="btn btn-outline-secondary shadow-sm" onClick={toggleAll}>
-                  <i className="ti ti-checkbox me-2"></i>
-                  {selected.size === fr.length && fr.length > 0 ? "Deselect All" : "Select All"}
-                </button>
-                {selected.size > 0 && (
-                  <button className="btn btn-danger shadow-sm" onClick={deleteSelected}>
-                    <i className="ti ti-trash me-2"></i> Delete ({selected.size})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="row g-3 mb-4">
-              <div className="col-md-4">
-                <div className="card text-center border-0 shadow-sm h-100">
-                  <div className="card-body py-4">
-                    <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Total</small>
-                    <div className="fw-bold fs-2 text-dark">{records.length}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-md-4">
-                <div className="card text-center border-0 shadow-sm h-100">
-                  <div className="card-body py-4">
-                    <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Selected</small>
-                    <div className="fw-bold fs-2 text-indigo-500">{selected.size}</div>
-                  </div>
-                </div>
-              </div>
-              <div className="col-md-4">
-                <div className="card text-center border-0 shadow-sm h-100">
-                  <div className="card-body py-4">
-                    <small className="text-muted text-uppercase fw-bold" style={{ fontSize: "0.7rem" }}>Filtered</small>
-                    <div className="fw-bold fs-2 text-dark">{fr.length}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {fr.length === 0 ? (
-              <div className="text-center py-5 bg-white rounded-4 shadow-sm">
-                <i className="ti ti-file-off display-4 d-block mb-4 text-muted"></i>
-                <p className="text-muted fs-5">{search ? "No records match your search." : "No records yet. Add one or import a CSV."}</p>
-              </div>
-            ) : (
-              <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-                {fr.map((r) => {
-                  const realIdx = records.indexOf(r);
-                  return (
-                    <div key={realIdx}>
-                      <LabelCard record={r} selected={selected.has(realIdx)} onToggle={() => toggleSelect(realIdx)} index={realIdx} onEdit={startEdit} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === "add" && (
-          <div className="card shadow-lg border-0 rounded-4">
-            <div className="card-body p-5">
-              <h4 className="mb-5 fw-bold text-dark">
-                <i className="ti ti-edit me-3 text-indigo-500"></i>
-                {editIndex !== null ? "Edit Record" : "Add New Record"}
-              </h4>
-              <div className="row g-4">
-                {FIELDS.map(f => (
-                  <div key={f.key} className={`col-md-6 ${f.key === "related" ? "col-12" : ""}`}>
-                    <label className="form-label fw-medium mb-2 text-dark">
-                      <i className="ti ti-apps me-2 text-muted"></i>
-                      {f.label}
-                      {["code","project"].includes(f.key) && <span className="text-danger ms-1">*</span>}
-                    </label>
-                    <input
-                      className={`form-control py-3 rounded-3 ${formErrors[f.key] ? "is-invalid" : ""}`}
-                      value={form[f.key]}
-                      onChange={e => { setForm(p => ({ ...p, [f.key]: e.target.value })); setFormErrors(p => ({ ...p, [f.key]: "" })); }}
-                      placeholder={f.placeholder}
-                      style={{ fontFamily: "Tahoma" }}
-                    />
-                    {formErrors[f.key] && <div className="invalid-feedback">{formErrors[f.key]}</div>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="card mt-5 bg-gray-50 border-0 rounded-4">
-                <div className="card-body p-4">
-                  <h6 className="text-muted text-uppercase mb-4" style={{ fontSize: "0.8rem" }}>
-                    <i className="ti ti-eye me-2"></i> Preview
-                  </h6>
-                  <div className="border rounded-4 p-4 bg-white shadow-sm" style={{ maxWidth: 300, fontFamily: "Tahoma" }}>
-                    <div className="fw-bold mb-3 pb-3 border-bottom text-center font-mono fs-5">
-                      {form.code || <span className="text-muted">CODE</span>}
-                    </div>
-                    {FIELDS.filter(f => f.key !== "code").map(f => (
-                      <div key={f.key} className="d-flex justify-content-between mb-2 small">
-                        <span className="text-muted fw-medium">{f.label}</span>
-                        <span className={form[f.key] ? "text-dark" : "text-muted"}>{form[f.key] || f.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-5 d-flex gap-3">
-                <button className="btn btn-primary btn-lg px-5 shadow-sm" onClick={submitForm}>
-                  <i className={`ti ${editIndex !== null ? "ti-check" : "ti-plus"} me-2`}></i>
-                  {editIndex !== null ? "Save Changes" : "Add Record"}
-                </button>
-                <button className="btn btn-outline-secondary btn-lg px-5" onClick={() => { setForm(EMPTY_FORM); setFormErrors({}); setEditIndex(null); setTab("records"); }}>
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {tab === "import" && (
-          <div>
-            <div className="card mb-4 shadow-sm border-0 rounded-4">
-              <div className="card-body p-4">
-                <div className="d-flex align-items-center mb-4">
-                  <div className="bg-indigo-100 rounded-3 p-3 me-4">
-                    <i className="ti ti-file-type-csv fs-2 text-indigo-500"></i>
-                  </div>
-                  <div className="flex-grow-1">
-                    <h5 className="mb-2 fw-bold text-dark">CSV Template</h5>
-                    <small className="text-muted">Download and fill with your data</small>
-                  </div>
-                  <button className="btn btn-outline-primary shadow-sm" onClick={downloadTemplate}>
-                    <i className="ti ti-download me-2"></i> Download
-                  </button>
-                </div>
-                <div className="bg-dark text-light rounded-3 p-3 font-mono overflow-auto" style={{ fontSize: "0.85rem" }}>
-                  {FIELDS.map(f => f.key).join(", ")}
-                </div>
-              </div>
-            </div>
-
-            <div
-              className="border border-2 border-dashed rounded-4 text-center py-5 bg-white transition-all duration-200 hover:border-indigo-400 hover:bg-indigo-50"
-              style={{ cursor: "pointer" }}
-              onClick={() => fileRef.current.click()}
-              onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-indigo-500", "bg-indigo-50"); }}
-              onDragLeave={e => e.currentTarget.classList.remove("border-indigo-500", "bg-indigo-50")}
-              onDrop={e => { e.preventDefault(); fileRef.current.files = e.dataTransfer.files; fileRef.current.dispatchEvent(new Event("change")); }}
+        <nav className="p-4 space-y-1">
+          <p className="px-4 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Main Menu</p>
+          {navItems.map(item => (
+            <button
+              key={item.id}
+              onClick={() => { setTab(item.id); if(window.innerWidth < 1024) setIsSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200
+                ${tab === item.id
+                  ? 'bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-md shadow-primary-500/30'
+                  : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-primary-600'
+                }`}
             >
-              <div className="bg-gradient-to-r from-indigo-100 to-purple-100 rounded-4 p-4 d-inline-block mb-4">
-                <i className="ti ti-upload display-4 text-indigo-500 d-block"></i>
-              </div>
-              <h5 className="mb-3 fw-bold text-dark">Click to upload CSV</h5>
-              <p className="text-muted mb-0">Columns: {FIELDS.map(f => f.key).join(", ")}</p>
-              <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="d-none" />
-            </div>
+              <i className={`ti ${item.icon} text-lg`}></i>
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
-            {importMsg && (
-              <div className={`alert mt-4 ${importMsg.startsWith("✅") ? "alert-success" : "alert-danger"} shadow-sm`} role="alert">
-                {importMsg}
-              </div>
-            )}
+        <div className="absolute bottom-8 left-0 w-full px-6">
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700/50">
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1">Label Studio v1.0</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">Modern Document Archiving</p>
           </div>
-        )}
+        </div>
+      </aside>
 
-        {tab === "preview" && (
-          <div>
-            <div className="card mb-4 shadow-sm border-0 rounded-4">
-              <div className="card-body p-4 d-flex justify-content-between align-items-center">
-                <div>
-                  <h5 className="mb-2 fw-bold text-dark">{selected.size === 0 ? "No labels selected" : `${selected.size} label(s) ready`}</h5>
-                  <small className="text-muted">
-                    {selected.size === 0 ? "Select records on the Records tab" : `${LABEL_PRINT_COLS} per row, ${Math.ceil(selected.size / LABEL_PRINT_COLS)} rows`}
-                  </small>
-                </div>
-                {selected.size > 0 && (
-                  <div className="d-flex gap-3">
-                    <button className="btn btn-outline-primary shadow-sm" onClick={downloadExcel}>
-                      <i className="ti ti-file-excel me-2"></i> Export Excel
-                    </button>
-                    <button className="btn btn-success shadow-sm" onClick={printLabels}>
-                      <i className="ti ti-printer me-2"></i> Print Labels
-                    </button>
-                  </div>
-                )}
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Navbar */}
+        <header className="h-20 flex items-center justify-between px-4 lg:px-8 bg-white/80 dark:bg-[#2f3349]/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800/50 sticky top-0 z-40">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden text-slate-500 hover:text-slate-700 dark:text-slate-400">
+              <i className="ti ti-menu-2 text-2xl"></i>
+            </button>
+            <div className="hidden md:flex items-center bg-slate-100 dark:bg-slate-800/50 rounded-xl px-4 py-2 w-72 lg:w-96 border border-transparent focus-within:border-primary-500 transition-all">
+              <i className="ti ti-search text-slate-400 mr-2"></i>
+              <input
+                type="text"
+                placeholder="Search anything..."
+                className="bg-transparent border-none outline-none text-sm w-full dark:text-slate-200"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 lg:gap-4">
+            <button onClick={toggleTheme} className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <i className={`ti ${theme === 'light' ? 'ti-moon' : 'ti-sun'} text-xl`}></i>
+            </button>
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
+            <div className="flex items-center gap-3 ml-2">
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Admin User</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-tighter">System Administrator</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
+                <i className="ti ti-user text-slate-500 text-xl"></i>
               </div>
             </div>
+          </div>
+        </header>
 
-            {selected.size === 0 ? (
-              <div className="text-center py-5 bg-white rounded-4 shadow-sm">
-                <i className="ti ti-selector display-4 d-block mb-4 text-muted"></i>
-                <h5 className="fw-bold text-dark mb-3">No labels selected</h5>
-                <p className="text-muted mb-4">Go to Records tab and select the ones you want to print</p>
-                <button className="btn btn-primary shadow-sm" onClick={() => setTab("records")}>
-                  <i className="ti ti-arrow-right me-2"></i> Go to Records
-                </button>
-              </div>
-            ) : (
-              <div className="bg-white rounded-4 shadow-sm p-5">
-                <div className="mb-4 pb-4 border-bottom d-flex align-items-center gap-2">
-                  <i className="ti ti-scissors text-muted fs-5"></i>
-                  <h6 className="mb-0 text-muted fw-medium">Cut lines (✂) for cutting after printing</h6>
-                </div>
-                <div className="d-flex flex-wrap gap-4">
-                  {records.filter((_, i) => selected.has(i)).map((r, i) => (
-                    <div 
-                      key={i} 
-                      className="position-relative"
-                      style={{
-                        width: LABEL_WIDTH + 40,
-                        padding: "16px",
-                        border: "2px dashed #ccc",
-                        background: "white",
-                        boxSizing: "border-box",
-                      }}
-                    >
-                      <span 
-                        className="position-absolute text-muted"
-                        style={{ 
-                          top: -20, 
-                          left: "50%", 
-                          transform: "translateX(-50%)",
-                          fontSize: 18,
-                        }}
-                      >✂</span>
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Breadcrumb / Page Title */}
+            <div className="mb-8">
+              <h1 className="text-2xl font-extrabold text-slate-800 dark:text-slate-100 tracking-tight mb-1">
+                {navItems.find(i => i.id === tab)?.label}
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {tab === 'records' && 'Manage and organize your document labels.'}
+                {tab === 'add' && (editIndex !== null ? 'Update existing label information.' : 'Create a new document label entry.')}
+                {tab === 'import' && 'Batch upload labels from a CSV file.'}
+                {tab === 'preview' && 'Review and print selected labels.'}
+              </p>
+            </div>
+
+            {tab === "records" && (
+              <div className="space-y-6">
+                {/* Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                  {[
+                    { label: 'Total Records', value: records.length, icon: 'ti-files', color: 'text-primary-600', bg: 'bg-primary-50 dark:bg-primary-500/10' },
+                    { label: 'Selected', value: selected.size, icon: 'ti-checkbox', color: 'text-green-600', bg: 'bg-green-50 dark:bg-green-500/10' },
+                    { label: 'Search Results', value: fr.length, icon: 'ti-filter', color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-500/10' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white dark:bg-[#2f3349] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-5">
+                      <div className={`w-12 h-12 rounded-xl ${stat.bg} ${stat.color} flex items-center justify-center`}>
+                        <i className={`ti ${stat.icon} text-2xl`}></i>
+                      </div>
                       <div>
-                        <div className="fw-bold text-center pb-3 mb-3 border-bottom font-mono fs-6">
-                          {r.code}
-                        </div>
-                        {FIELDS.filter(f => f.key !== "code").map(f => (
-                          <div key={f.key} className="d-flex justify-content-between mb-2" style={{ fontSize: 11 }}>
-                            <span className="text-muted fw-bold" style={{ minWidth: 55 }}>{f.label}:</span>
-                            <span style={{ maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {r[f.key] || "—"}
-                            </span>
-                          </div>
-                        ))}
+                        <p className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-0.5">{stat.label}</p>
+                        <p className="text-2xl font-extrabold text-slate-800 dark:text-slate-100">{stat.value}</p>
                       </div>
                     </div>
                   ))}
                 </div>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-center bg-white dark:bg-[#2f3349] p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={toggleAll}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      <i className="ti ti-select mr-2"></i>
+                      {selected.size === fr.length && fr.length > 0 ? "Deselect All" : "Select All"}
+                    </button>
+                    {selected.size > 0 && (
+                      <button
+                        onClick={deleteSelected}
+                        className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                      >
+                        <i className="ti ti-trash mr-2"></i>
+                        Delete ({selected.size})
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setTab('add')}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary-600 text-white hover:bg-primary-700 transition-colors shadow-lg shadow-primary-500/25"
+                    >
+                      <i className="ti ti-plus mr-2"></i> Add Record
+                    </button>
+                  </div>
+                </div>
+
+                {/* Records Grid */}
+                {fr.length === 0 ? (
+                  <div className="bg-white dark:bg-[#2f3349] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-16 text-center">
+                    <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <i className="ti ti-file-off text-4xl text-slate-300"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">No records found</h3>
+                    <p className="text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                      {search ? "No records match your search criteria. Try a different term." : "Start by adding your first record or importing from a CSV."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {fr.map((r) => {
+                      const realIdx = records.indexOf(r);
+                      return (
+                        <LabelCard
+                          key={realIdx}
+                          record={r}
+                          selected={selected.has(realIdx)}
+                          onToggle={toggleSelect}
+                          index={realIdx}
+                          onEdit={startEdit}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "add" && (
+              <div className="bg-white dark:bg-[#2f3349] rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+                <div className="p-8">
+                  <div className="flex items-center gap-4 mb-10">
+                    <div className="w-12 h-12 rounded-2xl bg-primary-50 dark:bg-primary-500/10 flex items-center justify-center text-primary-600">
+                      <i className={`ti ${editIndex !== null ? 'ti-edit' : 'ti-plus'} text-2xl`}></i>
+                    </div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                      {editIndex !== null ? 'Edit Label Record' : 'Create New Label'}
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {FIELDS.map(f => (
+                      <div key={f.key} className={f.key === "related" ? "md:col-span-2" : ""}>
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">
+                          {f.label}
+                          {["code","project"].includes(f.key) && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className="relative group">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400 group-focus-within:text-primary-500 transition-colors">
+                            <i className={`ti ${f.icon} text-lg`}></i>
+                          </div>
+                          <input
+                            className={`w-full pl-11 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 border rounded-2xl text-sm transition-all focus:outline-none focus:ring-4 focus:ring-primary-500/10
+                              ${formErrors[f.key]
+                                ? 'border-red-300 dark:border-red-900 focus:border-red-500'
+                                : 'border-slate-100 dark:border-slate-700 focus:border-primary-500'}`}
+                            value={form[f.key]}
+                            onChange={e => { setForm(p => ({ ...p, [f.key]: e.target.value })); setFormErrors(p => ({ ...p, [f.key]: "" })); }}
+                            placeholder={f.placeholder}
+                          />
+                        </div>
+                        {formErrors[f.key] && <p className="mt-2 text-xs font-medium text-red-500 ml-1">{formErrors[f.key]}</p>}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-12 flex gap-4">
+                    <button
+                      onClick={submitForm}
+                      className="px-8 py-4 bg-primary-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-primary-500/25 hover:bg-primary-700 hover:-translate-y-0.5 transition-all active:translate-y-0"
+                    >
+                      <i className={`ti ${editIndex !== null ? 'ti-check' : 'ti-plus'} mr-2`}></i>
+                      {editIndex !== null ? 'Update Record' : 'Save Record'}
+                    </button>
+                    <button
+                      onClick={() => { setForm(EMPTY_FORM); setFormErrors({}); setEditIndex(null); setTab("records"); }}
+                      className="px-8 py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tab === "import" && (
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-[#2f3349] p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-500/10 flex items-center justify-center text-green-600">
+                        <i className="ti ti-file-type-csv text-2xl"></i>
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">CSV Template</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">Download the standard format to fill your data.</p>
+                      </div>
+                    </div>
+                    <button onClick={downloadTemplate} className="px-6 py-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-bold text-sm hover:bg-slate-200 transition-colors">
+                      <i className="ti ti-download mr-2"></i> Download Template
+                    </button>
+                  </div>
+                  <div className="bg-slate-900 rounded-2xl p-6 font-mono text-xs text-slate-300 overflow-x-auto border border-slate-800">
+                    <div className="text-slate-500 mb-2">// Required column headers</div>
+                    <div className="text-primary-400">{FIELDS.map(f => f.key).join(", ")}</div>
+                  </div>
+                </div>
+
+                <div
+                  className="bg-white dark:bg-[#2f3349] border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl p-16 text-center hover:border-primary-500 dark:hover:border-primary-500 transition-all cursor-pointer group"
+                  onClick={() => fileRef.current.click()}
+                  onDragOver={e => { e.preventDefault(); e.currentTarget.classList.add("border-primary-500", "bg-primary-50/10"); }}
+                  onDragLeave={e => e.currentTarget.classList.remove("border-primary-500", "bg-primary-50/10")}
+                  onDrop={e => { e.preventDefault(); fileRef.current.files = e.dataTransfer.files; fileRef.current.dispatchEvent(new Event("change")); }}
+                >
+                  <div className="w-20 h-20 bg-primary-50 dark:bg-primary-500/10 rounded-full flex items-center justify-center mx-auto mb-6 group-hover:scale-110 transition-transform">
+                    <i className="ti ti-cloud-upload text-4xl text-primary-600"></i>
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Drop your CSV here</h3>
+                  <p className="text-slate-500 dark:text-slate-400 mb-0">or click to browse from your computer</p>
+                  <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="hidden" />
+                </div>
+
+                {importMsg && (
+                  <div className={`p-4 rounded-2xl border flex items-center gap-3 animate-in fade-in slide-in-from-top-2 ${importMsg.startsWith("✅") ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-500/10 dark:border-green-900/50 dark:text-green-400' : 'bg-red-50 border-red-200 text-red-700 dark:bg-red-500/10 dark:border-red-900/50 dark:text-red-400'}`}>
+                    <i className={`ti ${importMsg.startsWith("✅") ? 'ti-circle-check' : 'ti-alert-circle'} text-xl`}></i>
+                    <span className="text-sm font-semibold">{importMsg}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === "preview" && (
+              <div className="space-y-6">
+                <div className="bg-white dark:bg-[#2f3349] p-6 lg:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${selected.size > 0 ? 'bg-primary-50 text-primary-600 dark:bg-primary-500/10' : 'bg-slate-50 text-slate-300 dark:bg-slate-800'}`}>
+                      <i className="ti ti-printer text-2xl"></i>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                        {selected.size === 0 ? "No labels selected" : `${selected.size} Labels Ready`}
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {selected.size === 0 ? "Go back to records and select items to print." : `Layout: ${LABEL_PRINT_COLS} columns per row.`}
+                      </p>
+                    </div>
+                  </div>
+                  {selected.size > 0 && (
+                    <div className="flex gap-3">
+                      <button onClick={downloadExcel} className="flex-1 md:flex-none px-6 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                        <i className="ti ti-file-excel mr-2"></i> Excel
+                      </button>
+                      <button onClick={printLabels} className="flex-1 md:flex-none px-8 py-3 bg-primary-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-primary-500/25 hover:bg-primary-700 transition-colors">
+                        <i className="ti ti-printer mr-2"></i> Print Labels
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {selected.size === 0 ? (
+                  <div className="bg-white dark:bg-[#2f3349] rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-20 text-center">
+                    <i className="ti ti-selection text-5xl text-slate-200 dark:text-slate-700 mb-6 block"></i>
+                    <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-3">No labels to preview</h3>
+                    <button onClick={() => setTab('records')} className="text-primary-600 font-bold hover:underline">
+                      Go to Records <i className="ti ti-arrow-right ml-1"></i>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-white dark:bg-[#2f3349] rounded-3xl border border-slate-200 dark:border-slate-800 p-8">
+                    <div className="flex items-center gap-3 mb-10 pb-6 border-b border-slate-100 dark:border-slate-800">
+                      <i className="ti ti-scissors text-slate-400"></i>
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Print Preview (with cut lines)</span>
+                    </div>
+                    <div className="flex flex-wrap gap-10 justify-center">
+                      {records.filter((_, i) => selected.has(i)).map((r, i) => (
+                        <div
+                          key={i}
+                          className="relative p-6 border-2 border-dashed border-slate-200 bg-white shadow-sm"
+                          style={{ width: LABEL_WIDTH + 40, boxSizing: "border-box" }}
+                        >
+                          <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-slate-400 text-xl">✂</span>
+                          <div className="text-center pb-4 mb-4 border-b-2 border-slate-100 font-mono font-bold text-slate-800">
+                            {r.code}
+                          </div>
+                          <div className="space-y-2">
+                            {FIELDS.filter(f => f.key !== "code").map(f => (
+                              <div key={f.key} className="flex justify-between text-[10px]">
+                                <span className="font-bold text-slate-400 uppercase">{f.label}</span>
+                                <span className="text-slate-800 font-medium truncate max-w-[100px] text-right">{r[f.key] || "—"}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
