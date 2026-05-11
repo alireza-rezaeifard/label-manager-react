@@ -1,0 +1,11 @@
+body {
+  font-family: 'Tahoma', Arial, sans-serif;
+}
+
+:root {
+  --color-primary: #6366f1;
+}
+
+.font-mono {
+  font-family: 'Consolas', 'Courier New', monospace;
+}
