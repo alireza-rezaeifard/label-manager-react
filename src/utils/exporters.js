@@ -2,6 +2,64 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
+
+const TEMPLATES = {
+  classic: {
+    name: 'کلاسیک',
+    getLabelHtml: (r, fields) => `
+      <div class="label-header">${r.code}</div>
+      <div class="label-row-content">
+        ${fields.filter(f => f.key !== "code").map(f => `
+          ${f.key === "related" ? (r.related && r.related.length > 0 ? `
+            <div class="label-field" style="margin-top: 4px;">
+              <span class="label-key">${f.fa}:</span>
+              <div class="label-related">${r.related.map(c => `<span class="label-related-badge">${c}</span>`).join('')}</div>
+            </div>` : '')
+          : `
+            <div class="label-field">
+              <span class="label-key">${f.fa}:</span>
+              <span class="label-value">${r[f.key] || ""}</span>
+            </div>`}`
+        ).join('')}
+      </div>`,
+  },
+  compact: {
+    name: 'فشرده',
+    getLabelHtml: (r, fields) => `
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
+        <div style="font-weight:bold;font-size:14px;font-family:monospace;flex:1;">${r.code}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:10px;">
+        ${fields.filter(f => f.key !== "code" && f.key !== "related").map(f => `
+          <div style="display:flex;gap:4px;">
+            <span style="font-weight:bold;color:#666;min-width:40px;">${f.fa}:</span>
+            <span style="text-align:right;">${r[f.key] || ""}</span>
+          </div>`).join('')}
+      </div>`,
+  },
+  detailed: {
+    name: 'جزئیات کامل',
+    getLabelHtml: (r, fields) => `
+      <div class="label-header">${r.code}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
+        ${fields.filter(f => f.key !== "code" && f.key !== "related").map(f => `
+          <div>
+            <div style="font-weight:bold;color:#666;font-size:9px;text-transform:uppercase;">${f.fa}</div>
+            <div>${r[f.key] || ""}</div>
+          </div>`).join('')}
+      </div>
+      ${r.related && r.related.length > 0 ? `
+        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #eee;">
+          <div style="font-weight:bold;color:#666;font-size:9px;">مرتبط:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">
+            ${r.related.map(c => `<span style="background:#7367f0;color:#fff;padding:2px 6px;border-radius:3px;font-size:9px;font-family:monospace;">${c}</span>`).join('')}
+          </div>
+        </div>` : ''}`,
+  },
+};
+
+export { TEMPLATES };
+
 export const downloadTemplate = (fields, template) => {
   const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
@@ -14,11 +72,7 @@ export const downloadExcel = (records, fields) => {
   const data = records.map(r => {
     const row = {};
     fields.forEach(f => {
-      if (f.key === "related") {
-        row[f.fa] = r.related ? r.related.join(', ') : "";
-      } else {
-        row[f.fa] = r[f.key] || "";
-      }
+      row[f.fa] = f.key === "related" ? (r.related ? r.related.join(', ') : "") : (r[f.key] || "");
     });
     return row;
   });
@@ -54,9 +108,20 @@ export const downloadPDF = async (element) => {
   pdf.save('labels_export.pdf');
 };
 
-export const getPrintHtml = (records, fields, cols, width, height) => {
+export const getPrintHtml = (records, fields, cols, width, height, templateKey = 'classic', showQr = false) => {
+  const template = TEMPLATES[templateKey] || TEMPLATES.classic;
   const totalRows = Math.ceil(records.length / cols);
   const gapSize = 12;
+
+  const qrScript = showQr ? `
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-qr]').forEach(function(el) {
+        new QRCode(el, { text: el.getAttribute('data-qr'), width: 56, height: 56 });
+      });
+    });
+    </script>` : '';
 
   return `<!DOCTYPE html>
 <html dir="rtl" lang="fa">
@@ -79,6 +144,7 @@ export const getPrintHtml = (records, fields, cols, width, height) => {
     .label-related { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; margin-top: 4px; direction: ltr; }
     .label-related-badge { background: #7c3aed; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-family: monospace; }
     .empty-cell { width: ${width + 20}px; height: ${height}px; }
+    .qr-placeholder { width: 56px; height: 56px; border: 1px solid #ddd; border-radius: 4px; flex-shrink: 0; }
     @page { size: A4; margin: 10mm; }
     @media print { body { padding: 10mm !important; } .label { border: 1px solid #333 !important; } .cut-indicator { display: none !important; } .empty-cell { border: 1px dashed #ddd; } }
   </style>
@@ -88,44 +154,25 @@ export const getPrintHtml = (records, fields, cols, width, height) => {
     ${Array.from({ length: totalRows }, (_, row) => {
       const rowLabels = records.slice(row * cols, (row + 1) * cols);
       return `<div class="label-row">` +
-        rowLabels.map((r) => `
-          <div class="label-wrapper">
-            <span class="cut-indicator">✂</span>
-            <div class="label">
-              <div class="label-header">${r.code}</div>
-              <div class="label-row-content">
-                ${fields.filter(f => f.key !== "code").map(f => `
-                  ${f.key === "related" ? `
-                    ${r.related && r.related.length > 0 ? `
-                      <div class="label-field" style="margin-top: 4px;">
-                        <span class="label-key">${f.fa}:</span>
-                        <div class="label-related">
-                          ${r.related.map(c => `<span class="label-related-badge">${c}</span>`).join('')}
-                        </div>
-                      </div>
-                    ` : ''}
-                  ` : `
-                    <div class="label-field">
-                      <span class="label-key">${f.fa}:</span>
-                      <span class="label-value">${r[f.key] || ""}</span>
-                    </div>
-                  `}`
-                ).join('')}
-              </div>
-            </div>
-          </div>
-        `).join('') +
+        rowLabels.map((r) => {
+          const labelContent = template.getLabelHtml(r, fields);
+          const content = showQr
+            ? `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;min-width:0;">${labelContent}</div><div class="qr-placeholder" data-qr="${r.code || 'label'}"></div></div>`
+            : labelContent;
+          return `<div class="label-wrapper"><span class="cut-indicator">✂</span><div class="label">${content}</div></div>`;
+        }).join('') +
         Array(cols - rowLabels.length).fill(`<div class="empty-cell"></div>`).join('') +
         `</div>`;
     }).join('')}
   </div>
+  ${qrScript}
   <script>window.onload = () => { window.print(); }</script>
 </body>
 </html>`;
 };
 
-export const printLabels = (records, fields, cols, width, height) => {
-  const html = getPrintHtml(records, fields, cols, width, height);
+export const printLabels = (records, fields, cols, width, height, templateKey, showQr) => {
+  const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr);
   const win = window.open("", "_blank");
   win.document.write(html);
   win.document.close();

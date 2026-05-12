@@ -3,7 +3,10 @@ const NAV_ITEMS = [
   { tab: 'add', icon: 'ti-plus', label: 'افزودن رکورد' },
   { tab: 'import', icon: 'ti-upload', label: 'ورود CSV' },
   { tab: 'preview', icon: 'ti-printer', label: 'پیش‌نمایش برچسب' },
+  { tab: 'reports', icon: 'ti-chart-bar', label: 'گزارش‌ها' },
   { tab: 'history', icon: 'ti-history', label: 'تاریخچه چاپ' },
+  { tab: 'profile', icon: 'ti-user', label: 'پروفایل' },
+  { tab: 'settings', icon: 'ti-settings', label: 'تنظیمات' },
 ];
 
 export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm }) {

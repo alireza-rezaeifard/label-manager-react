@@ -1,4 +1,4 @@
-export default function Header({ search, onSearchChange, theme, onToggleTheme, recordCount, onToggleSidebar }) {
+export default function Header({ search, onSearchChange, theme, onToggleTheme, recordCount, onToggleSidebar, onSettingsClick, onProfileClick }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -17,17 +17,17 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, r
       </div>
 
       <div className="header-right">
-        <button className="header-icon-btn">
+        <button className="header-icon-btn" onClick={onProfileClick}>
           <i className="ti ti-bell"></i>
           <span className="badge">{recordCount}</span>
         </button>
-        <button className="header-icon-btn">
+        <button className="header-icon-btn" onClick={onSettingsClick}>
           <i className="ti ti-settings"></i>
         </button>
         <button className="theme-toggle" onClick={onToggleTheme}>
           <i className={`ti ${theme === 'light' ? 'ti-moon' : 'ti-sun'}`}></i>
         </button>
-        <div className="user-dropdown">
+        <div className="user-dropdown" onClick={onProfileClick} style={{ cursor: 'pointer' }}>
           <div className="user-avatar">A</div>
           <span style={{ fontWeight: 500 }}>Admin</span>
           <i className="ti ti-chevron-down"></i>

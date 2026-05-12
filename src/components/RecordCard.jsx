@@ -21,10 +21,13 @@ export default function RecordCard({ record, selected, onToggle, onEdit, onView,
       onDragEnd={onDragEnd}
       onDrop={(e) => { e.preventDefault(); onDrop && onDrop(e); }}
     >
+      {record.color && (
+        <div style={{ height: 4, background: record.color }} />
+      )}
       <div className="label-card-header">
         <div className="d-flex align-items-center gap-2">
           <Checkbox checked={selected} onChange={onToggle} />
-          <span className={`code-badge ${selected ? '' : 'bg-light text-muted'}`}>
+          <span className={`code-badge ${selected ? '' : 'bg-light text-muted'}`} style={record.color && !selected ? { borderLeft: `3px solid ${record.color}` } : {}}>
             {record.code || '—'}
           </span>
         </div>

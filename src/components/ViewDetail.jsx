@@ -4,6 +4,12 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
   return (
     <div className="form-card fade-in">
       <div>
+        {record.image && (
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            <img src={record.image} alt={record.code}
+              style={{ maxWidth: '100%', maxHeight: 300, borderRadius: 12, border: '1px solid var(--border-color)', objectFit: 'contain' }} />
+          </div>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             <div className="stat-icon primary" style={{ width: 50, height: 50, fontSize: '1.5rem' }}>
