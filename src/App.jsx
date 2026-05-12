@@ -25,6 +25,9 @@ import PrintSettingsModal from './components/PrintSettingsModal';
 import BackupModal from './components/BackupModal';
 import QRScanner from './components/QRScanner';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
+import VirtualizedRecordGrid from './components/VirtualizedRecordGrid';
+import ShortcutsHelp from './components/ShortcutsHelp';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -119,6 +122,14 @@ export default function App() {
 
   const { toasts, addToast, removeToast } = useToast();
 
+  const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
+    try { return localStorage.getItem('use_virtual_scroll') === 'true'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch { /* may be full */ }
+  }, [useVirtualScroll]);
+
   const currentRecords = serverMode ? serverRecords : records;
 
   useEffect(() => {
@@ -150,18 +161,6 @@ export default function App() {
       api.getAllRecords(currentWorkspaceId).then(data => setServerRecords(data)).catch(() => {});
     }
   }, [serverMode, currentWorkspaceId]);
-
-  useEffect(() => {
-    const handleKey = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !serverMode && undoStack.length > 0) {
-        e.preventDefault();
-        undo();
-        addToast('عملیات لغو شد', 'success');
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [undo, undoStack, serverMode, addToast]);
 
   useEffect(() => {
     const handler = () => {
@@ -460,7 +459,7 @@ export default function App() {
         setServerLoading(true);
         try {
           await api.restore(data);
-          const refreshed = await api.getAllRecords(currentWorkspaceId);
+          await api.getAllRecords(currentWorkspaceId).then(setServerRecords);
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           setShowBackupModal(false);
@@ -644,6 +643,65 @@ export default function App() {
       addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
     }
   };
+
+  const keyboardHandlers = {
+    onNewRecord: () => { setEditIndex(null); setTab('add'); },
+    onEdit: () => {
+      const first = [...selected][0];
+      if (first !== undefined && currentRecords[first]) {
+        setEditIndex(first); setTab('add');
+      } else {
+        addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
+      }
+    },
+    onDuplicate: () => {
+      const first = [...selected][0];
+      if (first !== undefined && currentRecords[first]) {
+        const dup = { ...currentRecords[first], code: currentRecords[first].code + '-COPY' };
+        if (serverMode) {
+          api.createRecord({ ...dup, workspace_id: currentWorkspaceId }).then(() => {
+            api.getAllRecords(currentWorkspaceId).then(setServerRecords);
+          }).catch(e => addToast(e.message, 'error'));
+        } else {
+          addRecord(dup);
+        }
+        addToast('رکورد کپی شد', 'success');
+      } else {
+        addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
+      }
+    },
+    onDelete: () => handleDelete(),
+    onSearch: () => {
+      const input = document.querySelector('.search-box input');
+      if (input) { input.focus(); input.select(); }
+    },
+    onSave: () => {
+      const form = document.querySelector('.form-card');
+      if (form && tab === 'add') {
+        const submitBtn = form.querySelector('.btn-primary');
+        submitBtn?.click();
+      }
+    },
+    onSelectAll: () => toggleAll(),
+    onEscape: () => {
+      if (showPrintSettings) { setShowPrintSettings(false); return; }
+      if (showBackupModal) { setShowBackupModal(false); return; }
+      if (showBulkEdit) { setShowBulkEdit(false); return; }
+      if (showScanner) { setShowScanner(false); return; }
+      if (editIndex !== null) { setEditIndex(null); setTab('records'); return; }
+      if (viewIndex !== null) { setViewIndex(null); setTab('records'); return; }
+      if (selected.size > 0) { setSelected(new Set()); return; }
+    },
+    onUndo: () => {
+      if (!serverMode && undoStack.length > 0) {
+        undo();
+        addToast('عملیات لغو شد', 'success');
+      }
+    },
+    onTabChange: (t) => { setEditIndex(null); setTab(t); },
+  };
+
+  const { showHelp: showShortcutsHelp, setShowHelp: setShowShortcutsHelp } = useKeyboardShortcuts(keyboardHandlers);
 
   const availLabels = editIndex !== null
     ? currentRecords.filter(r => r.code !== currentRecords[editIndex]?.code)
@@ -845,6 +903,21 @@ export default function App() {
                       <i className="ti ti-plus"></i> افزودن رکورد
                     </button>
                   </div>
+                ) : useVirtualScroll ? (
+                  <VirtualizedRecordGrid
+                    records={sortedRecords}
+                    recordToIndex={recordToIndex}
+                    selected={selected}
+                    onToggle={toggleSelect}
+                    onEdit={handleEdit}
+                    onView={handleView}
+                    getRelatedLabels={findRelated}
+                    onDragStart={handleDragStart}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragEnd={() => setDragIndex(null)}
+                    onDrop={handleDrop}
+                    setDragIndex={setDragIndex}
+                  />
                 ) : (
                   <>
                     <div className="card-grid" key={refreshKey}>
@@ -881,6 +954,12 @@ export default function App() {
                     </div>
                   </>
                 )}
+                <div className="d-flex justify-content-center mt-4">
+                  <button className="btn btn-outline btn-sm" onClick={() => setUseVirtualScroll(p => !p)}>
+                    <i className={`ti ${useVirtualScroll ? 'ti-grid' : 'ti-list'}`}></i>
+                    {useVirtualScroll ? 'حالت صفحه‌بندی' : 'حالت مجازی (سریع)'}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -959,12 +1038,16 @@ export default function App() {
                 tags={tags}
                 onAddTag={handleAddTag}
                 onRemoveTag={handleRemoveTag}
+                useVirtualScroll={useVirtualScroll}
+                onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
               />
             )}
           </div>
         </main>
 
         <Toast toasts={toasts} onRemove={removeToast} />
+
+        <ShortcutsHelp show={showShortcutsHelp} onClose={() => setShowShortcutsHelp(false)} />
 
         <PrintSettingsModal
           show={showPrintSettings}

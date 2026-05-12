@@ -4,6 +4,7 @@ export default function SettingsTab({
   customFields, onAddField, onRemoveField, newFieldName, onNewFieldNameChange,
   serverMode, authUser,
   tags, onAddTag, onRemoveTag,
+  useVirtualScroll, onToggleVirtualScroll,
 }) {
   const [newTag, setNewTag] = useState('');
 
@@ -104,6 +105,28 @@ export default function SettingsTab({
           <button className="btn btn-primary" onClick={onAddField}>
             <i className="ti ti-plus"></i> افزودن
           </button>
+        </div>
+      </div>
+
+      <div className="form-card" style={{ marginTop: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="stat-icon success"><i className="ti ti-zap"></i></div>
+          <div>
+            <h4 style={{ margin: 0 }}>عملکرد (Performance)</h4>
+            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+              تنظیمات بهینه‌سازی برای حجم بالای داده
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0' }}>
+          <div>
+            <div style={{ fontWeight: 500 }}>نمایش مجازی (Virtual Scroll)</div>
+            <div style={{ opacity: 0.6, fontSize: '0.85rem' }}>حافظه و پردازش کمتر برای هزاران رکورد</div>
+          </div>
+          <label className="toggle-switch">
+            <input type="checkbox" checked={useVirtualScroll} onChange={onToggleVirtualScroll} />
+            <span className="toggle-slider"></span>
+          </label>
         </div>
       </div>
     </div>
