@@ -108,7 +108,12 @@ export const downloadPDF = async (element) => {
   pdf.save('labels_export.pdf');
 };
 
-export const getPrintHtml = (records, fields, cols, width, height, templateKey = 'classic', showQr = false) => {
+function encodeBarcodeData(r) {
+  const val = v => (v ?? '').replace(/"/g, "'");
+  return `C:${val(r.code)} P:${val(r.project)} T:${val(r.type)} D:${val(r.date)} A:${val(r.party)} M:${val(r.amount)}`;
+}
+
+export const getPrintHtml = (records, fields, cols, width, height, templateKey = 'classic', showQr = false, showBarcode = false) => {
   const template = TEMPLATES[templateKey] || TEMPLATES.classic;
   const totalRows = Math.ceil(records.length / cols);
   const gapSize = 12;
@@ -118,7 +123,23 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
     <script>
     document.addEventListener('DOMContentLoaded', function() {
       document.querySelectorAll('[data-qr]').forEach(function(el) {
-        new QRCode(el, { text: el.getAttribute('data-qr'), width: 56, height: 56 });
+        new QRCode(el, { text: el.getAttribute('data-qr'), width: 100, height: 100 });
+      });
+    });
+    </script>` : '';
+
+  const barcodeScript = showBarcode ? `
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('[data-barcode]').forEach(function(el) {
+        JsBarcode(el, el.getAttribute('data-barcode'), {
+          format: 'CODE128',
+          width: 1.5,
+          height: 36,
+          displayValue: false,
+          margin: 4,
+        });
       });
     });
     </script>` : '';
@@ -144,7 +165,7 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
     .label-related { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; margin-top: 4px; direction: ltr; }
     .label-related-badge { background: #7c3aed; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-family: monospace; }
     .empty-cell { width: ${width + 20}px; height: ${height}px; }
-    .qr-placeholder { width: 56px; height: 56px; border: 1px solid #ddd; border-radius: 4px; flex-shrink: 0; }
+    .qr-placeholder { width: 100px; height: 100px; border: 1px solid #ddd; border-radius: 4px; flex-shrink: 0; }
     @page { size: A4; margin: 10mm; }
     @media print { body { padding: 10mm !important; } .label { border: 1px solid #333 !important; } .cut-indicator { display: none !important; } .empty-cell { border: 1px dashed #ddd; } }
   </style>
@@ -156,9 +177,16 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
       return `<div class="label-row">` +
         rowLabels.map((r) => {
           const labelContent = template.getLabelHtml(r, fields);
-          const content = showQr
-            ? `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;min-width:0;">${labelContent}</div><div class="qr-placeholder" data-qr="${r.code || 'label'}"></div></div>`
-            : labelContent;
+          let content = labelContent;
+          if (showQr && showBarcode) {
+            const barcodeData = encodeBarcodeData(r);
+            content = `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;min-width:0;">${labelContent}</div><div class="qr-placeholder" data-qr="${encodeBarcodeData(r)}"></div></div><div style="margin-top:6px;text-align:center;"><svg data-barcode="${barcodeData}"></svg></div>`;
+          } else if (showQr) {
+            content = `<div style="display:flex;gap:8px;align-items:flex-start;"><div style="flex:1;min-width:0;">${labelContent}</div><div class="qr-placeholder" data-qr="${encodeBarcodeData(r)}"></div></div>`;
+          } else if (showBarcode) {
+            const barcodeData = encodeBarcodeData(r);
+            content = `${labelContent}<div style="margin-top:6px;text-align:center;"><svg data-barcode="${barcodeData}"></svg></div>`;
+          }
           return `<div class="label-wrapper"><span class="cut-indicator">✂</span><div class="label">${content}</div></div>`;
         }).join('') +
         Array(cols - rowLabels.length).fill(`<div class="empty-cell"></div>`).join('') +
@@ -166,13 +194,14 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
     }).join('')}
   </div>
   ${qrScript}
+  ${barcodeScript}
   <script>window.onload = () => { window.print(); }</script>
 </body>
 </html>`;
 };
 
-export const printLabels = (records, fields, cols, width, height, templateKey, showQr) => {
-  const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr);
+export const printLabels = (records, fields, cols, width, height, templateKey, showQr, showBarcode) => {
+  const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr, showBarcode);
   const win = window.open("", "_blank");
   win.document.write(html);
   win.document.close();

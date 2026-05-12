@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
@@ -44,12 +44,12 @@ export default function App() {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords,
     undo, undoStack,
-    getRelatedLabels,
     isDuplicateCode,
   } = useRecords();
 
   const [serverRecords, setServerRecords] = useState([]);
   const [serverLoading, setServerLoading] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [tab, setTab] = useState('records');
@@ -71,6 +71,7 @@ export default function App() {
   const [printHeight, setPrintHeight] = useState(LABEL_HEIGHT);
   const [printTemplate, setPrintTemplate] = useState('classic');
   const [printQr, setPrintQr] = useState(false);
+  const [printBarcode, setPrintBarcode] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
 
   const [customFields, setCustomFields] = useState(loadCustomFields);
@@ -95,6 +96,14 @@ export default function App() {
     window.addEventListener('auth-change', handleAuthChange);
     return () => window.removeEventListener('auth-change', handleAuthChange);
   }, [theme]);
+
+  const fetchedRef = useRef(false);
+  useEffect(() => {
+    if (serverMode && !fetchedRef.current) {
+      fetchedRef.current = true;
+      api.getRecords().then(data => setServerRecords(data)).catch(() => {});
+    }
+  }, [serverMode]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -175,31 +184,51 @@ export default function App() {
   };
 
   const handleSubmit = async (recordData) => {
-    let ok = true;
     if (editIndex !== null) {
       if (serverMode) {
         const record = currentRecords[editIndex];
-        ok = await serverOp(async () => {
-          const updated = await api.updateRecord(record.id, recordData);
-          setServerRecords(p => p.map((r, i) => i === editIndex ? { ...updated } : r));
-        });
+        if (!record) { addToast('رکورد یافت نشد', 'error'); return; }
+        setServerLoading(true);
+        try {
+          await api.updateRecord(record.id, recordData);
+          const refreshed = await api.getRecords();
+          setServerRecords(refreshed);
+          setRefreshKey(k => k + 1);
+          setServerLoading(false);
+          setEditIndex(null);
+          addToast('رکورد با موفقیت ویرایش شد', 'success');
+          setTab('records');
+        } catch (err) {
+          setServerLoading(false);
+          addToast('خطا در ویرایش: ' + err.message, 'error');
+        }
       } else {
         updateRecord(editIndex, recordData);
+        setEditIndex(null);
+        addToast('رکورد با موفقیت ویرایش شد', 'success');
+        setTab('records');
       }
-      setEditIndex(null);
-      if (ok) addToast('رکورد با موفقیت ویرایش شد', 'success');
     } else {
       if (serverMode) {
-        ok = await serverOp(async () => {
-          const created = await api.createRecord(recordData);
-          setServerRecords(p => [created, ...p]);
-        });
+        setServerLoading(true);
+        try {
+          await api.createRecord(recordData);
+          const refreshed = await api.getRecords();
+          setServerRecords(refreshed);
+          setRefreshKey(k => k + 1);
+          setServerLoading(false);
+          addToast('رکورد با موفقیت اضافه شد', 'success');
+          setTab('records');
+        } catch (err) {
+          setServerLoading(false);
+          addToast('خطا در ایجاد: ' + err.message, 'error');
+        }
       } else {
         addRecord(recordData);
+        addToast('رکورد با موفقیت اضافه شد', 'success');
+        setTab('records');
       }
-      if (ok) addToast('رکورد با موفقیت اضافه شد', 'success');
     }
-    if (ok) setTab('records');
   };
 
   const handleEdit = (i) => { setEditIndex(i); setTab('add'); };
@@ -209,18 +238,27 @@ export default function App() {
     const count = selected.size;
     if (count === 0) return;
 
-    let ok = true;
     if (serverMode) {
-      const ids = [...selected].map(i => currentRecords[i].id).filter(Boolean);
-      ok = await serverOp(async () => {
+      const ids = [...selected].map(i => currentRecords[i]?.id).filter(Boolean);
+      if (ids.length === 0) { addToast('هیچ رکوردی برای حذف انتخاب نشده', 'error'); return; }
+      setServerLoading(true);
+      try {
         await api.deleteRecords(ids);
-        setServerRecords(p => p.filter((_, i) => !selected.has(i)));
-      });
+        const refreshed = await api.getRecords();
+        setServerRecords(refreshed);
+        setRefreshKey(k => k + 1);
+        setSelected(new Set());
+        setServerLoading(false);
+        addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
+      } catch (err) {
+        setServerLoading(false);
+        addToast('خطا در حذف: ' + err.message, 'error');
+      }
     } else {
       deleteRecords(selected);
+      setSelected(new Set());
+      addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
     }
-    setSelected(new Set());
-    if (ok) addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
   };
 
   const handleImport = async (imported) => {
@@ -246,7 +284,7 @@ export default function App() {
   const handlePrint = () => {
     const sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    exportUtils.printLabels(sel, FIELDS, printCols, printWidth, printHeight, printTemplate, printQr);
+    exportUtils.printLabels(sel, FIELDS, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     const entry = {
       date: new Date().toLocaleDateString('fa-IR'),
       time: new Date().toLocaleTimeString('fa-IR'),
@@ -299,16 +337,24 @@ export default function App() {
       if (!Array.isArray(data)) throw new Error('فرمت فایل نامعتبر');
 
       if (serverMode) {
-        await serverOp(async () => {
-          await api.restore(data);
-          const refreshed = await api.getRecords();
-          setServerRecords(refreshed);
-        });
+        setServerLoading(true);
+        try {
+        await api.restore(data);
+        const refreshed = await api.getRecords();
+        setServerRecords(refreshed);
+        setRefreshKey(k => k + 1);
+        setServerLoading(false);
+          setShowBackupModal(false);
+          addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
+        } catch (err) {
+          setServerLoading(false);
+          addToast('خطا در بازیابی: ' + err.message, 'error');
+        }
       } else {
         setRecords(data);
+        setShowBackupModal(false);
+        addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
       }
-      setShowBackupModal(false);
-      addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
     } catch (err) {
       addToast('خطا در بازیابی: ' + err.message, 'error');
     }
@@ -324,6 +370,7 @@ export default function App() {
     } else {
       setLocalMode(false);
       localStorage.setItem('local_mode', 'false');
+      fetchedRef.current = false;
       setAuthUser(user);
       setServerMode(true);
       setTab('records');
@@ -333,6 +380,7 @@ export default function App() {
   };
 
   const handleLoginGoToServer = () => {
+    fetchedRef.current = false;
     setLocalMode(false);
     localStorage.removeItem('local_mode');
     setServerMode(false);
@@ -343,6 +391,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('auth_user');
+    fetchedRef.current = false;
     setLocalMode(true);
     localStorage.setItem('local_mode', 'true');
     setServerMode(false);
@@ -376,6 +425,10 @@ export default function App() {
     : currentRecords;
   const editRecord = editIndex !== null ? currentRecords[editIndex] : null;
   const selectedRecords = currentRecords.filter((_, i) => selected.has(i));
+  const findRelated = (codes) => {
+    if (!codes || !codes.length) return [];
+    return currentRecords.filter(r => codes.includes(r.code));
+  };
 
   if (!serverMode && !authUser && !getAuthUser() && !localMode) {
     return <LoginPage onLogin={handleLogin} />;
@@ -512,7 +565,7 @@ export default function App() {
                 </div>
               ) : (
                 <>
-                  <div className="card-grid">
+                  <div className="card-grid" key={refreshKey}>
                     {pagedRecords.map((r) => {
                       const realIdx = currentRecords.indexOf(r);
                       return (
@@ -523,7 +576,7 @@ export default function App() {
                           onToggle={() => toggleSelect(realIdx)}
                           onEdit={() => handleEdit(realIdx)}
                           onView={() => handleView(realIdx)}
-                          getRelatedLabels={getRelatedLabels}
+                          getRelatedLabels={findRelated}
                           index={realIdx}
                           onDragStart={(e) => handleDragStart(e, realIdx)}
                           onDragOver={(e) => e.preventDefault()}
@@ -533,15 +586,16 @@ export default function App() {
                       );
                     })}
                   </div>
-                  {totalPages > 1 && (
-                    <div className="pagination">
-                      <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>قبلی</button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                        <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-                      ))}
-                      <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>بعدی</button>
-                    </div>
-                  )}
+                  <div className="pagination" style={totalPages <= 1 ? { justifyContent: 'center', opacity: 0.6 } : {}}>
+                    <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>قبلی</button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                      <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
+                    ))}
+                    <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>بعدی</button>
+                    <span style={{ marginRight: '0.75rem', opacity: 0.6, fontSize: '0.85rem' }}>
+                      {fr.length > 0 ? `${(safePage - 1) * PAGE_SIZE + 1}-${Math.min(safePage * PAGE_SIZE, fr.length)} از ${fr.length}` : '۰ رکورد'}
+                    </span>
+                  </div>
                 </>
               )}
             </div>
@@ -568,10 +622,10 @@ export default function App() {
           {tab === 'view' && viewIndex !== null && (
             <ViewDetail
               record={currentRecords[viewIndex]}
-              relatedRecords={getRelatedLabels(currentRecords[viewIndex].related)}
+              relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
               onEdit={() => handleEdit(viewIndex)}
               onNavigateToRelated={(rel) => {
-                const idx = currentRecords.indexOf(rel);
+                const idx = currentRecords.findIndex(r => r.code === rel.code);
                 if (idx !== -1) setViewIndex(idx);
               }}
             />
@@ -590,7 +644,14 @@ export default function App() {
           )}
 
           {tab === 'profile' && (
-            <ProfileTab authUser={authUser} serverMode={serverMode} onLogin={handleLoginGoToServer} />
+            <ProfileTab
+              authUser={authUser}
+              serverMode={serverMode}
+              recordCount={currentRecords.length}
+              onLogin={handleLoginGoToServer}
+              onBackup={handleBackup}
+              onOpenBackupModal={() => setShowBackupModal(true)}
+            />
           )}
 
           {tab === 'settings' && (
@@ -644,6 +705,12 @@ export default function App() {
               <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
                 <input type="checkbox" checked={printQr} onChange={e => setPrintQr(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
                 نمایش QR Code روی برچسب
+              </label>
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={printBarcode} onChange={e => setPrintBarcode(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
+                نمایش بارکد روی برچسب
               </label>
             </div>
             <button className="btn btn-primary w-100" onClick={() => setShowPrintSettings(false)}>تایید</button>

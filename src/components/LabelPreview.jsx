@@ -1,6 +1,14 @@
+import { useState } from 'react';
 import { FIELDS } from '../data/fields';
 
+const PREVIEW_PAGE_SIZE = 12;
+
 export default function LabelPreview({ selectedRecords, onGoToRecords }) {
+  const [page, setPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(selectedRecords.length / PREVIEW_PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedRecords = selectedRecords.slice((safePage - 1) * PREVIEW_PAGE_SIZE, safePage * PREVIEW_PAGE_SIZE);
+
   if (!selectedRecords.length) {
     return (
       <div className="empty-state">
@@ -16,6 +24,9 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
     );
   }
 
+  const startItem = (safePage - 1) * PREVIEW_PAGE_SIZE + 1;
+  const endItem = Math.min(safePage * PREVIEW_PAGE_SIZE, selectedRecords.length);
+
   return (
     <div className="fade-in">
       <div className="d-flex align-items-center gap-2 mb-4 p-3" style={{
@@ -27,8 +38,8 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
       </div>
 
       <div className="preview-grid" dir="rtl" id="preview-grid">
-        {selectedRecords.map((r, i) => (
-          <div key={i} className="preview-label" style={{ direction: 'rtl', minHeight: 200 }}>
+        {pagedRecords.map((r, i) => (
+          <div key={r.code || i} className="preview-label" style={{ direction: 'rtl', minHeight: 200 }}>
             <span className="cut-marker">✂</span>
             <div>
               <div style={{
@@ -54,6 +65,25 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
           </div>
         ))}
       </div>
+
+      {totalPages > 1 && (
+        <div className="pagination" style={{ marginTop: '1.5rem' }}>
+          <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>
+            قبلی
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>
+              {p}
+            </button>
+          ))}
+          <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>
+            بعدی
+          </button>
+          <span style={{ marginRight: '1rem', opacity: 0.6, fontSize: '0.85rem' }}>
+            {startItem}-{endItem} از {selectedRecords.length}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
