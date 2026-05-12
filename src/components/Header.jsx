@@ -1,4 +1,8 @@
-export default function Header({ search, onSearchChange, theme, onToggleTheme, recordCount, onToggleSidebar, onSettingsClick, onProfileClick }) {
+import { useState } from 'react';
+
+export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick }) {
+  const [notifications] = useState([]);
+
   return (
     <header className="header">
       <div className="header-left">
@@ -17,14 +21,16 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, r
       </div>
 
       <div className="header-right">
-        <button className="header-icon-btn" onClick={onProfileClick}>
+        <button className="header-icon-btn" title="اعلان‌ها">
           <i className="ti ti-bell"></i>
-          <span className="badge">{recordCount}</span>
+          {notifications.length > 0 && (
+            <span className="badge">{notifications.length}</span>
+          )}
         </button>
-        <button className="header-icon-btn" onClick={onSettingsClick}>
+        <button className="header-icon-btn" onClick={onSettingsClick} title="تنظیمات">
           <i className="ti ti-settings"></i>
         </button>
-        <button className="theme-toggle" onClick={onToggleTheme}>
+        <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'light' ? 'حالت تاریک' : 'حالت روشن'}>
           <i className={`ti ${theme === 'light' ? 'ti-moon' : 'ti-sun'}`}></i>
         </button>
         <div className="user-dropdown" onClick={onProfileClick} style={{ cursor: 'pointer' }}>

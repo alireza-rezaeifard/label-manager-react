@@ -23,7 +23,7 @@ async function apiRequest(path, options = {}) {
     try {
       const err = await res.json();
       msg = err.error || msg;
-    } catch { /* ignore */ }
+    } catch { /* ignore parse error */ }
     throw new Error(msg);
   }
   return res.json();
@@ -49,7 +49,17 @@ export const api = {
   register: (username, password) =>
     apiRequest('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
 
-  getRecords: () => apiRequest('/records'),
+  getRecords: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
+    const q = qs.toString();
+    return apiRequest(`/records${q ? '?' + q : ''}`);
+  },
+
+  getAllRecords: (workspaceId) => {
+    const qs = workspaceId ? `?workspace_id=${workspaceId}&limit=200` : '?limit=200';
+    return apiRequest(`/records${qs}`).then(r => r.records || r);
+  },
 
   createRecord: (record) =>
     apiRequest('/records', { method: 'POST', body: JSON.stringify(record) }),
@@ -63,11 +73,30 @@ export const api = {
   reorder: (ids) =>
     apiRequest('/records/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
-  backup: () => apiRequest('/records/backup'),
+  backup: (workspaceId) =>
+    apiRequest(`/records/backup${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
-  restore: (records) =>
-    apiRequest('/records/restore', { method: 'POST', body: JSON.stringify({ records }) }),
+  restore: (records, workspaceId) =>
+    apiRequest('/records/restore', { method: 'POST', body: JSON.stringify({ records, workspace_id: workspaceId }) }),
 
   uploadImage: (base64) =>
     apiRequest('/upload-image', { method: 'POST', body: JSON.stringify({ image: base64 }) }),
+
+  getActivity: (workspaceId) =>
+    apiRequest(`/records/activity${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
+
+  getWorkspaces: () =>
+    apiRequest('/workspaces'),
+
+  createWorkspace: (name, description) =>
+    apiRequest('/workspaces', { method: 'POST', body: JSON.stringify({ name, description }) }),
+
+  inviteToWorkspace: (workspaceId, username) =>
+    apiRequest('/workspaces/invite', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, username }) }),
+
+  getWorkspaceMembers: (workspaceId) =>
+    apiRequest(`/workspaces/${workspaceId}/members`),
+
+  leaveWorkspace: (workspaceId) =>
+    apiRequest(`/workspaces/${workspaceId}/leave`, { method: 'DELETE' }),
 };

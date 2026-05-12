@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
-export default function ReportsTab({ records }) {
+export default function ReportsTab({ records, onFilter }) {
   const [reportType, setReportType] = useState('type');
 
   const typeData = useMemo(() => {
@@ -69,6 +69,11 @@ export default function ReportsTab({ records }) {
 
   const isPie = reportType !== 'monthly' && reportType !== 'amount';
 
+  const handleChartClick = (entry) => {
+    if (!onFilter || !entry || !entry.name) return;
+    onFilter(reportType, entry.name);
+  };
+
   const totalCount = records.length;
   const totalAmount = records.reduce((sum, r) => {
     const num = parseInt(String(r.amount || '0').replace(/[^0-9]/g, ''), 10) || 0;
@@ -131,11 +136,20 @@ export default function ReportsTab({ records }) {
           </div>
         </div>
 
+        {onFilter && (
+          <div style={{ marginBottom: '1rem', fontSize: '0.8rem', opacity: 0.6, textAlign: 'center' }}>
+            <i className="ti ti-click"></i> روی هر بخش از نمودار کلیک کنید تا رکوردهای مربوطه فیلتر شوند
+          </div>
+        )}
+
         <div style={{ width: '100%', height: 350 }}>
           <ResponsiveContainer>
             {isPie ? (
               <PieChart>
-                <Pie data={currentData} cx="50%" cy="50%" outerRadius={120} fill="#8884d8" dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+                <Pie data={currentData} cx="50%" cy="50%" outerRadius={120} fill="#8884d8" dataKey="value"
+                  label={({ name, value }) => `${name}: ${value}`}
+                  onClick={handleChartClick}
+                  style={{ cursor: 'pointer' }}>
                   {currentData.map((_, i) => (
                     <Cell key={i} fill={COLORS[i % COLORS.length]} />
                   ))}
@@ -144,7 +158,12 @@ export default function ReportsTab({ records }) {
                 <Legend />
               </PieChart>
             ) : (
-              <BarChart data={currentData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <BarChart data={currentData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                onClick={(e) => {
+                  if (e?.activePayload?.[0]?.payload) {
+                    handleChartClick(e.activePayload[0].payload);
+                  }
+                }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
                 <YAxis />
                 <Tooltip />

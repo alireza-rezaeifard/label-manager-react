@@ -1,11 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
-
+import ErrorBoundary from './components/ErrorBoundary';
+import LoadingScreen from './components/LoadingScreen';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import StatsCards from './components/StatsCards';
@@ -18,21 +19,40 @@ import Toast from './components/Toast';
 import ReportsTab from './components/ReportsTab';
 import LoginPage from './components/LoginPage';
 import ProfileTab from './components/ProfileTab';
+import HistoryTab from './components/HistoryTab';
+import SettingsTab from './components/SettingsTab';
+import PrintSettingsModal from './components/PrintSettingsModal';
+import BackupModal from './components/BackupModal';
+import QRScanner from './components/QRScanner';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
+const TAGS_KEY = 'label-studio-tags';
 
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
 }
 function saveHistory(h) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* */ }
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* localStorage may be full */ }
 }
 function loadCustomFields() {
   try { return JSON.parse(localStorage.getItem(CUSTOM_FIELDS_KEY) || '[]'); } catch { return []; }
 }
 function saveCustomFields(f) {
-  try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch { /* */ }
+  try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch { /* localStorage may be full */ }
+}
+function loadTags() {
+  try { return JSON.parse(localStorage.getItem(TAGS_KEY) || '[]'); } catch { return []; }
+}
+function saveTags(t) {
+  try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch { /* localStorage may be full */ }
+}
+
+function getTabFromHash() {
+  const hash = window.location.hash.replace('#', '');
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
+  return validTabs.includes(hash) ? hash : null;
 }
 
 export default function App() {
@@ -50,15 +70,15 @@ export default function App() {
   const [serverRecords, setServerRecords] = useState([]);
   const [serverLoading, setServerLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const fetchedRef = useRef(false);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-  const [tab, setTab] = useState('records');
+  const [tab, setTab] = useState(() => getTabFromHash() || 'records');
   const [selected, setSelected] = useState(new Set());
   const [editIndex, setEditIndex] = useState(null);
   const [viewIndex, setViewIndex] = useState(null);
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [importMsg, setImportMsg] = useState('');
 
   const [sortBy, setSortBy] = useState(null);
   const [sortOrder, setSortOrder] = useState('asc');
@@ -79,6 +99,24 @@ export default function App() {
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupFile, setBackupFile] = useState(null);
 
+  const [tags, setTags] = useState(loadTags);
+  const [selectedTagFilter, setSelectedTagFilter] = useState(null);
+  const [filterType, setFilterType] = useState('');
+  const [filterParty, setFilterParty] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
+  const [filterAmountMin, setFilterAmountMin] = useState('');
+  const [filterAmountMax, setFilterAmountMax] = useState('');
+  const [bulkEditField, setBulkEditField] = useState('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [workspaces, setWorkspaces] = useState([]);
+  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(() => {
+    const saved = localStorage.getItem('current_workspace_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+
   const { toasts, addToast, removeToast } = useToast();
 
   const currentRecords = serverMode ? serverRecords : records;
@@ -97,13 +135,21 @@ export default function App() {
     return () => window.removeEventListener('auth-change', handleAuthChange);
   }, [theme]);
 
-  const fetchedRef = useRef(false);
   useEffect(() => {
     if (serverMode && !fetchedRef.current) {
       fetchedRef.current = true;
-      api.getRecords().then(data => setServerRecords(data)).catch(() => {});
+
+      api.getWorkspaces().then(wsList => {
+        setWorkspaces(wsList);
+        if (!currentWorkspaceId && wsList.length > 0) {
+          setCurrentWorkspaceId(wsList[0].id);
+          localStorage.setItem('current_workspace_id', String(wsList[0].id));
+        }
+      }).catch(() => {});
+
+      api.getAllRecords(currentWorkspaceId).then(data => setServerRecords(data)).catch(() => {});
     }
-  }, [serverMode]);
+  }, [serverMode, currentWorkspaceId]);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -116,6 +162,26 @@ export default function App() {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [undo, undoStack, serverMode, addToast]);
+
+  useEffect(() => {
+    const handler = () => {
+      const ht = getTabFromHash();
+      if (ht) setTab(ht);
+    };
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  const prevTabRef = useRef(tab);
+  useEffect(() => {
+    if (prevTabRef.current !== tab) {
+      prevTabRef.current = tab;
+      const valid = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
+      if (valid.includes(tab)) {
+        window.location.hash = tab;
+      }
+    }
+  }, [tab]);
 
   const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
   const toggleSidebar = () => setSidebarOpen(p => !p);
@@ -139,12 +205,13 @@ export default function App() {
     if (selected.size === filtered.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(filtered.map((_, i) => currentRecords.indexOf(filtered[i]))));
+      setSelected(new Set(filtered.map(r => r.__lid !== undefined ? r.__lid : currentRecords.indexOf(r))));
     }
   };
 
   const getSortedRecords = useCallback(() => {
     let result = currentRecords;
+
     if (search.trim()) {
       const q = search.toLowerCase();
       result = currentRecords.filter(r =>
@@ -155,6 +222,34 @@ export default function App() {
         )
       );
     }
+
+    if (filterType) {
+      result = result.filter(r => r.type === filterType);
+    }
+    if (filterParty) {
+      result = result.filter(r => r.party === filterParty);
+    }
+    if (selectedTagFilter) {
+      result = result.filter(r => r.tags && r.tags.includes(selectedTagFilter));
+    }
+    if (filterDateFrom) {
+      result = result.filter(r => r.date && r.date >= filterDateFrom);
+    }
+    if (filterDateTo) {
+      result = result.filter(r => r.date && r.date <= filterDateTo);
+    }
+    if (filterAmountMin) {
+      result = result.filter(r => {
+        const amt = parseFloat(r.amount);
+        return !isNaN(amt) && amt >= parseFloat(filterAmountMin);
+      });
+    }
+    if (filterAmountMax) {
+      result = result.filter(r => {
+        const amt = parseFloat(r.amount);
+        return !isNaN(amt) && amt <= parseFloat(filterAmountMax);
+      });
+    }
     if (sortBy) {
       result = [...result].sort((a, b) => {
         const aVal = String(a[sortBy] || '').toLowerCase();
@@ -163,7 +258,7 @@ export default function App() {
       });
     }
     return result;
-  }, [search, sortBy, sortOrder, currentRecords]);
+  }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax]);
 
   const handleSort = (field) => {
     if (sortBy === field) setSortOrder(p => p === 'asc' ? 'desc' : 'asc');
@@ -171,10 +266,18 @@ export default function App() {
     setPage(1);
   };
 
-  const fr = getSortedRecords();
-  const totalPages = Math.max(1, Math.ceil(fr.length / PAGE_SIZE));
+  const sortedRecords = useMemo(() => getSortedRecords(), [getSortedRecords]);
+  const totalPages = Math.max(1, Math.ceil(sortedRecords.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pagedRecords = fr.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const pagedRecords = useMemo(
+    () => sortedRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [sortedRecords, safePage]
+  );
+
+  const recordToIndex = useMemo(
+    () => new Map(currentRecords.map((r, i) => [r, i])),
+    [currentRecords]
+  );
 
   const serverOp = async (fn) => {
     if (!serverMode) return true;
@@ -191,7 +294,7 @@ export default function App() {
         setServerLoading(true);
         try {
           await api.updateRecord(record.id, recordData);
-          const refreshed = await api.getRecords();
+          const refreshed = await api.getAllRecords(currentWorkspaceId);
           setServerRecords(refreshed);
           setRefreshKey(k => k + 1);
           setServerLoading(false);
@@ -212,8 +315,8 @@ export default function App() {
       if (serverMode) {
         setServerLoading(true);
         try {
-          await api.createRecord(recordData);
-          const refreshed = await api.getRecords();
+          await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
+          const refreshed = await api.getAllRecords(currentWorkspaceId);
           setServerRecords(refreshed);
           setRefreshKey(k => k + 1);
           setServerLoading(false);
@@ -244,7 +347,7 @@ export default function App() {
       setServerLoading(true);
       try {
         await api.deleteRecords(ids);
-        const refreshed = await api.getRecords();
+        const refreshed = await api.getAllRecords(currentWorkspaceId);
         setServerRecords(refreshed);
         setRefreshKey(k => k + 1);
         setSelected(new Set());
@@ -266,7 +369,7 @@ export default function App() {
     if (serverMode) {
       ok = await serverOp(async () => {
         for (const r of imported) {
-          const created = await api.createRecord(r);
+          const created = await api.createRecord({ ...r, workspace_id: currentWorkspaceId });
           setServerRecords(p => [created, ...p]);
         }
       });
@@ -277,8 +380,18 @@ export default function App() {
   };
 
   const handleReorder = (from, to) => {
-    if (serverMode) return; // server handles order via created_at
+    if (serverMode) return;
     reorderRecords(from, to);
+  };
+
+  const handleQRScan = (code) => {
+    setShowScanner(false);
+    const idx = currentRecords.findIndex(r => r.code === code);
+    if (idx === -1) {
+      addToast(`کد "${code}" یافت نشد`, 'error');
+      return;
+    }
+    handleView(idx);
   };
 
   const handlePrint = () => {
@@ -299,6 +412,13 @@ export default function App() {
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
     exportUtils.downloadExcel(sel, FIELDS);
     addToast('فایل اکسل با موفقیت ساخته شد', 'success');
+  };
+
+  const handleCSVExport = () => {
+    const sel = currentRecords.filter((_, i) => selected.has(i));
+    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    exportUtils.downloadCSV(sel, FIELDS);
+    addToast('فایل CSV با موفقیت ساخته شد', 'success');
   };
 
   const handlePDF = async () => {
@@ -339,11 +459,10 @@ export default function App() {
       if (serverMode) {
         setServerLoading(true);
         try {
-        await api.restore(data);
-        const refreshed = await api.getRecords();
-        setServerRecords(refreshed);
-        setRefreshKey(k => k + 1);
-        setServerLoading(false);
+          await api.restore(data);
+          const refreshed = await api.getAllRecords(currentWorkspaceId);
+          setRefreshKey(k => k + 1);
+          setServerLoading(false);
           setShowBackupModal(false);
           addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
         } catch (err) {
@@ -375,7 +494,17 @@ export default function App() {
       setServerMode(true);
       setTab('records');
       setServerLoading(true);
-      api.getRecords().then(data => setServerRecords(data)).catch(() => {}).finally(() => setServerLoading(false));
+      api.getWorkspaces().then(wsList => {
+        setWorkspaces(wsList);
+        if (wsList.length > 0) {
+          const wsId = wsList[0].id;
+          setCurrentWorkspaceId(wsId);
+          localStorage.setItem('current_workspace_id', String(wsId));
+          api.getAllRecords(wsId).then(data => setServerRecords(data)).catch(() => {}).finally(() => setServerLoading(false));
+        } else {
+          setServerLoading(false);
+        }
+      }).catch(() => setServerLoading(false));
     }
   };
 
@@ -419,12 +548,109 @@ export default function App() {
     addToast('فیلد حذف شد', 'success');
   };
 
-  const fr_all = getSortedRecords();
+  const handleAddTag = (tag) => {
+    if (!tag.trim()) return;
+    if (tags.includes(tag.trim())) { addToast('این برچسب قبلا اضافه شده', 'error'); return; }
+    const updated = [...tags, tag.trim()];
+    setTags(updated);
+    saveTags(updated);
+  };
+
+  const handleRemoveTag = (tag) => {
+    const updated = tags.filter(t => t !== tag);
+    setTags(updated);
+    saveTags(updated);
+    if (selectedTagFilter === tag) setSelectedTagFilter(null);
+  };
+
+  const handleWorkspaceSwitch = (wsId) => {
+    setCurrentWorkspaceId(wsId);
+    localStorage.setItem('current_workspace_id', String(wsId));
+    setSelected(new Set());
+    if (serverMode) {
+      fetchedRef.current = false;
+      setServerLoading(true);
+      api.getAllRecords(wsId).then(data => {
+        setServerRecords(data);
+        setServerLoading(false);
+      }).catch(() => setServerLoading(false));
+    }
+  };
+
+  const handleCreateWorkspace = async (name, description) => {
+    try {
+      const ws = await api.createWorkspace(name, description);
+      setWorkspaces(prev => [...prev, ws]);
+      handleWorkspaceSwitch(ws.id);
+      addToast(`فضای کاری "${name}" ایجاد شد`, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleInviteMember = async (wsId, username) => {
+    try {
+      await api.inviteToWorkspace(wsId, username);
+      addToast(`کاربر "${username}" دعوت شد`, 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleLeaveWorkspace = async (wsId) => {
+    try {
+      await api.leaveWorkspace(wsId);
+      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
+      const remaining = workspaces.filter(w => w.id !== wsId);
+      if (remaining.length > 0) {
+        handleWorkspaceSwitch(remaining[0].id);
+      }
+      addToast('خروج از فضای کاری با موفقیت انجام شد', 'success');
+    } catch (err) {
+      addToast(err.message, 'error');
+    }
+  };
+
+  const handleBulkEdit = () => {
+    if (!bulkEditField || bulkEditValue === undefined) { addToast('فیلد و مقدار را وارد کنید', 'error'); return; }
+    const selectedIndices = [...selected];
+    if (serverMode) {
+      setServerLoading(true);
+      Promise.all(selectedIndices.map(i => {
+        const record = currentRecords[i];
+        if (!record) return Promise.resolve();
+        return api.updateRecord(record.id, { ...record, [bulkEditField]: bulkEditValue });
+      })).then(() => {
+        return api.getAllRecords(currentWorkspaceId);
+      }).then((data) => {
+        setServerRecords(data);
+        setServerLoading(false);
+        setShowBulkEdit(false);
+        setBulkEditField('');
+        setBulkEditValue('');
+        addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
+      }).catch(() => {
+        setServerLoading(false);
+        addToast('خطا در ویرایش دسته‌جمعی', 'error');
+      });
+    } else {
+      selectedIndices.forEach(i => {
+        const record = currentRecords[i];
+        if (record) updateRecord(i, { ...record, [bulkEditField]: bulkEditValue });
+      });
+      setShowBulkEdit(false);
+      setBulkEditField('');
+      setBulkEditValue('');
+      addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
+    }
+  };
+
   const availLabels = editIndex !== null
     ? currentRecords.filter(r => r.code !== currentRecords[editIndex]?.code)
     : currentRecords;
   const editRecord = editIndex !== null ? currentRecords[editIndex] : null;
   const selectedRecords = currentRecords.filter((_, i) => selected.has(i));
+
   const findRelated = (codes) => {
     if (!codes || !codes.length) return [];
     return currentRecords.filter(r => codes.includes(r.code));
@@ -435,430 +661,375 @@ export default function App() {
   }
 
   if (serverMode && serverLoading && currentRecords.length === 0) {
-    return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-body)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="sidebar-brand-icon" style={{ margin: '0 auto 1rem', width: 64, height: 64, fontSize: '2rem', animation: 'fadeIn 0.5s' }}>
-            <i className="ti ti-loader"></i>
-          </div>
-          <p>در حال بارگذاری...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="در حال بارگذاری..." />;
   }
 
-  return (
-    <div className="app-container">
-      <Sidebar
-        tab={tab}
-        onTabChange={handleTabChange}
-        sidebarOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        onResetForm={resetForm}
-      />
+  const allTypes = [...new Set(currentRecords.map(r => r.type).filter(Boolean))];
+  const allParties = [...new Set(currentRecords.map(r => r.party).filter(Boolean))];
 
-      <main className="main-content">
-        <Header
-          search={search}
-          onSearchChange={(v) => { setSearch(v); setPage(1); }}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-          recordCount={currentRecords.length}
-          onToggleSidebar={toggleSidebar}
-          onSettingsClick={() => setTab('settings')}
-          onProfileClick={() => setTab('profile')}
+  return (
+    <ErrorBoundary>
+      <div className="app-container">
+        <Sidebar
+          tab={tab}
+          onTabChange={handleTabChange}
+          sidebarOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          onResetForm={resetForm}
         />
 
-        <div className="content-area">
-          <div className="page-header">
-            <div>
-              <h1 className="page-title">
-                {tab === 'records' && 'مدیریت سوابق'}
-                {tab === 'add' && (editIndex !== null ? 'ویرایش رکورد' : 'افزودن رکورد جدید')}
-                {tab === 'import' && 'ورود از CSV'}
-                {tab === 'preview' && 'پیش‌نمایش برچسب‌ها'}
-                {tab === 'view' && 'جزئیات برچسب'}
-                {tab === 'history' && 'تاریخچه چاپ'}
-                {tab === 'profile' && 'پروفایل'}
-                {tab === 'settings' && 'تنظیمات'}
-                {tab === 'reports' && 'گزارش‌ها و آمار'}
-              </h1>
-              <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
-            </div>
+        <main className="main-content">
+          <Header
+            search={search}
+            onSearchChange={(v) => { setSearch(v); setPage(1); }}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onToggleSidebar={toggleSidebar}
+            onSettingsClick={() => setTab('settings')}
+            onProfileClick={() => setTab('profile')}
+          />
 
-            <div className="d-flex gap-2 flex-wrap align-items-center">
-              {tab === 'preview' && selected.size > 0 && (
-                <>
-                  <button className="btn btn-outline btn-sm" onClick={() => setShowPrintSettings(true)}>
-                    <i className="ti ti-settings"></i> تنظیمات چاپ
-                  </button>
-                  <button className="btn btn-outline btn-sm" onClick={handleExcel}>
-                    <i className="ti ti-file-excel"></i> اکسل
-                  </button>
-                  <button className="btn btn-outline btn-sm" onClick={handlePDF}>
-                    <i className="ti ti-file-type-pdf"></i> PDF
-                  </button>
-                  <button className="btn btn-success btn-sm" onClick={handlePrint}>
-                    <i className="ti ti-printer"></i> چاپ
-                  </button>
-                </>
-              )}
-              {tab === 'view' && viewIndex !== null && (
-                <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); setSelected(new Set([viewIndex])); }}>
-                  <i className="ti ti-arrow-right"></i> بازگشت
-                </button>
-              )}
-              {(tab === 'records' || tab === 'add' || tab === 'import') && (
-                <button className="btn btn-outline btn-sm" onClick={() => setTab('preview')}>
-                  <i className="ti ti-printer"></i> پیش‌نمایش
-                </button>
-              )}
-              <button className="btn btn-outline btn-sm" onClick={() => setShowBackupModal(true)}>
-                <i className="ti ti-cloud-download"></i> پشتیبان
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={serverMode ? handleLogout : handleLoginGoToServer}>
-                <i className={`ti ${serverMode ? 'ti-logout' : 'ti-server'}`}></i>
-                {serverMode ? 'خروج' : 'ورود به سرور'}
-              </button>
-            </div>
-          </div>
+          <div className="content-area">
+            <div className="page-header">
+              <div>
+                <h1 className="page-title">
+                  {tab === 'records' && 'مدیریت سوابق'}
+                  {tab === 'add' && (editIndex !== null ? 'ویرایش رکورد' : 'افزودن رکورد جدید')}
+                  {tab === 'import' && 'ورود از CSV'}
+                  {tab === 'preview' && 'پیش‌نمایش برچسب‌ها'}
+                  {tab === 'view' && 'جزئیات برچسب'}
+                  {tab === 'history' && 'تاریخچه چاپ'}
+                  {tab === 'profile' && 'پروفایل'}
+                  {tab === 'settings' && 'تنظیمات'}
+                  {tab === 'reports' && 'گزارش‌ها و آمار'}
+                </h1>
+                <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
+              </div>
 
-          {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && (
-            <StatsCards records={currentRecords} selected={selected} filtered={fr_all} />
-          )}
-
-          {tab === 'records' && (
-            <div>
-              <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                <div className="d-flex gap-2 align-items-center flex-wrap">
-                  <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>مرتب‌سازی:</span>
-                  {['code', 'project', 'date', 'amount'].map(f => (
-                    <button key={f} className={`sort-btn ${sortBy === f ? 'active' : ''}`} onClick={() => handleSort(f)}>
-                      {FIELDS.find(x => x.key === f)?.fa || f}
-                      {sortBy === f && (
-                        <i className={`ti ${sortOrder === 'asc' ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.75rem', marginRight: '0.25rem' }}></i>
-                      )}
+              <div className="d-flex gap-2 flex-wrap align-items-center">
+                {tab === 'preview' && selected.size > 0 && (
+                  <>
+                    <button className="btn btn-outline btn-sm" onClick={() => setShowPrintSettings(true)}>
+                      <i className="ti ti-settings"></i> تنظیمات چاپ
                     </button>
-                  ))}
-                </div>
-                <div className="d-flex gap-2">
-                  <button className="btn btn-outline btn-sm" onClick={toggleAll}>
-                    <i className="ti ti-checkbox"></i>
-                    {selected.size === fr_all.length && fr_all.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
+                    <button className="btn btn-outline btn-sm" onClick={handleExcel}>
+                      <i className="ti ti-file-excel"></i> اکسل
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={handleCSVExport}>
+                      <i className="ti ti-file-text"></i> CSV
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={handlePDF}>
+                      <i className="ti ti-file-type-pdf"></i> PDF
+                    </button>
+                    <button className="btn btn-success btn-sm" onClick={handlePrint}>
+                      <i className="ti ti-printer"></i> چاپ
+                    </button>
+                  </>
+                )}
+                {tab === 'view' && viewIndex !== null && (
+                  <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); setSelected(new Set([viewIndex])); }}>
+                    <i className="ti ti-arrow-right"></i> بازگشت
                   </button>
-                  {selected.size > 0 && (
-                    <button className="btn btn-danger btn-sm" onClick={handleDelete}>
-                      <i className="ti ti-trash"></i> حذف ({selected.size})
+                )}
+                {(tab === 'records' || tab === 'add' || tab === 'import') && (
+                  <button className="btn btn-outline btn-sm" onClick={() => setTab('preview')}>
+                    <i className="ti ti-printer"></i> پیش‌نمایش
+                  </button>
+                )}
+                {serverMode && (
+                  <WorkspaceSwitcher
+                    workspaces={workspaces}
+                    currentWorkspaceId={currentWorkspaceId}
+                    onSwitch={handleWorkspaceSwitch}
+                    onCreateWorkspace={handleCreateWorkspace}
+                    onInviteMember={handleInviteMember}
+                    onLeave={handleLeaveWorkspace}
+                  />
+                )}
+                <button className="btn btn-outline btn-sm" onClick={() => setShowScanner(true)}>
+                  <i className="ti ti-scan"></i> اسکن QR
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => setShowBackupModal(true)}>
+                  <i className="ti ti-cloud-download"></i> پشتیبان
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={serverMode ? handleLogout : handleLoginGoToServer}>
+                  <i className={`ti ${serverMode ? 'ti-logout' : 'ti-server'}`}></i>
+                  {serverMode ? 'خروج' : 'ورود به سرور'}
+                </button>
+              </div>
+            </div>
+
+            {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && (
+              <StatsCards records={currentRecords} selected={selected} filtered={sortedRecords} />
+            )}
+
+            {tab === 'records' && (
+              <div>
+                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                  <div className="d-flex gap-2 align-items-center flex-wrap">
+                    <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>مرتب‌سازی:</span>
+                    {['code', 'project', 'date', 'amount'].map(f => (
+                      <button key={f} className={`sort-btn ${sortBy === f ? 'active' : ''}`} onClick={() => handleSort(f)}>
+                        {FIELDS.find(x => x.key === f)?.fa || f}
+                        {sortBy === f && (
+                          <i className={`ti ${sortOrder === 'asc' ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.75rem', marginRight: '0.25rem' }}></i>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-outline btn-sm" onClick={toggleAll}>
+                      <i className="ti ti-checkbox"></i>
+                      {selected.size === sortedRecords.length && sortedRecords.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
+                    </button>
+                    {selected.size > 0 && (
+                      <>
+                        <button className="btn btn-outline btn-sm" onClick={() => setShowBulkEdit(true)}>
+                          <i className="ti ti-edit"></i> ویرایش دسته‌جمعی ({selected.size})
+                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={handleDelete}>
+                          <i className="ti ti-trash"></i> حذف ({selected.size})
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="d-flex gap-2 mb-4 flex-wrap">
+                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
+                    <option value="">همه انواع</option>
+                    {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
+                    <option value="">همه طرف حساب‌ها</option>
+                    {allParties.map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <input type="date" className="form-input" style={{ width: 'auto', marginBottom: 0 }}
+                    value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPage(1); }}
+                    title="از تاریخ" />
+                  <input type="date" className="form-input" style={{ width: 'auto', marginBottom: 0 }}
+                    value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPage(1); }}
+                    title="تا تاریخ" />
+                  <input type="number" className="form-input" placeholder="حداقل مبلغ"
+                    style={{ width: 120, marginBottom: 0 }}
+                    value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
+                  <input type="number" className="form-input" placeholder="حداکثر مبلغ"
+                    style={{ width: 120, marginBottom: 0 }}
+                    value={filterAmountMax} onChange={e => { setFilterAmountMax(e.target.value); setPage(1); }} />
+                  {(filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax) && (
+                    <button className="btn btn-outline btn-sm" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setFilterAmountMin(''); setFilterAmountMax(''); setPage(1); }}>
+                      <i className="ti ti-x"></i> پاک کردن فیلترها
                     </button>
                   )}
+                  {tags.length > 0 && (
+                    <div className="d-flex gap-1 flex-wrap align-items-center">
+                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>برچسب:</span>
+                      {tags.map(tag => (
+                        <button key={tag}
+                          className={`btn btn-sm ${selectedTagFilter === tag ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? null : tag)}
+                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+
+                {sortedRecords.length === 0 ? (
+                  <div className="empty-state">
+                    <div className="empty-icon"><i className="ti ti-file-off"></i></div>
+                    <h3 style={{ marginBottom: '0.5rem' }}>هنوز رکوردی وجود ندارد</h3>
+                    <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>رکورد جدید اضافه کنید یا فایل CSV وارد نمایید</p>
+                    <button className="btn btn-primary" onClick={() => setTab('add')}>
+                      <i className="ti ti-plus"></i> افزودن رکورد
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="card-grid" key={refreshKey}>
+                      {pagedRecords.map((r) => {
+                        const realIdx = recordToIndex.get(r);
+                        if (realIdx === undefined) return null;
+                        return (
+                          <RecordCard
+                            key={serverMode ? r.id : `r-${realIdx}`}
+                            record={r}
+                            selected={selected.has(realIdx)}
+                            onToggle={() => toggleSelect(realIdx)}
+                            onEdit={() => handleEdit(realIdx)}
+                            onView={() => handleView(realIdx)}
+                            getRelatedLabels={findRelated}
+                            index={realIdx}
+                            onDragStart={(e) => handleDragStart(e, realIdx)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDragEnd={() => setDragIndex(null)}
+                            onDrop={(e) => handleDrop(e, realIdx)}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="pagination" style={totalPages <= 1 ? { justifyContent: 'center', opacity: 0.6 } : {}}>
+                      <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>قبلی</button>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                        <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
+                      ))}
+                      <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>بعدی</button>
+                      <span style={{ marginRight: '0.75rem', opacity: 0.6, fontSize: '0.85rem' }}>
+                        {sortedRecords.length > 0 ? `${(safePage - 1) * PAGE_SIZE + 1}-${Math.min(safePage * PAGE_SIZE, sortedRecords.length)} از ${sortedRecords.length}` : '۰ رکورد'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
+            )}
 
-              {fr_all.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-icon"><i className="ti ti-file-off"></i></div>
-                  <h3 style={{ marginBottom: '0.5rem' }}>هنوز رکوردی وجود ندارد</h3>
-                  <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>رکورد جدید اضافه کنید یا فایل CSV وارد نمایید</p>
-                  <button className="btn btn-primary" onClick={() => setTab('add')}>
-                    <i className="ti ti-plus"></i> افزودن رکورد
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div className="card-grid" key={refreshKey}>
-                    {pagedRecords.map((r) => {
-                      const realIdx = currentRecords.indexOf(r);
-                      return (
-                        <RecordCard
-                          key={serverMode ? r.id : realIdx}
-                          record={r}
-                          selected={selected.has(realIdx)}
-                          onToggle={() => toggleSelect(realIdx)}
-                          onEdit={() => handleEdit(realIdx)}
-                          onView={() => handleView(realIdx)}
-                          getRelatedLabels={findRelated}
-                          index={realIdx}
-                          onDragStart={(e) => handleDragStart(e, realIdx)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDragEnd={() => setDragIndex(null)}
-                          onDrop={(e) => handleDrop(e, realIdx)}
-                        />
-                      );
-                    })}
-                  </div>
-                  <div className="pagination" style={totalPages <= 1 ? { justifyContent: 'center', opacity: 0.6 } : {}}>
-                    <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>قبلی</button>
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                      <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-                    ))}
-                    <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>بعدی</button>
-                    <span style={{ marginRight: '0.75rem', opacity: 0.6, fontSize: '0.85rem' }}>
-                      {fr.length > 0 ? `${(safePage - 1) * PAGE_SIZE + 1}-${Math.min(safePage * PAGE_SIZE, fr.length)} از ${fr.length}` : '۰ رکورد'}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {tab === 'add' && (
-            <RecordForm
-              editRecord={editRecord}
-              editIndex={editIndex}
-              availableLabels={availLabels}
-              isDuplicateCode={isDuplicateCode}
-              onSubmit={handleSubmit}
-              onCancel={() => { setEditIndex(null); setTab('records'); }}
-              addToast={addToast}
-              customFields={customFields}
-              serverMode={serverMode}
-            />
-          )}
-
-          {tab === 'import' && (
-            <ImportCSV onImport={handleImport} importMsg={importMsg} setImportMsg={setImportMsg} addToast={addToast} />
-          )}
-
-          {tab === 'view' && viewIndex !== null && (
-            <ViewDetail
-              record={currentRecords[viewIndex]}
-              relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
-              onEdit={() => handleEdit(viewIndex)}
-              onNavigateToRelated={(rel) => {
-                const idx = currentRecords.findIndex(r => r.code === rel.code);
-                if (idx !== -1) setViewIndex(idx);
-              }}
-            />
-          )}
-
-          {tab === 'preview' && (
-            <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} />
-          )}
-
-          {tab === 'history' && (
-            <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
-          )}
-
-          {tab === 'reports' && (
-            <ReportsTab records={currentRecords} />
-          )}
-
-          {tab === 'profile' && (
-            <ProfileTab
-              authUser={authUser}
-              serverMode={serverMode}
-              recordCount={currentRecords.length}
-              onLogin={handleLoginGoToServer}
-              onBackup={handleBackup}
-              onOpenBackupModal={() => setShowBackupModal(true)}
-            />
-          )}
-
-          {tab === 'settings' && (
-            <SettingsTab
-              customFields={customFields}
-              onAddField={handleAddCustomField}
-              onRemoveField={handleRemoveCustomField}
-              newFieldName={newFieldName}
-              onNewFieldNameChange={setNewFieldName}
-              serverMode={serverMode}
-              authUser={authUser}
-            />
-          )}
-        </div>
-      </main>
-
-      <Toast toasts={toasts} onRemove={removeToast} />
-
-      {showPrintSettings && (
-        <div className="modal-overlay" onClick={() => setShowPrintSettings(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>تنظیمات چاپ</h3>
-              <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowPrintSettings(false)}></i>
-            </div>
-            <div className="form-group">
-              <label className="form-label">قالب برچسب</label>
-              <select className="form-input" value={printTemplate} onChange={e => setPrintTemplate(e.target.value)}>
-                <option value="classic">کلاسیک</option>
-                <option value="compact">فشرده</option>
-                <option value="detailed">جزئیات کامل</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">تعداد برچسب در هر ردیف</label>
-              <select className="form-input" value={printCols} onChange={e => setPrintCols(Number(e.target.value))}>
-                <option value={2}>۲ عدد</option>
-                <option value={3}>۳ عدد</option>
-                <option value={4}>۴ عدد</option>
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">عرض برچسب (px)</label>
-              <input type="number" className="form-input" value={printWidth} onChange={e => setPrintWidth(Number(e.target.value))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">ارتفاع برچسب (px)</label>
-              <input type="number" className="form-input" value={printHeight} onChange={e => setPrintHeight(Number(e.target.value))} />
-            </div>
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={printQr} onChange={e => setPrintQr(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
-                نمایش QR Code روی برچسب
-              </label>
-            </div>
-            <div className="form-group">
-              <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
-                <input type="checkbox" checked={printBarcode} onChange={e => setPrintBarcode(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--primary)' }} />
-                نمایش بارکد روی برچسب
-              </label>
-            </div>
-            <button className="btn btn-primary w-100" onClick={() => setShowPrintSettings(false)}>تایید</button>
-          </div>
-        </div>
-      )}
-
-      {showBackupModal && (
-        <div className="modal-overlay" onClick={() => setShowBackupModal(false)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h3 style={{ margin: 0 }}>پشتیبان‌گیری و بازیابی</h3>
-              <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowBackupModal(false)}></i>
-            </div>
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.75rem' }}>خروجی پشتیبان</h4>
-              <p style={{ opacity: 0.7, marginBottom: '1rem', fontSize: '0.9rem' }}>
-                {currentRecords.length} رکورد برای پشتیبان‌گیری آماده است
-              </p>
-              <button className="btn btn-primary w-100" onClick={handleBackup}>
-                <i className="ti ti-download"></i> دانلود پشتیبان (JSON)
-              </button>
-            </div>
-            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-              <h4 style={{ marginBottom: '0.75rem' }}>بازیابی از پشتیبان</h4>
-              <input
-                type="file"
-                accept=".json"
-                className="form-input"
-                style={{ marginBottom: '1rem' }}
-                onChange={e => setBackupFile(e.target.files[0])}
+            {tab === 'add' && (
+              <RecordForm
+                editRecord={editRecord}
+                editIndex={editIndex}
+                availableLabels={availLabels}
+                isDuplicateCode={isDuplicateCode}
+                onSubmit={handleSubmit}
+                onCancel={() => { setEditIndex(null); setTab('records'); }}
+                addToast={addToast}
+                customFields={customFields}
+                serverMode={serverMode}
+                allTags={tags}
               />
-              <button className="btn btn-success w-100" onClick={handleRestore}>
-                <i className="ti ti-upload"></i> بازیابی
+            )}
+
+            {tab === 'import' && (
+              <ImportCSV onImport={handleImport} importMsg={''} setImportMsg={() => {}} addToast={addToast} />
+            )}
+
+            {tab === 'view' && viewIndex !== null && (
+              <ViewDetail
+                record={currentRecords[viewIndex]}
+                relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
+                onEdit={() => handleEdit(viewIndex)}
+                onNavigateToRelated={(rel) => {
+                  const idx = currentRecords.findIndex(r => r.code === rel.code);
+                  if (idx !== -1) setViewIndex(idx);
+                }}
+              />
+            )}
+
+            {tab === 'preview' && (
+              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} />
+            )}
+
+            {tab === 'history' && (
+              <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
+            )}
+
+            {tab === 'reports' && (
+              <ReportsTab records={currentRecords} onFilter={(type, value) => {
+                if (type === 'type') { setFilterType(value); setSelectedTagFilter(null); }
+                else if (type === 'party') { setFilterParty(value); setFilterType(''); setSelectedTagFilter(null); }
+                else { setFilterType(''); setFilterParty(''); setSelectedTagFilter(null); }
+                setSearch(type === 'project' || type === 'monthly' ? value : '');
+                setFilterDateFrom(''); setFilterDateTo('');
+                setFilterAmountMin(''); setFilterAmountMax('');
+                setPage(1);
+                setTab('records');
+              }} />
+            )}
+
+            {tab === 'profile' && (
+              <ProfileTab
+                authUser={authUser}
+                serverMode={serverMode}
+                recordCount={currentRecords.length}
+                onLogin={handleLoginGoToServer}
+                onBackup={handleBackup}
+                onOpenBackupModal={() => setShowBackupModal(true)}
+              />
+            )}
+
+            {tab === 'settings' && (
+              <SettingsTab
+                customFields={customFields}
+                onAddField={handleAddCustomField}
+                onRemoveField={handleRemoveCustomField}
+                newFieldName={newFieldName}
+                onNewFieldNameChange={setNewFieldName}
+                serverMode={serverMode}
+                authUser={authUser}
+                tags={tags}
+                onAddTag={handleAddTag}
+                onRemoveTag={handleRemoveTag}
+              />
+            )}
+          </div>
+        </main>
+
+        <Toast toasts={toasts} onRemove={removeToast} />
+
+        <PrintSettingsModal
+          show={showPrintSettings}
+          onClose={() => setShowPrintSettings(false)}
+          printTemplate={printTemplate}
+          setPrintTemplate={setPrintTemplate}
+          printCols={printCols}
+          setPrintCols={setPrintCols}
+          printWidth={printWidth}
+          setPrintWidth={setPrintWidth}
+          printHeight={printHeight}
+          setPrintHeight={setPrintHeight}
+          printQr={printQr}
+          setPrintQr={setPrintQr}
+          printBarcode={printBarcode}
+          setPrintBarcode={setPrintBarcode}
+        />
+
+        <BackupModal
+          show={showBackupModal}
+          onClose={() => setShowBackupModal(false)}
+          recordCount={currentRecords.length}
+          onBackup={handleBackup}
+          onRestore={handleRestore}
+          setBackupFile={setBackupFile}
+        />
+
+        {showBulkEdit && (
+          <div className="modal-overlay" onClick={() => setShowBulkEdit(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0 }}>ویرایش دسته‌جمعی</h3>
+                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowBulkEdit(false)}></i>
+              </div>
+              <p style={{ opacity: 0.7, marginBottom: '1rem' }}>{selected.size} رکورد انتخاب شده</p>
+              <div className="form-group">
+                <label className="form-label">فیلد</label>
+                <select className="form-input" value={bulkEditField} onChange={e => setBulkEditField(e.target.value)}>
+                  <option value="">انتخاب کنید...</option>
+                  {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
+                    <option key={f.key} value={f.key}>{f.fa}</option>
+                  ))}
+                  {customFields.map(f => (
+                    <option key={f.key} value={f.key}>{f.fa}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">مقدار جدید</label>
+                <input type="text" className="form-input" value={bulkEditValue} onChange={e => setBulkEditValue(e.target.value)} />
+              </div>
+              <button className="btn btn-primary w-100" onClick={handleBulkEdit}>
+                <i className="ti ti-check"></i> اعمال به {selected.size} رکورد
               </button>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HistoryTab({ printHistory, clearHistory }) {
-  return (
-    <div className="fade-in">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <span style={{ opacity: 0.7 }}>
-          {printHistory.length > 0 ? `${printHistory.length} بار چاپ انجام شده` : 'هنوز چاپی انجام نشده'}
-        </span>
-        {printHistory.length > 0 && (
-          <button className="btn btn-danger btn-sm" onClick={clearHistory}>
-            <i className="ti ti-trash"></i> پاک کردن تاریخچه
-          </button>
-        )}
-      </div>
-
-      {printHistory.length === 0 ? (
-        <div className="history-empty">
-          <i className="ti ti-history" style={{ fontSize: '3rem', display: 'block', marginBottom: '1rem' }}></i>
-          <p>تاریخچه چاپ خالی است</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          {printHistory.map((entry, i) => (
-            <div key={i} className="history-item">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div className="stat-icon info" style={{ width: 40, height: 40, fontSize: '1.2rem' }}>
-                  <i className="ti ti-printer"></i>
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600 }}>چاپ {entry.count} برچسب</div>
-                  <div style={{ fontSize: '0.8rem', opacity: 0.6, direction: 'ltr' }}>{entry.date} - {entry.time}</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', maxWidth: 300 }}>
-                {entry.codes.map(code => (
-                  <span key={code} style={{
-                    padding: '0.15rem 0.5rem', background: 'rgba(115, 103, 240, 0.1)',
-                    color: 'var(--primary)', borderRadius: 4, fontSize: '0.75rem', fontFamily: 'monospace',
-                  }}>{code}</span>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SettingsTab({ customFields, onAddField, onRemoveField, newFieldName, onNewFieldNameChange, serverMode, authUser }) {
-  return (
-    <div className="fade-in">
-      <div className="form-card mb-4">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon info"><i className="ti ti-server"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>اتصال به سرور</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              {serverMode ? `متصل به عنوان ${authUser?.username || 'کاربر'}` : 'حالت محلی (localStorage)'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="form-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon warning"><i className="ti ti-list-details"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>فیلدهای سفارشی</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              فیلدهای دلخواه خود را به رکوردها اضافه کنید
-            </p>
-          </div>
-        </div>
-
-        {customFields.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
-            {customFields.map(f => (
-              <div key={f.key} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem 1rem', background: 'var(--bg-body)',
-                borderRadius: 8, marginBottom: '0.5rem',
-              }}>
-                <span>{f.fa}</span>
-                <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
-                  onClick={() => onRemoveField(f.key)}></i>
-              </div>
-            ))}
-          </div>
         )}
 
-        <div className="d-flex gap-2">
-          <input
-            type="text"
-            className="form-input"
-            value={newFieldName}
-            onChange={e => onNewFieldNameChange(e.target.value)}
-            placeholder="نام فیلد جدید..."
-            style={{ marginBottom: 0 }}
-            onKeyDown={e => e.key === 'Enter' && onAddField()}
+        {showScanner && (
+          <QRScanner
+            onScan={handleQRScan}
+            onClose={() => setShowScanner(false)}
           />
-          <button className="btn btn-primary" onClick={onAddField}>
-            <i className="ti ti-plus"></i> افزودن
-          </button>
-        </div>
+        )}
       </div>
-    </div>
+    </ErrorBoundary>
   );
 }

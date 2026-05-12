@@ -200,6 +200,22 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
 </html>`;
 };
 
+export const downloadCSV = (records, fields) => {
+  const headers = fields.filter(f => !f.isRelated).map(f => f.key);
+  const rows = records.map(r =>
+    headers.map(h => {
+      const val = h === 'related' ? (r.related ? r.related.join(';') : '') : (r[h] || '');
+      return `"${String(val).replace(/"/g, '""')}"`;
+    }).join(',')
+  );
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'labels_export.csv';
+  a.click();
+};
+
 export const printLabels = (records, fields, cols, width, height, templateKey, showQr, showBarcode) => {
   const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr, showBarcode);
   const win = window.open("", "_blank");

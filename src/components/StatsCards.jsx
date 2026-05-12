@@ -1,14 +1,20 @@
+import { memo, useMemo } from 'react';
 import { getTotalAmount } from '../utils/formatters';
 
-export default function StatsCards({ records, selected, filtered }) {
-  const selectedRecords = records.filter((_, i) => selected.has(i));
+const StatsCards = memo(function StatsCards({ records, selected, filtered }) {
+  const selectedRecords = useMemo(
+    () => records.filter((_, i) => selected.has(i)),
+    [records, selected]
+  );
 
-  const stats = [
+  const totalAmount = useMemo(() => getTotalAmount(selectedRecords), [selectedRecords]);
+
+  const stats = useMemo(() => [
     { icon: 'ti-files',     value: records.length,      label: 'مجموع رکوردها',  color: 'primary', delay: '0s' },
     { icon: 'ti-checkbox',  value: selected.size,        label: 'انتخاب شده',     color: 'success', delay: '0.1s' },
     { icon: 'ti-filter',    value: filtered.length,      label: 'فیلتر شده',      color: 'info',    delay: '0.2s' },
-    { icon: 'ti-currency-dollar', value: getTotalAmount(selectedRecords), label: 'مجموع مبالغ', color: 'warning', delay: '0.3s' },
-  ];
+    { icon: 'ti-currency-dollar', value: totalAmount,    label: 'مجموع مبالغ',   color: 'warning', delay: '0.3s' },
+  ], [records.length, selected.size, filtered.length, totalAmount]);
 
   return (
     <div className="stats-grid">
@@ -23,4 +29,6 @@ export default function StatsCards({ records, selected, filtered }) {
       ))}
     </div>
   );
-}
+});
+
+export default StatsCards;

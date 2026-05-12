@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { FIELDS } from '../data/fields';
 
 function Checkbox({ checked, onChange }) {
@@ -8,7 +9,7 @@ function Checkbox({ checked, onChange }) {
   );
 }
 
-export default function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop }) {
+function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop }) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
 
   return (
@@ -60,6 +61,20 @@ export default function RecordCard({ record, selected, onToggle, onEdit, onView,
             </div>
           </div>
         )}
+        {record.tags && record.tags.length > 0 && (
+          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+              {record.tags.map(tag => (
+                <span key={tag} style={{
+                  padding: '0.2rem 0.6rem', background: 'rgba(40, 199, 111, 0.12)',
+                  color: 'var(--success)', borderRadius: 12, fontSize: '0.7rem',
+                }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
       <div className="label-card-footer">
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -74,3 +89,5 @@ export default function RecordCard({ record, selected, onToggle, onEdit, onView,
     </div>
   );
 }
+
+export default memo(RecordCard);

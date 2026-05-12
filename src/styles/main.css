@@ -920,6 +920,28 @@ body {
 .text-muted { color: var(--text-color); opacity: 0.6; }
 .bg-light { background: var(--card-bg); }
 
+/* Workspace button */
+.workspace-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.workspace-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
 /* Print History Empty */
 .history-empty {
   text-align: center;

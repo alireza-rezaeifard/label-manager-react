@@ -7,20 +7,21 @@ import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode }) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [] }) {
   const allFields = [...FIELDS.filter(f => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find(f => f.isRelated);
 
   const getInitialForm = () => {
     if (editRecord) {
-      const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], image: "", color: "" };
+      const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
       allFields.forEach(f => { form[f.key] = editRecord[f.key] || (f.isRelated ? [] : ""); });
       form.related = editRecord.related || [];
+      form.tags = editRecord.tags || [];
       form.image = editRecord.image || "";
       form.color = editRecord.color || "";
       return form;
     }
-    const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], image: "", color: "#7367f0" };
+    const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#7367f0" };
     customFields.forEach(f => { form[f.key] = ""; });
     return form;
   };
@@ -102,7 +103,8 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (Object.keys(errors).length) { setFormErrors(errors); return; }
     const recordData = {
       code: form.code, project: form.project, type: form.type, date: form.date,
-      party: form.party, amount: form.amount, related: form.related, image: form.image, color: form.color,
+      party: form.party, amount: form.amount, related: form.related, tags: form.tags,
+      image: form.image, color: form.color,
     };
     customFields.forEach(f => { recordData[f.key] = form[f.key] || ""; });
     onSubmit(recordData);
@@ -204,6 +206,34 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
             <small style={{ color: 'var(--text-color)', opacity: 0.5, marginTop: '0.5rem', display: 'block' }}>
               می‌توانید چندین رکورد مرتبط را انتخاب کنید
             </small>
+          </div>
+        </div>
+
+        <div className="col-12">
+          <div className="form-group">
+            <label className="form-label">
+              <i className="ti ti-tags" style={{ marginRight: 8 }}></i>
+              برچسب‌ها <span style={{ opacity: 0.5 }}>(اختیاری)</span>
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+              {allTags.map(tag => {
+                const active = form.tags.includes(tag);
+                return (
+                  <span key={tag} onClick={() => {
+                    const next = active ? form.tags.filter(t => t !== tag) : [...form.tags, tag];
+                    setField('tags', next);
+                  }} style={{
+                    padding: '0.4rem 0.8rem', borderRadius: 20, cursor: 'pointer',
+                    fontSize: '0.85rem', transition: 'all 0.2s',
+                    background: active ? 'var(--primary)' : 'var(--bg-body)',
+                    color: active ? 'white' : 'var(--text-color)',
+                    border: active ? 'none' : '1px solid var(--border-color)',
+                  }}>
+                    {tag}
+                  </span>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>

@@ -35,6 +35,21 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               <div style={{ fontWeight: 600, direction: f.key === 'amount' ? 'ltr' : 'rtl' }}>{record[f.key] || '—'}</div>
             </div>
           ))}
+          {record.tags && record.tags.length > 0 && (
+            <div style={{ gridColumn: '1 / -1', background: 'var(--bg-body)', padding: '1rem', borderRadius: 8 }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>برچسب‌ها</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                {record.tags.map(tag => (
+                  <span key={tag} style={{
+                    padding: '0.3rem 0.8rem', background: 'rgba(40, 199, 111, 0.12)',
+                    color: 'var(--success)', borderRadius: 12, fontSize: '0.8rem',
+                  }}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {relatedRecords.length > 0 ? (

@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'label-studio-secret-key-change-in-production';
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  console.error('Set a strong secret via: set JWT_SECRET=your-strong-secret (Windows)');
+  console.error('Or: export JWT_SECRET=your-strong-secret (Linux/Mac)');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export function generateToken(user) {
   return jwt.sign(
