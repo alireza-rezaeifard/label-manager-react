@@ -14,7 +14,14 @@ router.post('/register', (req, res) => {
   try {
     const hash = bcrypt.hashSync(password, 10);
     const result = db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(username, hash);
-    const user = { id: result.lastInsertRowid, username, role: 'user' };
+    const userId = result.lastInsertRowid;
+    const user = { id: userId, username, role: 'user' };
+
+    const defaultWs = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
+    if (defaultWs) {
+      db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(userId, 'member');
+    }
+
     const token = generateToken(user);
     res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
   } catch (err) {
@@ -34,6 +41,11 @@ router.post('/login', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const defaultWs = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
+  if (defaultWs) {
+    db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(user.id, 'member');
   }
 
   const token = generateToken(user);

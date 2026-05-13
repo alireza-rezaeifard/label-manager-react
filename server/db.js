@@ -6,7 +6,8 @@ import bcrypt from 'bcryptjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const db = new Database(join(__dirname, 'data.db'));
+const dbPath = process.env.DB_PATH || join(__dirname, 'data.db');
+const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
 
@@ -83,6 +84,18 @@ db.exec(`
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
   );
 `);
+
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.find(c => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+    console.log(`  ✓ Added column ${table}.${column}`);
+  }
+}
+
+ensureColumn('records', 'workspace_id', 'workspace_id INTEGER DEFAULT 1');
+ensureColumn('records', 'tags', "tags TEXT DEFAULT '[]'");
+ensureColumn('records', 'sort_order', 'sort_order INTEGER DEFAULT 0');
 
 const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
 if (!existingUser) {

@@ -28,7 +28,7 @@ export default function BackupModal({
             accept=".json"
             className="form-input"
             style={{ marginBottom: '1rem' }}
-            onChange={e => setBackupFile(e.target.files[0])}
+            onChange={e => setBackupFile(e.target.files?.[0])}
           />
           <button className="btn btn-success w-100" onClick={onRestore}>
             <i className="ti ti-upload"></i> بازیابی

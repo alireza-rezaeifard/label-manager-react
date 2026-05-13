@@ -4,7 +4,7 @@ export const toJalaliDate = (date) => {
   const persianDate = d.toLocaleDateString('fa-IR', {
     year: 'numeric', month: '2-digit', day: '2-digit', calendar: 'persian',
   });
-  return persianDate.replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+  return persianDate.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 };
 
 export const formatAmount = (value) => {

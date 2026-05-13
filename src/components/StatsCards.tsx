@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { getTotalAmount } from '../utils/formatters';
 
-const StatsCards = memo(function StatsCards({ records, selected, filtered }) {
+const StatsCards = memo(function StatsCards({ records, selected, filtered }: { records: any[]; selected: Set<number>; filtered: any[] }) {
   const selectedRecords = useMemo(
     () => records.filter((_, i) => selected.has(i)),
     [records, selected]

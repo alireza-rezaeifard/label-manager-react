@@ -25,6 +25,13 @@ describe('RecordCard', () => {
         onToggle={() => {}}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     expect(screen.getByText('INV-001')).toBeTruthy();
@@ -38,6 +45,13 @@ describe('RecordCard', () => {
         onToggle={() => {}}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     expect(screen.getByText('Test Project')).toBeTruthy();
@@ -53,6 +67,13 @@ describe('RecordCard', () => {
         onToggle={() => {}}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     expect(container.querySelector('.label-card.selected')).toBeTruthy();
@@ -67,9 +88,17 @@ describe('RecordCard', () => {
         onToggle={onToggle}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
-    fireEvent.click(container.firstChild);
+    const firstChild = container.firstChild;
+    if (firstChild) fireEvent.click(firstChild);
     expect(onToggle).toHaveBeenCalled();
   });
 
@@ -83,6 +112,12 @@ describe('RecordCard', () => {
         onEdit={() => {}}
         onView={() => {}}
         getRelatedLabels={getRelatedLabels}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     expect(screen.getByText('REL-001')).toBeTruthy();
@@ -96,6 +131,13 @@ describe('RecordCard', () => {
         onToggle={() => {}}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     expect(screen.getByText('urgent')).toBeTruthy();
@@ -109,11 +151,18 @@ describe('RecordCard', () => {
         onToggle={() => {}}
         onEdit={() => {}}
         onView={() => {}}
+        getRelatedLabels={() => []}
+        index={0}
+        onDragStart={() => {}}
+        onDragOver={() => {}}
+        onDragEnd={() => {}}
+        onDrop={() => {}}
+        onInlineEdit={() => {}}
       />
     );
     const colorBars = container.querySelectorAll('.label-card > div');
     const hasColorBar = Array.from(colorBars).some(
-      div => div.getAttribute('style') && div.getAttribute('style').includes('rgb(115, 103, 240)')
+      div => div.getAttribute('style')?.includes('rgb(115, 103, 240)') ?? false
     );
     expect(hasColorBar).toBe(true);
   });

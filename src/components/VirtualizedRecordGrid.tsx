@@ -6,12 +6,27 @@ const CARD_WIDTH = 360;
 const CARD_HEIGHT = 380;
 const GAP = 24;
 
-const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex }) => {
+interface CellDataProps {
+  items: any[];
+  columnCount: number;
+  recordToIndex: Map<any, number>;
+  onToggle: (i: number) => void;
+  onEdit: (i: number) => void;
+  onView: (i: number) => void;
+  getRelatedLabels: (related: string[]) => any[];
+  selected: Set<number>;
+  onDragStart: (e: any, index: number) => void;
+  onDragOver: (e: any) => void;
+  onDrop: (e: any, index: number) => void;
+  setDragIndex: (i: number | null) => void;
+}
+
+const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex }: any) => {
   const index = rowIndex * columnCount + columnIndex;
   if (index >= items.length) return null;
 
   const r = items[index];
-  const realIdx = recordToIndex ? recordToIndex.get(r) : index;
+  const realIdx = recordToIndex ? (recordToIndex.get(r) ?? index) : index;
 
   return (
     <div style={{ ...style, padding: '0' }}>
@@ -27,6 +42,7 @@ const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, 
         onDragOver={(e) => onDragOver?.(e)}
         onDragEnd={() => { setDragIndex?.(null); }}
         onDrop={(e) => onDrop?.(e, realIdx)}
+        onInlineEdit={undefined}
       />
     </div>
   );
@@ -49,7 +65,7 @@ export default function VirtualizedRecordGrid({
   overscanCount = 2,
 }) {
   const [containerWidth, setContainerWidth] = useState(1100);
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -68,8 +84,8 @@ export default function VirtualizedRecordGrid({
   const rowCount = Math.ceil(records.length / columnCount);
   return (
     <div ref={containerRef} style={{ width: '100%', height: '70vh', minHeight: 500 }}>
-      <Grid
-        cellComponent={CellComponent}
+      <Grid<CellDataProps>
+        cellComponent={CellComponent as any}
         cellProps={{
           items: records,
           columnCount,

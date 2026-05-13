@@ -20,7 +20,7 @@ export default function LoginPage({ onLogin }) {
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('auth_user', JSON.stringify(result.user));
       onLogin(result.user);
-    } catch (err) {
+    } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);

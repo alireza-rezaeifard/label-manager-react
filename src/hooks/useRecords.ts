@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { api } from '../utils/api';
 
 const STORAGE_KEY = 'label-studio-records';
 const UNDO_KEY = 'label-studio-undo';
@@ -83,6 +84,18 @@ export function useRecords() {
     return records.some((r, i) => r.code === code && i !== excludeIndex);
   }, [records]);
 
+  const checkDuplicateCode = useCallback(async (code, excludeId = null) => {
+    const localDuplicate = records.some((r, _i) => r.code === code && r.id !== excludeId);
+    if (localDuplicate) return true;
+    try {
+      const params = `?code=${encodeURIComponent(code)}${excludeId ? `&excludeId=${excludeId}` : ''}`;
+      const result = await api.checkDuplicateCode(params);
+      return result.duplicate;
+    } catch {
+      return false;
+    }
+  }, [records]);
+
   const searchRecords = useCallback((query) => {
     if (!query.trim()) return records;
     const q = query.toLowerCase();
@@ -100,6 +113,6 @@ export function useRecords() {
     addRecord, updateRecord, deleteRecords, reorderRecords,
     undo, undoStack,
     getRelatedLabels, getAvailableLabels,
-    isDuplicateCode, searchRecords,
+    isDuplicateCode, checkDuplicateCode, searchRecords,
   };
 }

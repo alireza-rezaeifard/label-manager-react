@@ -2,11 +2,11 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import jsQR from 'jsqr';
 
 export default function QRScanner({ onScan, onClose }) {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(true);
-  const streamRef = useRef(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const stopCamera = useCallback(() => {
     if (streamRef.current) {
@@ -16,7 +16,7 @@ export default function QRScanner({ onScan, onClose }) {
   }, []);
 
   useEffect(() => {
-    let animId;
+    let animId: number;
 
     async function start() {
       try {
@@ -44,7 +44,7 @@ export default function QRScanner({ onScan, onClose }) {
         return;
       }
 
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d')!;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);

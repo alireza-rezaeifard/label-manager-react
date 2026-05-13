@@ -1,10 +1,28 @@
 import { useState } from 'react';
 
+const FIELD_TYPES = [
+  { value: 'text', label: 'متن' },
+  { value: 'number', label: 'عدد' },
+  { value: 'date', label: 'تاریخ' },
+  { value: 'dropdown', label: 'لیست انتخابی' },
+  { value: 'color', label: 'رنگ' },
+];
+
+const FIELD_TYPE_BADGES = {
+  text: { label: 'متن', color: 'var(--primary)' },
+  number: { label: 'عدد', color: 'var(--success)' },
+  date: { label: 'تاریخ', color: 'var(--warning)' },
+  dropdown: { label: 'لیست', color: 'var(--info)' },
+  color: { label: 'رنگ', color: 'var(--danger)' },
+};
+
 export default function SettingsTab({
   customFields, onAddField, onRemoveField, newFieldName, onNewFieldNameChange,
+  newFieldType, onNewFieldTypeChange,
   serverMode, authUser,
   tags, onAddTag, onRemoveTag,
   useVirtualScroll, onToggleVirtualScroll,
+  theme, onThemeChange,
 }) {
   const [newTag, setNewTag] = useState('');
 
@@ -19,6 +37,33 @@ export default function SettingsTab({
               {serverMode ? `متصل به عنوان ${authUser?.username || 'کاربر'}` : 'حالت محلی (localStorage)'}
             </p>
           </div>
+        </div>
+      </div>
+
+      <div className="form-card mb-4">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div className="stat-icon info"><i className="ti ti-palette"></i></div>
+          <div>
+            <h4 style={{ margin: 0 }}>پوسته (Theme)</h4>
+            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+              انتخاب پوسته نمایش برنامه
+            </p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          {[
+            { key: 'light', icon: 'ti-sun', label: 'روشن' },
+            { key: 'dark', icon: 'ti-moon', label: 'تیره' },
+            { key: 'sepia', icon: 'ti-droplet', label: 'قهوه‌ای' },
+            { key: 'high-contrast', icon: 'ti-contrast', label: 'کنتراست بالا' },
+          ].map(t => (
+            <button key={t.key} onClick={() => onThemeChange(t.key)}
+              className={`btn ${theme === t.key ? 'btn-primary' : 'btn-outline'}`}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <i className={`ti ${t.icon}`}></i>
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -78,30 +123,51 @@ export default function SettingsTab({
 
         {customFields.length > 0 && (
           <div style={{ marginBottom: '1.5rem' }}>
-            {customFields.map(f => (
-              <div key={f.key} style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '0.75rem 1rem', background: 'var(--bg-body)',
-                borderRadius: 8, marginBottom: '0.5rem',
-              }}>
-                <span>{f.fa}</span>
-                <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
-                  onClick={() => onRemoveField(f.key)}></i>
-              </div>
-            ))}
+            {customFields.map(f => {
+              const badge = FIELD_TYPE_BADGES[f.fieldType] || FIELD_TYPE_BADGES.text;
+              return (
+                <div key={f.key} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '0.75rem 1rem', background: 'var(--bg-body)',
+                  borderRadius: 8, marginBottom: '0.5rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span>{f.fa}</span>
+                    <span style={{
+                      fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: 10,
+                      background: badge.color, color: 'white', fontWeight: 500,
+                    }}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
+                    onClick={() => onRemoveField(f.key)}></i>
+                </div>
+              );
+            })}
           </div>
         )}
 
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2" style={{ flexWrap: 'wrap' }}>
           <input
             type="text"
             className="form-input"
             value={newFieldName}
             onChange={e => onNewFieldNameChange(e.target.value)}
             placeholder="نام فیلد جدید..."
-            style={{ marginBottom: 0 }}
+            style={{ marginBottom: 0, flex: 1, minWidth: 140 }}
             onKeyDown={e => e.key === 'Enter' && onAddField()}
           />
+          <select
+            className="form-input"
+            value={newFieldType}
+            onChange={e => onNewFieldTypeChange(e.target.value)}
+            style={{ width: 'auto', marginBottom: 0 }}
+          >
+            {FIELD_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
           <button className="btn btn-primary" onClick={onAddField}>
             <i className="ti ti-plus"></i> افزودن
           </button>

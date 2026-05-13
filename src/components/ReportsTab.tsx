@@ -6,7 +6,7 @@ export default function ReportsTab({ records, onFilter }) {
   const [reportType, setReportType] = useState('type');
 
   const typeData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const key = r.type || 'نامشخص';
       map[key] = (map[key] || 0) + 1;
@@ -15,7 +15,7 @@ export default function ReportsTab({ records, onFilter }) {
   }, [records]);
 
   const projectData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const key = r.project || 'نامشخص';
       map[key] = (map[key] || 0) + 1;
@@ -24,7 +24,7 @@ export default function ReportsTab({ records, onFilter }) {
   }, [records]);
 
   const partyData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const key = r.party || 'نامشخص';
       map[key] = (map[key] || 0) + 1;
@@ -33,7 +33,7 @@ export default function ReportsTab({ records, onFilter }) {
   }, [records]);
 
   const monthlyData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const month = (r.date || '').slice(0, 7);
       if (month) {
@@ -46,7 +46,7 @@ export default function ReportsTab({ records, onFilter }) {
   }, [records]);
 
   const amountByProject = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const project = r.project || 'نامشخص';
       const num = parseInt(String(r.amount || '0').replace(/[^0-9]/g, ''), 10) || 0;
@@ -69,7 +69,7 @@ export default function ReportsTab({ records, onFilter }) {
 
   const isPie = reportType !== 'monthly' && reportType !== 'amount';
 
-  const handleChartClick = (entry) => {
+  const handleChartClick = (entry: any) => {
     if (!onFilter || !entry || !entry.name) return;
     onFilter(reportType, entry.name);
   };
@@ -159,7 +159,7 @@ export default function ReportsTab({ records, onFilter }) {
               </PieChart>
             ) : (
               <BarChart data={currentData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                onClick={(e) => {
+                onClick={(e: any) => {
                   if (e?.activePayload?.[0]?.payload) {
                     handleChartClick(e.activePayload[0].payload);
                   }

@@ -102,7 +102,7 @@ describe('useRecords', () => {
       result.current.addRecord({ code: 'PERSIST-TEST' });
     });
 
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
     expect(saved.find(r => r.code === 'PERSIST-TEST')).toBeTruthy();
   });
 });

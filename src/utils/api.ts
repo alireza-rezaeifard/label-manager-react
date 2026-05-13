@@ -2,7 +2,7 @@ const API_BASE = '/api';
 
 async function apiRequest(path, options = {}) {
   const token = localStorage.getItem('auth_token');
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+  const headers = { 'Content-Type': 'application/json', ...(options as any).headers };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   let res;
@@ -51,7 +51,7 @@ export const api = {
 
   getRecords: (params = {}) => {
     const qs = new URLSearchParams();
-    Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
+    Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, String(v)); });
     const q = qs.toString();
     return apiRequest(`/records${q ? '?' + q : ''}`);
   },
@@ -99,4 +99,7 @@ export const api = {
 
   leaveWorkspace: (workspaceId) =>
     apiRequest(`/workspaces/${workspaceId}/leave`, { method: 'DELETE' }),
+
+  checkDuplicateCode: (queryString) =>
+    apiRequest(`/records/check-code${queryString}`),
 };

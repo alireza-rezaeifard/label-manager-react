@@ -14,11 +14,11 @@ export default function WorkspaceSwitcher({
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
-  const ref = useRef(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);

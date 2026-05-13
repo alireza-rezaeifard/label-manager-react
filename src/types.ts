@@ -1,4 +1,5 @@
 export interface Record {
+  [key: string]: any;
   id?: number;
   code: string;
   project: string;
@@ -25,6 +26,8 @@ export interface FieldDef {
   placeholder?: string;
   isRelated?: boolean;
   isCustom?: boolean;
+  fieldType?: 'text' | 'number' | 'date' | 'dropdown' | 'color';
+  options?: string[];
 }
 
 export interface ToastType {

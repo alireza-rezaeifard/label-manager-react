@@ -4,7 +4,6 @@ import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
-import { useApp } from './context/AppContext';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
@@ -14,9 +13,10 @@ import RecordForm from './components/RecordForm';
 import Toast from './components/Toast';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
+import LoadingScreen from './components/LoadingScreen';
 import { CardSkeleton, TableSkeleton } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { toJalaliDate } from './utils/formatters';
+import { useWebSocket } from './hooks/useWebSocket';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
 const ImportCSV = lazy(() => import('./components/ImportCSV'));
@@ -33,6 +33,8 @@ const QRScanner = lazy(() => import('./components/QRScanner'));
 const VirtualizedRecordGrid = lazy(() => import('./components/VirtualizedRecordGrid'));
 const TableView = lazy(() => import('./components/TableView'));
 const DateRangePicker = lazy(() => import('./components/DateRangePicker'));
+const PrintQueue = lazy(() => import('./components/PrintQueue'));
+const FilterPresets = lazy(() => import('./components/FilterPresets'));
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -75,20 +77,20 @@ export default function App() {
     isDuplicateCode,
   } = useRecords();
 
-  const [serverRecords, setServerRecords] = useState([]);
+  const [serverRecords, setServerRecords] = useState<any[]>([]);
   const [serverLoading, setServerLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const fetchedRef = useRef(false);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [tab, setTab] = useState(() => getTabFromHash() || 'records');
-  const [selected, setSelected] = useState(new Set());
-  const [editIndex, setEditIndex] = useState(null);
-  const [viewIndex, setViewIndex] = useState(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [sortBy, setSortBy] = useState(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState('asc');
   const [page, setPage] = useState(1);
 
@@ -104,11 +106,12 @@ export default function App() {
 
   const [customFields, setCustomFields] = useState(loadCustomFields);
   const [newFieldName, setNewFieldName] = useState('');
+  const [newFieldType, setNewFieldType] = useState('text');
   const [showBackupModal, setShowBackupModal] = useState(false);
-  const [backupFile, setBackupFile] = useState(null);
+  const [backupFile, setBackupFile] = useState<File | null>(null);
 
   const [tags, setTags] = useState(loadTags);
-  const [selectedTagFilter, setSelectedTagFilter] = useState(null);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
   const [filterType, setFilterType] = useState('');
   const [filterParty, setFilterParty] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
@@ -121,9 +124,12 @@ export default function App() {
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [bulkEditField, setBulkEditField] = useState('');
   const [bulkEditValue, setBulkEditValue] = useState('');
+  const [bulkEditTags, setBulkEditTags] = useState<string[]>([]);
+  const [bulkEditColor, setBulkEditColor] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
-  const [workspaces, setWorkspaces] = useState([]);
+  const [showPrintQueue, setShowPrintQueue] = useState(false);
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(() => {
     const saved = localStorage.getItem('current_workspace_id');
     return saved ? parseInt(saved, 10) : null;
@@ -139,7 +145,15 @@ export default function App() {
     try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch { /* may be full */ }
   }, [useVirtualScroll]);
 
-  const currentRecords = serverMode ? serverRecords : records;
+  const refreshServerRecords = useCallback(() => {
+    if (serverMode && currentWorkspaceId) {
+      api.getAllRecords(currentWorkspaceId).then(data => setServerRecords(data)).catch(() => {});
+    }
+  }, [serverMode, currentWorkspaceId]);
+
+  useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
+
+  const currentRecords: any[] = serverMode ? serverRecords : records;
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -274,6 +288,18 @@ export default function App() {
     setPage(1);
   };
 
+  const handleApplyPreset = useCallback((filters) => {
+    setSearch(filters.search || '');
+    setFilterType(filters.filterType || '');
+    setFilterParty(filters.filterParty || '');
+    setFilterDateFrom(filters.filterDateFrom || '');
+    setFilterDateTo(filters.filterDateTo || '');
+    setFilterAmountMin(filters.filterAmountMin || '');
+    setFilterAmountMax(filters.filterAmountMax || '');
+    setSelectedTagFilter(filters.selectedTagFilter || null);
+    setPage(1);
+  }, []);
+
   const sortedRecords = useMemo(() => getSortedRecords(), [getSortedRecords]);
   const totalPages = Math.max(1, Math.ceil(sortedRecords.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -282,8 +308,8 @@ export default function App() {
     [sortedRecords, safePage]
   );
 
-  const recordToIndex = useMemo(
-    () => new Map(currentRecords.map((r, i) => [r, i])),
+  const recordToIndex: Map<any, number> = useMemo(
+    () => new Map(currentRecords.map((r: any, i) => [r, i] as [any, number])),
     [currentRecords]
   );
 
@@ -291,7 +317,7 @@ export default function App() {
     if (!serverMode) return true;
     setServerLoading(true);
     try { await fn(); setServerLoading(false); return true; }
-    catch (err) { addToast(err.message, 'error'); setServerLoading(false); return false; }
+    catch (err: any) { addToast(err.message, 'error'); setServerLoading(false); return false; }
   };
 
   const handleSubmit = async (recordData) => {
@@ -309,7 +335,7 @@ export default function App() {
           setEditIndex(null);
           addToast('رکورد با موفقیت ویرایش شد', 'success');
           setTab('records');
-        } catch (err) {
+        } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ویرایش: ' + err.message, 'error');
         }
@@ -330,7 +356,7 @@ export default function App() {
           setServerLoading(false);
           addToast('رکورد با موفقیت اضافه شد', 'success');
           setTab('records');
-        } catch (err) {
+        } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ایجاد: ' + err.message, 'error');
         }
@@ -361,7 +387,7 @@ export default function App() {
         setSelected(new Set());
         setServerLoading(false);
         addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
-      } catch (err) {
+      } catch (err: any) {
         setServerLoading(false);
         addToast('خطا در حذف: ' + err.message, 'error');
       }
@@ -467,13 +493,13 @@ export default function App() {
       if (serverMode) {
         setServerLoading(true);
         try {
-          await api.restore(data);
+          await api.restore(data, currentWorkspaceId);
           await api.getAllRecords(currentWorkspaceId).then(setServerRecords);
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           setShowBackupModal(false);
           addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
-        } catch (err) {
+        } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در بازیابی: ' + err.message, 'error');
         }
@@ -482,7 +508,7 @@ export default function App() {
         setShowBackupModal(false);
         addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
       }
-    } catch (err) {
+    } catch (err: any) {
       addToast('خطا در بازیابی: ' + err.message, 'error');
     }
   };
@@ -541,11 +567,12 @@ export default function App() {
     if (!newFieldName.trim()) return;
     const key = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
     if (customFields.some(f => f.key === key)) { addToast('این فیلد قبلا اضافه شده', 'error'); return; }
-    const field = { key, label: newFieldName.trim(), fa: newFieldName.trim(), placeholder: '', isCustom: true };
+    const field = { key, label: newFieldName.trim(), fa: newFieldName.trim(), placeholder: '', isCustom: true, fieldType: newFieldType, options: newFieldType === 'dropdown' ? [] : undefined };
     const updated = [...customFields, field];
     setCustomFields(updated);
     saveCustomFields(updated);
     setNewFieldName('');
+    setNewFieldType('text');
     addToast('فیلد جدید اضافه شد', 'success');
   };
 
@@ -643,7 +670,7 @@ export default function App() {
       setWorkspaces(prev => [...prev, ws]);
       handleWorkspaceSwitch(ws.id);
       addToast(`فضای کاری "${name}" ایجاد شد`, 'success');
-    } catch (err) {
+    } catch (err: any) {
       addToast(err.message, 'error');
     }
   };
@@ -652,7 +679,7 @@ export default function App() {
     try {
       await api.inviteToWorkspace(wsId, username);
       addToast(`کاربر "${username}" دعوت شد`, 'success');
-    } catch (err) {
+    } catch (err: any) {
       addToast(err.message, 'error');
     }
   };
@@ -666,20 +693,37 @@ export default function App() {
         handleWorkspaceSwitch(remaining[0].id);
       }
       addToast('خروج از فضای کاری با موفقیت انجام شد', 'success');
-    } catch (err) {
+    } catch (err: any) {
       addToast(err.message, 'error');
     }
   };
 
   const handleBulkEdit = () => {
-    if (!bulkEditField || bulkEditValue === undefined) { addToast('فیلد و مقدار را وارد کنید', 'error'); return; }
+    if (!bulkEditField && bulkEditValue === undefined && bulkEditTags.length === 0 && !bulkEditColor) {
+      addToast('حداقل یک فیلد، برچسب یا رنگ را مشخص کنید', 'error'); return;
+    }
     const selectedIndices = [...selected];
+    const buildUpdates = (record) => {
+      const updates: any = {};
+      if (bulkEditField && bulkEditValue !== undefined) {
+        updates[bulkEditField] = bulkEditValue;
+      }
+      if (bulkEditColor) {
+        updates.color = bulkEditColor;
+      }
+      if (bulkEditTags.length > 0) {
+        const existing = record.tags || [];
+        updates.tags = [...new Set([...existing, ...bulkEditTags])];
+      }
+      return updates;
+    };
     if (serverMode) {
       setServerLoading(true);
       Promise.all(selectedIndices.map(i => {
         const record = currentRecords[i];
         if (!record) return Promise.resolve();
-        return api.updateRecord(record.id, { ...record, [bulkEditField]: bulkEditValue });
+        const updates = buildUpdates(record);
+        return api.updateRecord(record.id, { ...record, ...updates });
       })).then(() => {
         return api.getAllRecords(currentWorkspaceId);
       }).then((data) => {
@@ -688,6 +732,8 @@ export default function App() {
         setShowBulkEdit(false);
         setBulkEditField('');
         setBulkEditValue('');
+        setBulkEditTags([]);
+        setBulkEditColor('');
         addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
       }).catch(() => {
         setServerLoading(false);
@@ -696,11 +742,16 @@ export default function App() {
     } else {
       selectedIndices.forEach(i => {
         const record = currentRecords[i];
-        if (record) updateRecord(i, { ...record, [bulkEditField]: bulkEditValue });
+        if (record) {
+          const updates = buildUpdates(record);
+          updateRecord(i, { ...record, ...updates });
+        }
       });
       setShowBulkEdit(false);
       setBulkEditField('');
       setBulkEditValue('');
+      setBulkEditTags([]);
+      setBulkEditColor('');
       addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
     }
   };
@@ -733,18 +784,19 @@ export default function App() {
     },
     onDelete: () => handleDelete(),
     onSearch: () => {
-      const input = document.querySelector('.search-box input');
+      const input = document.querySelector<HTMLInputElement>('.search-box input');
       if (input) { input.focus(); input.select(); }
     },
     onSave: () => {
       const form = document.querySelector('.form-card');
       if (form && tab === 'add') {
-        const submitBtn = form.querySelector('.btn-primary');
+        const submitBtn = form.querySelector<HTMLElement>('.btn-primary');
         submitBtn?.click();
       }
     },
     onSelectAll: () => toggleAll(),
     onEscape: () => {
+      if (showPrintQueue) { setShowPrintQueue(false); return; }
       if (showPrintSettings) { setShowPrintSettings(false); return; }
       if (showBackupModal) { setShowBackupModal(false); return; }
       if (showBulkEdit) { setShowBulkEdit(false); return; }
@@ -783,8 +835,8 @@ export default function App() {
     return <LoadingScreen message="در حال بارگذاری..." />;
   }
 
-  const allTypes = [...new Set(currentRecords.map(r => r.type).filter(Boolean))];
-  const allParties = [...new Set(currentRecords.map(r => r.party).filter(Boolean))];
+  const allTypes = [...new Set(currentRecords.map((r: any) => r.type).filter(Boolean))] as string[];
+  const allParties = [...new Set(currentRecords.map((r: any) => r.party).filter(Boolean))] as string[];
 
   return (
     <ErrorBoundary>
@@ -866,6 +918,9 @@ export default function App() {
                     onLeave={handleLeaveWorkspace}
                   />
                 )}
+                <button className="btn btn-outline btn-sm" onClick={() => setShowPrintQueue(true)}>
+                  <i className="ti ti-printer"></i> صف چاپ
+                </button>
                 <button className="btn btn-outline btn-sm" onClick={() => setShowScanner(true)}>
                   <i className="ti ti-scan"></i> اسکن QR
                 </button>
@@ -960,6 +1015,22 @@ export default function App() {
                       ))}
                     </div>
                   )}
+                  <Suspense fallback={null}>
+                    <FilterPresets
+                      currentFilters={{
+                        search,
+                        filterType,
+                        filterParty,
+                        filterDateFrom,
+                        filterDateTo,
+                        filterAmountMin,
+                        filterAmountMax,
+                        selectedTagFilter,
+                      }}
+                      onApply={handleApplyPreset}
+                      addToast={addToast}
+                    />
+                  </Suspense>
                 </div>
 
                 {sortedRecords.length === 0 ? (
@@ -1001,7 +1072,6 @@ export default function App() {
                       getRelatedLabels={findRelated}
                       onDragStart={handleDragStart}
                       onDragOver={(e) => e.preventDefault()}
-                      onDragEnd={() => setDragIndex(null)}
                       onDrop={handleDrop}
                       setDragIndex={setDragIndex}
                     />
@@ -1109,7 +1179,7 @@ export default function App() {
             )}
 
             {tab === 'import' && (
-              <ImportCSV onImport={handleImport} importMsg={''} setImportMsg={() => {}} addToast={addToast} />
+              <ImportCSV onImport={handleImport} addToast={addToast} />
             )}
 
             {tab === 'view' && viewIndex !== null && (
@@ -1163,6 +1233,8 @@ export default function App() {
                 onRemoveField={handleRemoveCustomField}
                 newFieldName={newFieldName}
                 onNewFieldNameChange={setNewFieldName}
+                newFieldType={newFieldType}
+                onNewFieldTypeChange={setNewFieldType}
                 serverMode={serverMode}
                 authUser={authUser}
                 tags={tags}
@@ -1170,6 +1242,8 @@ export default function App() {
                 onRemoveTag={handleRemoveTag}
                 useVirtualScroll={useVirtualScroll}
                 onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
+                theme={theme}
+                onThemeChange={setTheme}
               />
             )}
           </div>
@@ -1213,6 +1287,7 @@ export default function App() {
                 <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowBulkEdit(false)}></i>
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem' }}>{selected.size} رکورد انتخاب شده</p>
+
               <div className="form-group">
                 <label className="form-label">فیلد</label>
                 <select className="form-input" value={bulkEditField} onChange={e => setBulkEditField(e.target.value)}>
@@ -1229,6 +1304,53 @@ export default function App() {
                 <label className="form-label">مقدار جدید</label>
                 <input type="text" className="form-input" value={bulkEditValue} onChange={e => setBulkEditValue(e.target.value)} />
               </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
+
+              <div className="form-group">
+                <label className="form-label">
+                  <i className="ti ti-color-picker" style={{ marginRight: 8 }}></i>
+                  رنگ
+                </label>
+                <div className="d-flex gap-2 align-items-center">
+                  <input type="color" value={bulkEditColor || '#7367f0'}
+                    onChange={e => setBulkEditColor(e.target.value)}
+                    style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--border-color)', cursor: 'pointer', padding: 2, background: 'none' }} />
+                  <input type="text" className="form-input" value={bulkEditColor}
+                    onChange={e => setBulkEditColor(e.target.value)}
+                    placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
+                  <button className="btn btn-outline btn-sm" onClick={() => setBulkEditColor('')}>
+                    <i className="ti ti-x"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  <i className="ti ti-tags" style={{ marginRight: 8 }}></i>
+                  افزودن برچسب
+                </label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {tags.map(tag => {
+                    const active = bulkEditTags.includes(tag);
+                    return (
+                      <span key={tag} onClick={() => {
+                        const next = active ? bulkEditTags.filter(t => t !== tag) : [...bulkEditTags, tag];
+                        setBulkEditTags(next);
+                      }} style={{
+                        padding: '0.4rem 0.8rem', borderRadius: 20, cursor: 'pointer',
+                        fontSize: '0.85rem', transition: 'all 0.2s',
+                        background: active ? 'var(--primary)' : 'var(--bg-body)',
+                        color: active ? 'white' : 'var(--text-color)',
+                        border: active ? 'none' : '1px solid var(--border-color)',
+                      }}>
+                        {tag}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+
               <button className="btn btn-primary w-100" onClick={handleBulkEdit}>
                 <i className="ti ti-check"></i> اعمال به {selected.size} رکورد
               </button>
@@ -1241,6 +1363,17 @@ export default function App() {
             onScan={handleQRScan}
             onClose={() => setShowScanner(false)}
           />
+        )}
+
+        {showPrintQueue && (
+          <Suspense fallback={null}>
+            <PrintQueue
+              records={currentRecords}
+              selectedRecords={selectedRecords}
+              addToast={addToast}
+              onClose={() => setShowPrintQueue(false)}
+            />
+          </Suspense>
         )}
       </div>
     </ErrorBoundary>

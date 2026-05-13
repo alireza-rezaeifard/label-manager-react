@@ -4,9 +4,10 @@ import * as XLSX from 'xlsx';
 import { FIELDS, CSV_TEMPLATE } from '../data/fields';
 import { downloadTemplate } from '../utils/exporters';
 
-export default function ImportCSV({ onImport, importMsg, setImportMsg, addToast }) {
-  const fileRef = useRef(null);
+export default function ImportCSV({ onImport, addToast }) {
+  const fileRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState('csv');
+  const [importMsg, setImportMsg] = useState('');
 
   const processRecords = (data) => {
     const valid = data.filter(r => r.code && r.project);
@@ -31,14 +32,14 @@ export default function ImportCSV({ onImport, importMsg, setImportMsg, addToast 
   };
 
   const handleCSV = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     if (importMode === 'excel') {
       const reader = new FileReader();
       reader.onload = (ev) => {
         try {
-          const data = new Uint8Array(ev.target.result);
+          const data = new Uint8Array((ev.target as FileReader).result as ArrayBuffer);
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
@@ -55,7 +56,7 @@ export default function ImportCSV({ onImport, importMsg, setImportMsg, addToast 
         error: () => setImportMsg('❌ خطا در پردازش فایل.'),
       });
     }
-    e.target.value = '';
+    (e.target as HTMLInputElement).value = '';
   };
 
   return (

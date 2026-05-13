@@ -11,7 +11,7 @@ describe('exporters', () => {
     const createObjectURL = vi.fn(() => 'blob:test');
     globalThis.URL.createObjectURL = createObjectURL;
     const click = vi.fn();
-    const a = { href: '', click, download: '' };
+    const a = { href: '', click, download: '' } as any;
     vi.spyOn(document, 'createElement').mockReturnValue(a);
 
     const records = [

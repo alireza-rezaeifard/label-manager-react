@@ -3,7 +3,7 @@ import { FIELDS } from '../data/fields';
 import type { Record } from '../types';
 
 function TableView({
-  records, selected, onToggle, onEdit, onView, onSort, sortBy, sortOrder, recordToIndex,
+  records, selected, onToggle, onEdit, onView: _onView, onSort, sortBy, sortOrder, recordToIndex,
 }: {
   records: Record[];
   selected: Set<number>;
@@ -29,7 +29,6 @@ function TableView({
     if (!editCell) return;
     const record = records[editCell.idx];
     if (record) {
-      const updated = { ...record, [editCell.field]: editValue };
       onEdit(editCell.idx);
     }
     setEditCell(null);
@@ -40,7 +39,8 @@ function TableView({
   };
 
   return (
-    <div className="table-view">
+    <div className="table-responsive-wrapper">
+      <div className="table-view">
       <div className="table-header">
         <div className="table-cell" style={{ flex: '0 0 40px', maxWidth: 40 }}></div>
         {displayFields.map(f => (
@@ -95,6 +95,7 @@ function TableView({
       {records.length === 0 && (
         <div style={{ textAlign: 'center', padding: '3rem', opacity: 0.5 }}>هیچ رکوردی یافت نشد</div>
       )}
+    </div>
     </div>
   );
 }

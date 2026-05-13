@@ -60,7 +60,7 @@ const TEMPLATES = {
 
 export { TEMPLATES };
 
-export const downloadTemplate = (fields, template) => {
+export const downloadTemplate = (_fields, template) => {
   const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -219,6 +219,7 @@ export const downloadCSV = (records, fields) => {
 export const printLabels = (records, fields, cols, width, height, templateKey, showQr, showBarcode) => {
   const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr, showBarcode);
   const win = window.open("", "_blank");
+  if (!win) return;
   win.document.write(html);
   win.document.close();
 };

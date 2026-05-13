@@ -7,14 +7,14 @@ import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [] }) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [] }: Record<string, any>) {
   const allFields = [...FIELDS.filter(f => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find(f => f.isRelated);
 
-  const getInitialForm = () => {
+  const getInitialForm = (): any => {
     if (editRecord) {
       const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
-      allFields.forEach(f => { form[f.key] = editRecord[f.key] || (f.isRelated ? [] : ""); });
+      allFields.forEach((f: any) => { form[f.key] = editRecord[f.key] || (f.isRelated ? [] : ""); });
       form.related = editRecord.related || [];
       form.tags = editRecord.tags || [];
       form.image = editRecord.image || "";
@@ -22,17 +22,17 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
       return form;
     }
     const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#7367f0" };
-    customFields.forEach(f => { form[f.key] = ""; });
+    customFields.forEach((f: any) => { form[f.key] = ""; });
     return form;
   };
 
-  const [form, setForm] = useState(getInitialForm);
-  const [formErrors, setFormErrors] = useState({});
+  const [form, setForm] = useState(getInitialForm());
+  const [formErrors, setFormErrors] = useState<Record<string, string | undefined>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
-  const datePickerRef = useRef(null);
-  const prevEditKey = useRef(null);
-  const fileInputRef = useRef(null);
+  const datePickerRef = useRef<HTMLDivElement>(null);
+  const prevEditKey = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentKey = editRecord?.code ?? editIndex;
   if (currentKey !== prevEditKey.current) {
@@ -42,8 +42,8 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   }
 
   useEffect(() => {
-    function handleClickOutside(event) {
-      if (datePickerRef.current && !datePickerRef.current.contains(event.target)) {
+    function handleClickOutside(event: MouseEvent) {
+      if (datePickerRef.current && !datePickerRef.current.contains(event.target as Node)) {
         setShowDatePicker(false);
       }
     }
@@ -51,13 +51,13 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const setField = (key, value) => {
+  const setField = (key: string, value: any) => {
     setForm(p => ({ ...p, [key]: value }));
     setFormErrors(p => ({ ...p, [key]: "" }));
   };
 
   const validate = () => {
-    const errors = {};
+    const errors: Record<string, string> = {};
     if (!form.code.trim()) errors.code = "فیلد ضروری است";
     if (!form.project.trim()) errors.project = "فیلد ضروری است";
     if (form.code.trim() && isDuplicateCode(form.code.trim(), editIndex)) {
@@ -68,7 +68,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   };
 
   const handleImageSelect = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.size > 2 * 1024 * 1024) {
@@ -78,14 +78,14 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
 
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const base64 = ev.target.result;
+      const base64 = (ev.target as FileReader).result as string;
       if (serverMode) {
         setImageUploading(true);
         try {
           const result = await api.uploadImage(base64);
           setField("image", result.url);
           addToast("تصویر با موفقیت آپلود شد", "success");
-        } catch (err) {
+        } catch (err: any) {
           addToast("خطا در آپلود تصویر: " + err.message, "error");
         } finally {
           setImageUploading(false);
@@ -106,14 +106,14 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
       party: form.party, amount: form.amount, related: form.related, tags: form.tags,
       image: form.image, color: form.color,
     };
-    customFields.forEach(f => { recordData[f.key] = form[f.key] || ""; });
+    customFields.forEach((f: any) => { recordData[f.key] = form[f.key] || ""; });
     onSubmit(recordData);
   };
 
   return (
     <div className="form-card fade-in">
       <div className="row">
-        {allFields.map(f => (
+        {allFields.map((f: any) => (
           <div key={f.key} className="col-md-6">
             <div className="form-group">
               <label className="form-label">
@@ -122,7 +122,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                 <span style={{ opacity: 0.5 }}>({f.fa})</span>
                 {["code", "project"].includes(f.key) && <span className="text-danger"> *</span>}
               </label>
-              {f.key === "date" ? (
+              {f.key === "date" && !f.isCustom ? (
                 <div style={{ position: 'relative' }} ref={datePickerRef}>
                   <div style={{ position: 'relative' }}>
                     <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
@@ -144,6 +144,50 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     </div>
                   )}
                 </div>
+              ) : f.isCustom && f.fieldType === 'number' ? (
+                <input type="number" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
+                  value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
+              ) : f.isCustom && f.fieldType === 'date' ? (
+                <div style={{ position: 'relative' }} ref={datePickerRef}>
+                  <div style={{ position: 'relative' }}>
+                    <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
+                      value={form[f.key] || ""}
+                      onChange={e => setField(f.key, e.target.value)}
+                      onClick={() => setShowDatePicker(true)}
+                      placeholder="1403/02/15" style={{ direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem', cursor: 'pointer' }} />
+                    <i className="ti ti-calendar"
+                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
+                      onClick={(e) => { e.stopPropagation(); setShowDatePicker(!showDatePicker); }}>
+                    </i>
+                  </div>
+                  {showDatePicker && (
+                    <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
+                      <DayPicker locale={faIR} dir="rtl" mode="single"
+                        selected={form[f.key] ? new Date(form[f.key]) : undefined}
+                        onSelect={(date) => { if (date) setField(f.key, toJalaliDate(date)); setShowDatePicker(false); }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : f.isCustom && f.fieldType === 'color' ? (
+                <div className="d-flex gap-2 align-items-center">
+                  <input type="color" value={form[f.key] || '#7367f0'}
+                    onChange={e => setField(f.key, e.target.value)}
+                    style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--border-color)', cursor: 'pointer', padding: 2, background: 'none' }} />
+                  <input type="text" className="form-input" value={form[f.key] || ''}
+                    onChange={e => setField(f.key, e.target.value)}
+                    placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
+                </div>
+              ) : f.isCustom && f.fieldType === 'dropdown' ? (
+                <select className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
+                  value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  style={{ direction: 'ltr', textAlign: 'left' }}>
+                  <option value="">انتخاب کنید...</option>
+                  {(f.options || []).map((opt, i) => (
+                    <option key={i} value={opt}>{opt}</option>
+                  ))}
+                </select>
               ) : (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
@@ -196,7 +240,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           <div className="form-group">
             <label className="form-label">
               <i className="ti ti-link" style={{ marginRight: 8 }}></i>
-              {relatedField.label} <span style={{ opacity: 0.5 }}>({relatedField.fa})</span>
+              {relatedField?.label} <span style={{ opacity: 0.5 }}>({relatedField?.fa})</span>
             </label>
             <MultiSelectDropdown
               options={availableLabels}

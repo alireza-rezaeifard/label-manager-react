@@ -11,7 +11,7 @@ function Checkbox({ checked, onChange }) {
 
 function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit }) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
-  const [editField, setEditField] = useState(null);
+  const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
 
   const handleInlineSave = useCallback(() => {
