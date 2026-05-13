@@ -12,11 +12,17 @@ export function useWebSocket(
   onRecordsChangedRef.current = onRecordsChanged;
 
   useEffect(() => {
+    const token = localStorage.getItem('auth_token');
     const socket: Socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      auth: { token },
+    });
+
+    socket.on('connect_error', (err) => {
+      console.warn('WebSocket connection error:', err.message);
     });
 
     socket.on('connect', () => {

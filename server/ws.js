@@ -1,4 +1,12 @@
 import { Server } from 'socket.io';
+import jwt from 'jsonwebtoken';
+import db from './db.js';
+
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set.');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 let io;
 
@@ -13,13 +21,31 @@ export function initWebSocket(server, allowedOrigins) {
     pingTimeout: 10000,
   });
 
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token;
+    if (!token) return next(new Error('Authentication required'));
+
+    try {
+      socket.user = jwt.verify(token, JWT_SECRET);
+      next();
+    } catch {
+      next(new Error('Invalid token'));
+    }
+  });
+
   io.on('connection', (socket) => {
-    console.log(`WebSocket client connected: ${socket.id}`);
+    console.log(`WebSocket authenticated: ${socket.user.username} (${socket.id})`);
 
     socket.on('join-workspace', (workspaceId) => {
-      if (workspaceId) {
+      if (!workspaceId) return;
+
+      const membership = db.prepare(
+        'SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+      ).get(workspaceId, socket.user.id);
+
+      if (membership) {
         socket.join(`workspace:${workspaceId}`);
-        console.log(`Socket ${socket.id} joined workspace:${workspaceId}`);
+        console.log(`Socket ${socket.id} (${socket.user.username}) joined workspace:${workspaceId}`);
       }
     });
 
@@ -30,7 +56,7 @@ export function initWebSocket(server, allowedOrigins) {
     });
 
     socket.on('disconnect', () => {
-      console.log(`WebSocket client disconnected: ${socket.id}`);
+      console.log(`WebSocket disconnected: ${socket.user.username} (${socket.id})`);
     });
   });
 

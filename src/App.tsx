@@ -327,9 +327,12 @@ export default function App() {
         if (!record) { addToast('رکورد یافت نشد', 'error'); return; }
         setServerLoading(true);
         try {
-          await api.updateRecord(record.id, recordData);
-          const refreshed = await api.getAllRecords(currentWorkspaceId);
-          setServerRecords(refreshed);
+          const updated = await api.updateRecord(record.id, recordData);
+          setServerRecords(prev => {
+            const idx = prev.findIndex(r => r.id === record.id);
+            if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
+            return prev;
+          });
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           setEditIndex(null);
@@ -349,9 +352,8 @@ export default function App() {
       if (serverMode) {
         setServerLoading(true);
         try {
-          await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
-          const refreshed = await api.getAllRecords(currentWorkspaceId);
-          setServerRecords(refreshed);
+          const created = await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
+          setServerRecords(prev => [created, ...prev]);
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           addToast('رکورد با موفقیت اضافه شد', 'success');
@@ -381,8 +383,8 @@ export default function App() {
       setServerLoading(true);
       try {
         await api.deleteRecords(ids);
-        const refreshed = await api.getAllRecords(currentWorkspaceId);
-        setServerRecords(refreshed);
+        const idSet = new Set(ids);
+        setServerRecords(prev => prev.filter(r => !idSet.has(r.id)));
         setRefreshKey(k => k + 1);
         setSelected(new Set());
         setServerLoading(false);
@@ -639,8 +641,13 @@ export default function App() {
       const record = currentRecords[index];
       if (!record) return;
       setServerLoading(true);
-      api.updateRecord(record.id, { ...record, [field]: value }).then(() => {
-        api.getAllRecords(currentWorkspaceId).then(data => { setServerRecords(data); setServerLoading(false); });
+      api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
+        setServerRecords(prev => {
+          const idx = prev.findIndex(r => r.id === record.id);
+          if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
+          return prev;
+        });
+        setServerLoading(false);
       }).catch(() => setServerLoading(false));
     } else {
       const record = currentRecords[index];
@@ -698,6 +705,23 @@ export default function App() {
     }
   };
 
+  const handleDeleteWorkspace = async (wsId) => {
+    try {
+      await api.deleteWorkspace(wsId);
+      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
+      const remaining = workspaces.filter(w => w.id !== wsId);
+      if (remaining.length > 0) {
+        handleWorkspaceSwitch(remaining[0].id);
+      } else {
+        setCurrentWorkspaceId(null);
+        setServerRecords([]);
+      }
+      addToast('فضای کاری با موفقیت حذف شد', 'success');
+    } catch (err: any) {
+      addToast(err.message, 'error');
+    }
+  };
+
   const handleBulkEdit = () => {
     if (!bulkEditField && bulkEditValue === undefined && bulkEditTags.length === 0 && !bulkEditColor) {
       addToast('حداقل یک فیلد، برچسب یا رنگ را مشخص کنید', 'error'); return;
@@ -721,13 +745,14 @@ export default function App() {
       setServerLoading(true);
       Promise.all(selectedIndices.map(i => {
         const record = currentRecords[i];
-        if (!record) return Promise.resolve();
+        if (!record) return Promise.resolve(null);
         const updates = buildUpdates(record);
         return api.updateRecord(record.id, { ...record, ...updates });
-      })).then(() => {
-        return api.getAllRecords(currentWorkspaceId);
-      }).then((data) => {
-        setServerRecords(data);
+      })).then((results) => {
+        const updatedMap = new Map(results.filter(Boolean).map(r => [r.id, r]));
+        if (updatedMap.size > 0) {
+          setServerRecords(prev => prev.map(r => updatedMap.get(r.id) || r));
+        }
         setServerLoading(false);
         setShowBulkEdit(false);
         setBulkEditField('');
@@ -757,8 +782,9 @@ export default function App() {
   };
 
   const keyboardHandlers = {
-    onNewRecord: () => { setEditIndex(null); setTab('add'); },
+    onNewRecord: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } setEditIndex(null); setTab('add'); },
     onEdit: () => {
+      if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
       const first = [...selected][0];
       if (first !== undefined && currentRecords[first]) {
         setEditIndex(first); setTab('add');
@@ -767,12 +793,13 @@ export default function App() {
       }
     },
     onDuplicate: () => {
+      if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
       const first = [...selected][0];
       if (first !== undefined && currentRecords[first]) {
         const dup = { ...currentRecords[first], code: currentRecords[first].code + '-COPY' };
         if (serverMode) {
-          api.createRecord({ ...dup, workspace_id: currentWorkspaceId }).then(() => {
-            api.getAllRecords(currentWorkspaceId).then(setServerRecords);
+          api.createRecord({ ...dup, workspace_id: currentWorkspaceId }).then(created => {
+            setServerRecords(prev => [created, ...prev]);
           }).catch(e => addToast(e.message, 'error'));
         } else {
           addRecord(dup);
@@ -782,7 +809,7 @@ export default function App() {
         addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
       }
     },
-    onDelete: () => handleDelete(),
+    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDelete(); },
     onSearch: () => {
       const input = document.querySelector<HTMLInputElement>('.search-box input');
       if (input) { input.focus(); input.select(); }
@@ -827,6 +854,10 @@ export default function App() {
     return currentRecords.filter(r => codes.includes(r.code));
   };
 
+  const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
+  const currentWsRole = currentWs?.member_role;
+  const isViewer = serverMode && currentWsRole === 'viewer';
+
   if (!serverMode && !authUser && !getAuthUser() && !localMode) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -847,6 +878,7 @@ export default function App() {
           sidebarOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           onResetForm={resetForm}
+          isViewer={isViewer}
         />
 
         <main className="main-content">
@@ -916,6 +948,8 @@ export default function App() {
                     onCreateWorkspace={handleCreateWorkspace}
                     onInviteMember={handleInviteMember}
                     onLeave={handleLeaveWorkspace}
+                    onDeleteWorkspace={handleDeleteWorkspace}
+                    currentRole={currentWsRole}
                   />
                 )}
                 <button className="btn btn-outline btn-sm" onClick={() => setShowPrintQueue(true)}>
@@ -961,7 +995,7 @@ export default function App() {
                       <i className="ti ti-checkbox"></i>
                       {selected.size === sortedRecords.length && sortedRecords.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
                     </button>
-                    {selected.size > 0 && (
+                    {selected.size > 0 && !isViewer && (
                       <>
                         <button className="btn btn-outline btn-sm" onClick={() => setShowBulkEdit(true)}>
                           <i className="ti ti-edit"></i> ویرایش دسته‌جمعی ({selected.size})
@@ -1038,9 +1072,11 @@ export default function App() {
                     <div className="empty-icon"><i className="ti ti-file-off"></i></div>
                     <h3 style={{ marginBottom: '0.5rem' }}>هنوز رکوردی وجود ندارد</h3>
                     <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>رکورد جدید اضافه کنید یا فایل CSV وارد نمایید</p>
-                    <button className="btn btn-primary" onClick={() => setTab('add')}>
-                      <i className="ti ti-plus"></i> افزودن رکورد
-                    </button>
+                    {!isViewer && (
+                      <button className="btn btn-primary" onClick={() => setTab('add')}>
+                        <i className="ti ti-plus"></i> افزودن رکورد
+                      </button>
+                    )}
                   </div>
                 ) : viewMode === 'table' ? (
                   <Suspense fallback={<TableSkeleton rows={8} />}>
@@ -1124,6 +1160,14 @@ export default function App() {
 
             {tab === 'add' && (
               <div className="fade-in">
+                {isViewer ? (
+                  <div className="empty-state">
+                    <div className="empty-icon"><i className="ti ti-lock"></i></div>
+                    <h3 style={{ marginBottom: '0.5rem' }}>دسترسی محدود</h3>
+                    <p style={{ opacity: 0.7 }}>شما دسترسی مشاهده دارید و نمی‌توانید رکورد جدید اضافه یا ویرایش کنید</p>
+                  </div>
+                ) : (
+                <>
                 {!editIndex && (
                   <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div className="d-flex gap-2 align-items-center">
@@ -1175,8 +1219,10 @@ export default function App() {
                   serverMode={serverMode}
                   allTags={tags}
                 />
-              </div>
+              </>
             )}
+          </div>
+        )}
 
             {tab === 'import' && (
               <ImportCSV onImport={handleImport} addToast={addToast} />
@@ -1277,6 +1323,7 @@ export default function App() {
           onBackup={handleBackup}
           onRestore={handleRestore}
           setBackupFile={setBackupFile}
+          isViewer={isViewer}
         />
 
         {showBulkEdit && (

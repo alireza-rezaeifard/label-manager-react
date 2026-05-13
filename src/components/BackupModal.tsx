@@ -2,6 +2,7 @@ export default function BackupModal({
   show, onClose,
   recordCount, onBackup,
   onRestore, setBackupFile,
+  isViewer,
 }) {
   if (!show) return null;
 
@@ -21,19 +22,21 @@ export default function BackupModal({
             <i className="ti ti-download"></i> دانلود پشتیبان (JSON)
           </button>
         </div>
-        <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
-          <h4 style={{ marginBottom: '0.75rem' }}>بازیابی از پشتیبان</h4>
-          <input
-            type="file"
-            accept=".json"
-            className="form-input"
-            style={{ marginBottom: '1rem' }}
-            onChange={e => setBackupFile(e.target.files?.[0])}
-          />
-          <button className="btn btn-success w-100" onClick={onRestore}>
-            <i className="ti ti-upload"></i> بازیابی
-          </button>
-        </div>
+        {!isViewer && (
+          <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.5rem' }}>
+            <h4 style={{ marginBottom: '0.75rem' }}>بازیابی از پشتیبان</h4>
+            <input
+              type="file"
+              accept=".json"
+              className="form-input"
+              style={{ marginBottom: '1rem' }}
+              onChange={e => setBackupFile(e.target.files?.[0])}
+            />
+            <button className="btn btn-success w-100" onClick={onRestore}>
+              <i className="ti ti-upload"></i> بازیابی
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

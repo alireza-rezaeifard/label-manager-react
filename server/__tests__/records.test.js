@@ -40,6 +40,22 @@ describe('Auth', () => {
     expect(res.body.user.username).toBe('admin');
   });
 
+  it('should reject registration with weak password', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ username: `weak_${Date.now()}`, password: 'abc' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('6 characters');
+  });
+
+  it('should reject registration with password without number', async () => {
+    const res = await request(app)
+      .post('/api/auth/register')
+      .send({ username: `nonumber_${Date.now()}`, password: 'abcdefgh' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toContain('number');
+  });
+
   it('should reject login with invalid credentials', async () => {
     const res = await request(app)
       .post('/api/auth/login')

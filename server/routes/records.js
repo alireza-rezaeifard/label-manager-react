@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import db from '../db.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, requireWorkspaceRole, requireRecordWorkspaceRole } from '../middleware/auth.js';
 import { broadcastToWorkspace } from '../ws.js';
 import { AppError, asyncHandler } from '../errors.js';
+
+const ROLE_HIERARCHY = { owner: 10, admin: 8, editor: 5, viewer: 1 };
 
 const router = Router();
 
@@ -137,11 +139,15 @@ router.post('/', asyncHandler((req, res) => {
   const duplicate = db.prepare('SELECT id FROM records WHERE code = ? AND workspace_id = ?').get(code, wsId);
   if (duplicate) throw new AppError(`Code "${code}" already exists in this workspace`, 409, 'DUPLICATE_CODE');
 
-  const membership = db.prepare(
-    'SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
   ).get(wsId, req.user.id);
 
-  if (!membership) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+
+  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Editing records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
 
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), 0) as mx FROM records WHERE workspace_id = ?').get(wsId);
   const sortOrder = maxOrder.mx + 1;
@@ -165,19 +171,28 @@ router.put('/:id', asyncHandler((req, res) => {
   const { id } = req.params;
   const { code, project, type, date, party, amount, related, tags, image, color } = req.body;
 
-  const existing = db.prepare('SELECT * FROM records WHERE id = ? AND user_id = ?').get(id, req.user.id);
+  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
   if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
 
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  ).get(existing.workspace_id, req.user.id);
+
+  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Editing records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
+
   if (code && code !== existing.code) {
-    const dup = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND user_id = ?').get(code, id, req.user.id);
-    if (dup) throw new AppError(`Code "${code}" already exists`, 409, 'DUPLICATE_CODE');
+    const dup = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND workspace_id = ?').get(code, id, existing.workspace_id);
+    if (dup) throw new AppError(`Code "${code}" already exists in this workspace`, 409, 'DUPLICATE_CODE');
   }
 
   db.prepare(
     `UPDATE records SET
       code=?, project=?, type=?, date=?, party=?, amount=?,
       related=?, tags=?, image=?, color=?, updated_at=datetime('now')
-     WHERE id=? AND user_id=?`
+     WHERE id=?`
   ).run(
     code ?? existing.code,
     project ?? existing.project,
@@ -189,8 +204,7 @@ router.put('/:id', asyncHandler((req, res) => {
     JSON.stringify(tags ?? JSON.parse(existing.tags || '[]')),
     image ?? existing.image,
     color ?? existing.color,
-    id,
-    req.user.id
+    id
   );
 
   const record = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
@@ -206,10 +220,21 @@ router.delete('/batch', asyncHandler((req, res) => {
   }
 
   const records = db.prepare(`SELECT * FROM records WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+
+  const wsIds = [...new Set(records.map(r => r.workspace_id))];
+  for (const wsId of wsIds) {
+    const roleInfo = db.prepare(
+      'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+    ).get(wsId, req.user.id);
+    if (!roleInfo || (ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+      throw new AppError('Insufficient permissions to delete records', 403, 'INSUFFICIENT_ROLE');
+    }
+  }
+
   const placeholders = ids.map(() => '?').join(',');
   const result = db.prepare(
-    `DELETE FROM records WHERE id IN (${placeholders}) AND user_id = ?`
-  ).run(...ids, req.user.id);
+    `DELETE FROM records WHERE id IN (${placeholders})`
+  ).run(...ids);
 
   logActivity(req.user.id, 'delete', `Deleted ${result.changes} records`);
   for (const r of records) {
@@ -224,10 +249,18 @@ router.post('/reorder', asyncHandler((req, res) => {
     throw new AppError('ids array required', 400, 'MISSING_IDS');
   }
 
+  const wsId = workspace_id || 1;
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  ).get(wsId, req.user.id);
+  if (!roleInfo || (ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Reordering records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
+
   const txn = db.transaction(() => {
     ids.forEach((recordId, index) => {
-      db.prepare('UPDATE records SET sort_order = ?, updated_at = datetime(\'now\') WHERE id = ? AND user_id = ?')
-        .run(index, recordId, req.user.id);
+      db.prepare('UPDATE records SET sort_order = ?, updated_at = datetime(\'now\') WHERE id = ? AND workspace_id = ?')
+        .run(index, recordId, wsId);
     });
   });
   txn();
@@ -255,11 +288,14 @@ router.post('/restore', asyncHandler((req, res) => {
   const wsId = workspace_id || 1;
   db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (?, ?, ?)').run(wsId, req.user.id, 'member');
 
-  const membership = db.prepare(
-    'SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
   ).get(wsId, req.user.id);
 
-  if (!membership) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.admin) {
+    throw new AppError('Restore requires "admin" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
 
   const txn = db.transaction(() => {
     db.prepare('DELETE FROM records WHERE workspace_id = ?').run(wsId);

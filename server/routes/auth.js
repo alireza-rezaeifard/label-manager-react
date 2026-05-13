@@ -5,10 +5,28 @@ import { generateToken } from '../middleware/auth.js';
 
 const router = Router();
 
+function validatePassword(password) {
+  if (!password || password.length < 6) {
+    return 'Password must be at least 6 characters';
+  }
+  if (!/[a-zA-Z]/.test(password)) {
+    return 'Password must contain at least one letter';
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one number';
+  }
+  return null;
+}
+
 router.post('/register', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'Username and password required' });
+  }
+
+  const pwError = validatePassword(password);
+  if (pwError) {
+    return res.status(400).json({ error: pwError });
   }
 
   try {
@@ -19,7 +37,7 @@ router.post('/register', (req, res) => {
 
     const defaultWs = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
     if (defaultWs) {
-      db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(userId, 'member');
+      db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(userId, 'editor');
     }
 
     const token = generateToken(user);
@@ -45,7 +63,7 @@ router.post('/login', (req, res) => {
 
   const defaultWs = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
   if (defaultWs) {
-    db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(user.id, 'member');
+    db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(user.id, 'editor');
   }
 
   const token = generateToken(user);

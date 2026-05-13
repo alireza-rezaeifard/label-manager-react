@@ -100,6 +100,18 @@ export const api = {
   leaveWorkspace: (workspaceId) =>
     apiRequest(`/workspaces/${workspaceId}/leave`, { method: 'DELETE' }),
 
+  changeMemberRole: (workspaceId, userId, role) =>
+    apiRequest(`/workspaces/${workspaceId}/members/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+
+  removeMember: (workspaceId, userId) =>
+    apiRequest(`/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
+
+  transferOwnership: (workspaceId, userId) =>
+    apiRequest(`/workspaces/${workspaceId}/transfer-ownership`, { method: 'POST', body: JSON.stringify({ userId }) }),
+
+  deleteWorkspace: (workspaceId) =>
+    apiRequest(`/workspaces/${workspaceId}`, { method: 'DELETE' }),
+
   checkDuplicateCode: (queryString) =>
     apiRequest(`/records/check-code${queryString}`),
 };

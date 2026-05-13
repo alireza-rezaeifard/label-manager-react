@@ -9,12 +9,16 @@ const NAV_ITEMS = [
   { tab: 'settings', icon: 'ti-settings', label: 'تنظیمات' },
 ];
 
-export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm }) {
+const VIEWER_HIDE = new Set(['add', 'import']);
+
+export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer }) {
   const handleClick = (t) => {
     onTabChange(t);
     if (t !== 'add') onResetForm();
     onClose();
   };
+
+  const visibleItems = NAV_ITEMS.filter(item => !(isViewer && VIEWER_HIDE.has(item.tab)));
 
   return (
     <>
@@ -29,7 +33,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
 
         <nav className="sidebar-nav">
           <div className="nav-section-title">Main Menu</div>
-          {NAV_ITEMS.map(item => (
+          {visibleItems.map(item => (
             <div
               key={item.tab}
               className={`nav-item ${tab === item.tab ? 'active' : ''}`}
