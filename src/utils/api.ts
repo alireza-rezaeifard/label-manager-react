@@ -57,7 +57,7 @@ export const api = {
   },
 
   getAllRecords: (workspaceId) => {
-    const qs = workspaceId ? `?workspace_id=${workspaceId}&limit=200` : '?limit=200';
+    const qs = workspaceId ? `?workspace_id=${workspaceId}&limit=10000` : '?limit=10000';
     return apiRequest(`/records${qs}`).then(r => r.records || r);
   },
 
@@ -114,6 +114,9 @@ export const api = {
 
   checkDuplicateCode: (queryString) =>
     apiRequest(`/records/check-code${queryString}`),
+
+  getMe: () =>
+    apiRequest('/auth/me'),
 
   changePassword: (currentPassword, newPassword) =>
     apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),

@@ -37,8 +37,8 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
     if (!serverMode) return;
     (async () => {
       try {
-        const ok = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` } });
-        setServerStatus(ok.ok ? 'connected' : 'error');
+        await api.getMe();
+        setServerStatus('connected');
       } catch { setServerStatus('error'); }
     })();
   }, [serverMode]);

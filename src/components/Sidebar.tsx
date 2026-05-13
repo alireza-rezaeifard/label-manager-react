@@ -54,7 +54,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
           ))}
 
           <div className="nav-section-title" style={{ marginTop: '1rem' }}>System</div>
-          <div className={`nav-item ${tab === 'view' ? 'active' : ''}`} onClick={() => { onTabChange('records'); onClose(); }}>
+          <div className={`nav-item ${tab === 'records' ? 'active' : ''}`} onClick={() => handleClick('records')}>
             <i className="ti ti-layout-dashboard"></i>
             <span>داشبورد</span>
           </div>
