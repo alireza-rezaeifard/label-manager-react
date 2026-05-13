@@ -1,139 +1,113 @@
 # Label Studio
 
-یک ابزار مدرن مدیریت اسناد و چاپ برچسب برای بایگانی اسناد
+A modern document management and label printing application with PWA support and Express + SQLite backend.
 
-## 📋 توضیحات پروژه
+## Features
 
-Label Studio یک داشبورد وب مدرن است که با React و Vite ساخته شده و به کاربران امکان می‌دهد:
+- **Record Management** — Add, edit, delete, sort, filter, search, drag-and-drop reorder
+- **Backend Sync** — Express server with SQLite database, JWT authentication per user
+- **Local Mode** — Fully offline-capable via localStorage, no server required
+- **CSV Import/Export** — Bulk import from CSV, download Excel/PDF
+- **Label Printing** — Print-ready labels with cut marks, 3 templates (classic/compact/detailed), QR codes
+- **Reports & Charts** — Recharts pie/bar charts by type, project, party, monthly, amount
+- **Image Upload** — Attach images to records (stored on server in server mode, base64 in local mode)
+- **Color Picker** — Custom label color with visual color bar on cards
+- **Datepicker** — Persian (Jalali) calendar integration
+- **Undo/Redo** — Ctrl+Z with 20-entry stack persisted to localStorage
+- **Dark/Light Theme** — CSS variable theming persisted across sessions
+- **Custom Fields** — Add arbitrary extra fields per record
+- **PWA** — Service worker with cache-first strategy, installable, offline support
+- **Profile & Settings** — Server status indicator, backup/restore, account info
+- **Notifications** — Bell icon in header (placeholder)
 
-- **مدیریت سوابق**: افزودن، ویرایش و حذف رکوردهای برچسب
-- **ورود CSV**: وارد کردن داده‌ها از فایل CSV
-- **پیش‌نمایش برچسب**: مشاهده برچسب‌ها قبل از چاپ
-- **چاپ برچسب**: چاپ برچسب‌ها با خطوط برش (✂) برای بریدن آسان
-- **خروجی اکسل**: خروجی گرفتن از برچسب‌های انتخاب شده
-- **حالت تاریک/روشن**: پشتیبانی از تم تاریک و روشن
-- **طراحی RTL**: کاملاً سازگار با زبان فارسی و جهت راست به چپ
-
-## ✨ ویژگی‌ها
-
-- 🎨 رابط کاربری مدرن شبیه VueXY Dashboard
-- 🌙 حالت تاریک و روشن
-- 📱 طراحی واکنش‌گرا (Responsive)
-- 🖨️ چاپ با خطوط برش
-- 📊 آمار و نمودارها
-- 🔍 جستجو و فیلتر
-- ⬇️ ورود CSV
-- ⬆️ خروجی Excel
-
-## 🚀 نحوه اجرا
-
-### پیش‌نیازها
-
-- Node.js (نسخه 18 یا بالاتر)
-- npm یا yarn
-
-### نصب
+## Quick Start
 
 ```bash
-# وارد شدن به پوشه پروژه
-cd label-studio
-
-# نصب وابستگی‌ها
+# Frontend
 npm install
+npm run dev        # http://localhost:5173
 
-# اجرای پروژه در حالت توسعه
-npm run dev
+# Backend (separate terminal)
+cd server
+npm install
+npm start          # http://localhost:3001
 ```
 
-### دستورات موجود
+The Vite dev server proxies `/api` requests to the backend at `localhost:3001`.
 
-```bash
-# اجرا در حالت توسعه
-npm run dev
+## Commands
 
-# ساخت نسخه production
-npm run build
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Vite dev server |
+| `npm run build` | Production build |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
+| `npm run test` | Run Vitest tests |
 
-# پیش‌نمایش نسخه production
-npm run preview
-
-# اجرای linter
-npm run lint
-```
-
-### دسترسی به پروژه
-
-پس از اجرا، پروژه در آدرس زیر قابل دسترسی است:
-```
-http://localhost:5173
-```
-
-## 📁 ساختار پروژه
+## Project Structure
 
 ```
 label-studio/
-├── index.html          # فایل HTML اصلی با استایل‌های CSS
-├── package.json        # وابستگی‌های پروژه
-├── vite.config.js      # تنظیمات Vite
-├── public/             # فایل‌های عمومی
-└── src/
-    ├── main.jsx        # نقطه ورود React
-    ├── App.jsx         # کامپوننت اصلی برنامه
-    └── index.css       # استایل‌های اضافی
+├── index.html
+├── package.json
+├── vite.config.js          # Vite config + proxy + Vitest
+├── public/
+│   ├── sw.js               # Service worker (cache-first)
+│   ├── manifest.json       # PWA manifest
+│   └── icons/              # PWA icons (SVG)
+├── src/
+│   ├── main.jsx
+│   ├── App.jsx             # Main app: routing, auth, state
+│   ├── components/
+│   │   ├── Header.jsx
+│   │   ├── Sidebar.jsx
+│   │   ├── RecordCard.jsx
+│   │   ├── RecordForm.jsx
+│   │   ├── StatsCards.jsx
+│   │   ├── ReportsTab.jsx
+│   │   ├── LabelPreview.jsx
+│   │   ├── ViewDetail.jsx
+│   │   ├── ImportCSV.jsx
+│   │   ├── LoginPage.jsx
+│   │   ├── ProfileTab.jsx
+│   │   ├── MultiSelectDropdown.jsx
+│   │   └── Toast.jsx
+│   ├── hooks/
+│   │   ├── useRecords.js   # Local records state + undo
+│   │   └── useToast.js
+│   ├── utils/
+│   │   ├── api.js          # API client with JWT
+│   │   ├── exporters.js    # Print, Excel, PDF
+│   │   └── formatters.js   # Persian number formatting
+│   ├── data/
+│   │   └── fields.js       # Label field definitions
+│   ├── styles/
+│   │   └── main.css
+│   └── __tests__/          # Vitest tests
+├── server/
+│   ├── index.js            # Express entry point
+│   ├── db.js               # SQLite schema + setup
+│   ├── middleware/auth.js  # JWT auth middleware
+│   └── routes/
+│       ├── auth.js         # Login / Register / Me
+│       └── records.js      # CRUD + batch + reorder + backup/restore
 ```
 
-## 🎯 نحوه استفاده
+## API
 
-### ۱. افزودن رکورد جدید
-- روی تب "افزودن رکورد" کلیک کنید
-- فرم را پر کنید (فیلدهای کد و پروژه اجباری هستند)
-- روی دکمه "افزودن رکورد" کلیک کنید
+See [API.md](API.md) for full API documentation.
 
-### ۲. ویرایش رکورد
-- در کارت رکورد، روی دکمه "ویرایش" کلیک کنید
-- تغییرات را اعمال کنید
-- روی دکمه "ذخیره تغییرات" کلیک کنید
+## Technologies
 
-### ۳. ورود از CSV
-- تب "ورود CSV" را باز کنید
-- قالب CSV را دانلود کنید
-- فایل CSV خود را آپلود کنید
-
-### ۴. چاپ برچسب‌ها
-- در تب "سوابق"، رکوردهای مورد نظر را انتخاب کنید
-- به تب "پیش‌نمایش برچسب" بروید
-- روی دکمه "چاپ برچسب‌ها" کلیک کنید
-
-### ۵. خروجی اکسل
-- رکوردها را انتخاب کنید
-- در تب پیش‌نمایش، روی "خروجی اکسل" کلیک کنید
-
-## 🔧 فناوری‌های استفاده شده
-
-- **React 19** - کتابخانه UI
-- **Vite** - ابزار ساخت و توسعه
-- **PapaParse** - پردازش فایل‌های CSV
-- **SheetJS (xlsx)** - ساخت فایل‌های Excel
-- **Tabler Icons** - آیکون‌ها (از طریق CDN)
-- **Vazirmatn Font** - فونت فارسی (از طریق Google Fonts)
-- **CSS Variables** - مدیریت تم
-
-## 📝 فیلدهای برچسب
-
-| کلید | عنوان انگلیسی | عنوان فارسی |
-|------|---------------|-------------|
-| code | Code | کد |
-| project | Project | پروژه |
-| type | Type | نوع |
-| date | Date | تاریخ |
-| party | Party | طرف حساب |
-| amount | Amount | مبلغ |
-| related | Related | مرتبط |
-
-## 🎨 تم‌ها
-
-برای تغییر بین حالت تاریک و روشن، از دکمه ماه/خورشید در هدر استفاده کنید. انتخاب تم در مرورگر ذخیره می‌شود.
-
-## 📄 لایسنس
-
-این پروژه رایگان و متن‌باز است.
+- **React 19** + **Vite** (frontend)
+- **Express** + **better-sqlite3** + **JWT** (backend)
+- **Recharts** (charts)
+- **PapaParse** (CSV)
+- **SheetJS/xlsx** (Excel export)
+- **jspdf** + **html2canvas** (PDF export)
+- **Tabler Icons** (icons via CDN)
+- **Vazirmatn Font** (Persian font)
+- **qrcodejs** (QR code on labels, CDN)
+- **@daypicker/persian** (Jalali datepicker)
+- **Vitest** + **@testing-library/react** (tests)

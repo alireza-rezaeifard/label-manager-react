@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  label-studio:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - JWT_SECRET=${JWT_SECRET?Please set JWT_SECRET}
+      - PORT=3001
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3001}
+      - NODE_ENV=production
+    volumes:
+      - label-studio-data:/app/server
+    restart: unless-stopped
+
+volumes:
+  label-studio-data:
