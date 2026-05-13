@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
-import { generateToken } from '../middleware/auth.js';
+import { generateToken, authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -75,6 +75,31 @@ router.post('/login', (req, res) => {
 
 router.get('/me', (req, res) => {
   res.json(req.user);
+});
+
+router.post('/change-password', authMiddleware, (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({ error: 'رمز عبور فعلی و جدید را وارد کنید' });
+  }
+
+  const pwError = validatePassword(newPassword);
+  if (pwError) {
+    return res.status(400).json({ error: pwError });
+  }
+
+  try {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+    if (!user || !bcrypt.compareSync(currentPassword, user.password)) {
+      return res.status(401).json({ error: 'رمز عبور فعلی اشتباه است' });
+    }
+
+    const hash = bcrypt.hashSync(newPassword, 10);
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
+    res.json({ ok: true, message: 'رمز عبور با موفقیت تغییر کرد' });
+  } catch (err) {
+    res.status(500).json({ error: 'خطا در تغییر رمز عبور' });
+  }
 });
 
 export default router;

@@ -114,4 +114,7 @@ export const api = {
 
   checkDuplicateCode: (queryString) =>
     apiRequest(`/records/check-code${queryString}`),
+
+  changePassword: (currentPassword, newPassword) =>
+    apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 };

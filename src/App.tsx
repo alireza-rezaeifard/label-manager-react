@@ -137,6 +137,16 @@ export default function App() {
 
   const { toasts, addToast, removeToast } = useToast();
 
+  const [activityLog, setActivityLog] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (serverMode && currentWorkspaceId) {
+      api.getActivity(currentWorkspaceId).then(data => setActivityLog(data)).catch(() => {});
+    } else {
+      setActivityLog([]);
+    }
+  }, [serverMode, currentWorkspaceId]);
+
   const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
     try { return localStorage.getItem('use_virtual_scroll') === 'true'; } catch { return false; }
   });
@@ -462,6 +472,24 @@ export default function App() {
     if (!el) return;
     try { await exportUtils.downloadPDF(el); addToast('فایل PDF با موفقیت ساخته شد', 'success'); }
     catch { addToast('خطا در ساخت PDF', 'error'); }
+  };
+
+  const handleExportAllExcel = () => {
+    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
+    exportUtils.downloadExcel(currentRecords, FIELDS);
+    addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
+  };
+
+  const handleExportAllCSV = () => {
+    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
+    exportUtils.downloadCSV(currentRecords, FIELDS);
+    addToast('فایل CSV همه رکوردها ساخته شد', 'success');
+  };
+
+  const handleExportAllPrint = () => {
+    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
+    exportUtils.printLabels(currentRecords, FIELDS, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
+    addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
   };
 
   const handleDragStart = (e, idx) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
@@ -879,6 +907,8 @@ export default function App() {
           onClose={() => setSidebarOpen(false)}
           onResetForm={resetForm}
           isViewer={isViewer}
+          serverMode={serverMode}
+          activityLog={activityLog}
         />
 
         <main className="main-content">
@@ -995,6 +1025,19 @@ export default function App() {
                       <i className="ti ti-checkbox"></i>
                       {selected.size === sortedRecords.length && sortedRecords.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
                     </button>
+                    {currentRecords.length > 0 && (
+                      <>
+                        <button className="btn btn-outline btn-sm" onClick={handleExportAllExcel} title="خروجی اکسل همه رکوردها">
+                          <i className="ti ti-file-excel"></i> خروجی اکسل
+                        </button>
+                        <button className="btn btn-outline btn-sm" onClick={handleExportAllCSV} title="خروجی CSV همه رکوردها">
+                          <i className="ti ti-file-text"></i> خروجی CSV
+                        </button>
+                        <button className="btn btn-outline btn-sm" onClick={handleExportAllPrint} title="چاپ همه رکوردها">
+                          <i className="ti ti-printer"></i> چاپ همه
+                        </button>
+                      </>
+                    )}
                     {selected.size > 0 && !isViewer && (
                       <>
                         <button className="btn btn-outline btn-sm" onClick={() => setShowBulkEdit(true)}>
@@ -1269,6 +1312,7 @@ export default function App() {
                 onLogin={handleLoginGoToServer}
                 onBackup={handleBackup}
                 onOpenBackupModal={() => setShowBackupModal(true)}
+                addToast={addToast}
               />
             )}
 

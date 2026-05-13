@@ -1,9 +1,37 @@
 import { useState, useEffect } from 'react';
+import { api } from '../utils/api';
 
-export default function ProfileTab({ authUser, serverMode, recordCount, onLogin, onBackup, onOpenBackupModal }) {
+export default function ProfileTab({ authUser, serverMode, recordCount, onLogin, onBackup, onOpenBackupModal, addToast }) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(authUser?.username || 'کاربر محلی');
   const [serverStatus, setServerStatus] = useState('offline');
+  const [pwCurrent, setPwCurrent] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwConfirm, setPwConfirm] = useState('');
+  const [pwLoading, setPwLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    if (!pwCurrent || !pwNew || !pwConfirm) {
+      addToast('تمام فیلدها را پر کنید', 'error');
+      return;
+    }
+    if (pwNew !== pwConfirm) {
+      addToast('رمز عبور جدید و تکرار آن مطابقت ندارند', 'error');
+      return;
+    }
+    setPwLoading(true);
+    try {
+      await api.changePassword(pwCurrent, pwNew);
+      addToast('رمز عبور با موفقیت تغییر کرد', 'success');
+      setPwCurrent('');
+      setPwNew('');
+      setPwConfirm('');
+    } catch (err) {
+      addToast(err.message, 'error');
+    } finally {
+      setPwLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!serverMode) return;
@@ -94,6 +122,25 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
                 <span>Role</span>
                 <span style={{ fontFamily: 'monospace' }}>{authUser?.role || 'user'}</span>
               </div>
+              <details style={{ borderRadius: 8, overflow: 'hidden' }}>
+                <summary className="p-3" style={{ cursor: 'pointer', background: 'var(--bg-body)', fontWeight: 600, fontSize: '0.9rem' }}>
+                  <i className="ti ti-key" style={{ marginLeft: '0.5rem' }}></i>تغییر رمز عبور
+                </summary>
+                <div style={{ padding: '1rem', background: 'var(--bg-body)', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <input type="password" className="form-input" placeholder="رمز عبور فعلی"
+                    value={pwCurrent} onChange={e => setPwCurrent(e.target.value)}
+                    style={{ marginBottom: 0, direction: 'ltr' }} />
+                  <input type="password" className="form-input" placeholder="رمز عبور جدید"
+                    value={pwNew} onChange={e => setPwNew(e.target.value)}
+                    style={{ marginBottom: 0, direction: 'ltr' }} />
+                  <input type="password" className="form-input" placeholder="تکرار رمز عبور جدید"
+                    value={pwConfirm} onChange={e => setPwConfirm(e.target.value)}
+                    style={{ marginBottom: 0, direction: 'ltr' }} />
+                  <button className="btn btn-primary btn-sm" onClick={handleChangePassword} disabled={pwLoading}>
+                    <i className="ti ti-device-floppy"></i> {pwLoading ? 'در حال ذخیره...' : 'تغییر رمز عبور'}
+                  </button>
+                </div>
+              </details>
             </>
           ) : (
             <div className="d-flex justify-content-between align-items-center p-3" style={{ background: 'var(--bg-body)', borderRadius: 8 }}>

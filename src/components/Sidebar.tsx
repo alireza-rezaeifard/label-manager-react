@@ -11,7 +11,16 @@ const NAV_ITEMS = [
 
 const VIEWER_HIDE = new Set(['add', 'import']);
 
-export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer }) {
+const ACTIVITY_ICONS = {
+  create: 'ti-plus',
+  update: 'ti-edit',
+  delete: 'ti-trash',
+  restore: 'ti-refresh',
+  'bulk-edit': 'ti-edit',
+  reorder: 'ti-arrows-sort',
+};
+
+export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer, serverMode, activityLog }) {
   const handleClick = (t) => {
     onTabChange(t);
     if (t !== 'add') onResetForm();
@@ -50,6 +59,23 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             <span>داشبورد</span>
           </div>
         </nav>
+
+        {serverMode && activityLog.length > 0 && (
+          <div className="sidebar-activity">
+            <div className="nav-section-title">Recent Activity</div>
+            <div className="activity-feed">
+              {activityLog.slice(0, 8).map((a, i) => (
+                <div key={i} className="activity-item" title={`${a.action}${a.details ? ': ' + a.details : ''}`}>
+                  <i className={`ti ${ACTIVITY_ICONS[a.action] || 'ti-info-circle'}`}></i>
+                  <div className="activity-body">
+                    <span className="activity-action">{a.action}</span>
+                    {a.details && <span className="activity-details">{a.details}</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ padding: '1rem', borderTop: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>Version 2.0.0</div>
