@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick }) {
+export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp }) {
   const [notifications] = useState([]);
 
   return (
@@ -21,6 +21,9 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
       </div>
 
       <div className="header-right">
+        <button className="header-icon-btn" onClick={onShortcutsHelp} title="میانبرهای صفحه کلید (Ctrl+/)">
+          <i className="ti ti-keyboard"></i>
+        </button>
         <button className="header-icon-btn" title="اعلان‌ها">
           <i className="ti ti-bell"></i>
           {notifications.length > 0 && (

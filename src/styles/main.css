@@ -1074,6 +1074,111 @@ body {
   color: var(--text-color);
 }
 
+/* Skeleton Loading */
+.skeleton-box {
+  background: linear-gradient(90deg, var(--border-color) 25%, var(--hover-bg) 50%, var(--border-color) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Table View */
+.table-view {
+  background: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+.table-view .table-header {
+  display: flex;
+  padding: 1rem 1.25rem;
+  background: var(--hover-bg);
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  gap: 1rem;
+}
+.table-view .table-row {
+  display: flex;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+  cursor: pointer;
+  align-items: center;
+  gap: 1rem;
+}
+.table-view .table-row:hover {
+  background: var(--hover-bg);
+}
+.table-view .table-row.selected {
+  background: rgba(115, 103, 240, 0.08);
+}
+.table-view .table-row:last-child {
+  border-bottom: none;
+}
+.table-view .table-cell {
+  flex: 1;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.table-view .table-cell.code-cell {
+  font-family: 'Consolas', monospace;
+  font-weight: 600;
+}
+.table-view .table-cell.amount-cell {
+  direction: ltr;
+  text-align: left;
+  font-family: 'Consolas', monospace;
+}
+
+/* Inline Editing */
+.inline-edit-input {
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--card-bg);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.inline-edit-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(115, 103, 240, 0.15);
+}
+
+/* Date Range Picker */
+.date-range-picker {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Record Templates */
+.template-card {
+  padding: 1rem 1.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.template-card:hover {
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(115, 103, 240, 0.1);
+}
+
 @media (max-width: 768px) {
   .stats-grid { grid-template-columns: 1fr; }
   .content-area { padding: 1.5rem; }

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState, useCallback } from 'react';
 import { FIELDS } from '../data/fields';
 
 function Checkbox({ checked, onChange }) {
@@ -9,8 +9,17 @@ function Checkbox({ checked, onChange }) {
   );
 }
 
-function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop }) {
+function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit }) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
+  const [editField, setEditField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+
+  const handleInlineSave = useCallback(() => {
+    if (editField !== null && onInlineEdit) {
+      onInlineEdit(index, editField, editValue);
+    }
+    setEditField(null);
+  }, [editField, editValue, index, onInlineEdit]);
 
   return (
     <div
@@ -36,9 +45,19 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
       <div className="label-card-body">
         <div className="label-fields-grid">
           {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
-            <div key={f.key} className="label-field-item">
+            <div key={f.key} className="label-field-item" onDoubleClick={(e) => { e.stopPropagation(); if (onInlineEdit) { setEditField(f.key); setEditValue(record[f.key] || ''); } }}>
               <span className="label-field-key">{f.fa}</span>
-              <span className="label-field-value">{record[f.key] || '—'}</span>
+              {editField === f.key ? (
+                <input type="text" className="inline-edit-input" autoFocus
+                  value={editValue}
+                  onChange={e => setEditValue(e.target.value)}
+                  onBlur={handleInlineSave}
+                  onKeyDown={e => { if (e.key === 'Enter') handleInlineSave(); if (e.key === 'Escape') setEditField(null); }}
+                  onClick={e => e.stopPropagation()}
+                />
+              ) : (
+                <span className="label-field-value">{record[f.key] || '—'}</span>
+              )}
             </div>
           ))}
         </div>

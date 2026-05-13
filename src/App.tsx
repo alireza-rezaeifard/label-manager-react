@@ -1,37 +1,38 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
+import { useApp } from './context/AppContext';
 
 import ErrorBoundary from './components/ErrorBoundary';
-import LoadingScreen from './components/LoadingScreen';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import StatsCards from './components/StatsCards';
 import RecordCard from './components/RecordCard';
 import RecordForm from './components/RecordForm';
-import ImportCSV from './components/ImportCSV';
-import LabelPreview from './components/LabelPreview';
-import ViewDetail from './components/ViewDetail';
 import Toast from './components/Toast';
-import ReportsTab from './components/ReportsTab';
-import LoginPage from './components/LoginPage';
-import ProfileTab from './components/ProfileTab';
-import HistoryTab from './components/HistoryTab';
-import SettingsTab from './components/SettingsTab';
-import PrintSettingsModal from './components/PrintSettingsModal';
-import BackupModal from './components/BackupModal';
-import QRScanner from './components/QRScanner';
-import WorkspaceSwitcher from './components/WorkspaceSwitcher';
-import VirtualizedRecordGrid from './components/VirtualizedRecordGrid';
 import ShortcutsHelp from './components/ShortcutsHelp';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
+import { CardSkeleton, TableSkeleton } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { DayPicker } from "@daypicker/persian";
-import { faIR } from "@daypicker/persian";
-import "@daypicker/react/style.css";
 import { toJalaliDate } from './utils/formatters';
+
+const StatsCards = lazy(() => import('./components/StatsCards'));
+const ImportCSV = lazy(() => import('./components/ImportCSV'));
+const LabelPreview = lazy(() => import('./components/LabelPreview'));
+const ViewDetail = lazy(() => import('./components/ViewDetail'));
+const ReportsTab = lazy(() => import('./components/ReportsTab'));
+const LoginPage = lazy(() => import('./components/LoginPage'));
+const ProfileTab = lazy(() => import('./components/ProfileTab'));
+const HistoryTab = lazy(() => import('./components/HistoryTab'));
+const SettingsTab = lazy(() => import('./components/SettingsTab'));
+const PrintSettingsModal = lazy(() => import('./components/PrintSettingsModal'));
+const BackupModal = lazy(() => import('./components/BackupModal'));
+const QRScanner = lazy(() => import('./components/QRScanner'));
+const VirtualizedRecordGrid = lazy(() => import('./components/VirtualizedRecordGrid'));
+const TableView = lazy(() => import('./components/TableView'));
+const DateRangePicker = lazy(() => import('./components/DateRangePicker'));
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -112,8 +113,10 @@ export default function App() {
   const [filterParty, setFilterParty] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
-  const [showDateFromPicker, setShowDateFromPicker] = useState(false);
-  const [showDateToPicker, setShowDateToPicker] = useState(false);
+  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('view_mode') || 'card'; } catch { return 'card'; } });
+  const [templates, setTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem('record_templates') || '[]'); } catch { return []; } });
+  const [templateName, setTemplateName] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [bulkEditField, setBulkEditField] = useState('');
@@ -568,6 +571,58 @@ export default function App() {
     if (selectedTagFilter === tag) setSelectedTagFilter(null);
   };
 
+  const TEMPLATES_KEY = 'label-studio-record-templates';
+  const saveTemplates = (t) => { try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {} };
+
+  const handleSaveTemplate = () => {
+    if (!templateName.trim()) { addToast('نام الگو را وارد کنید', 'error'); return; }
+    if (templates.some(t => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
+    const newTemplate = { name: templateName.trim(), fields: { ...(editIndex !== null ? currentRecords[editIndex] : {}) } };
+    const updated = [...templates, newTemplate];
+    setTemplates(updated);
+    saveTemplates(updated);
+    setTemplateName('');
+    setShowTemplates(false);
+    addToast(`الگوی "${newTemplate.name}" ذخیره شد`, 'success');
+  };
+
+  const handleLoadTemplate = (tmpl) => {
+    setShowTemplates(false);
+    if (tmpl.fields && tmpl.fields.code) {
+      if (editIndex !== null) {
+        updateRecord(editIndex, tmpl.fields);
+      } else {
+        addRecord(tmpl.fields);
+      }
+      addToast(`الگوی "${tmpl.name}" اعمال شد`, 'success');
+    }
+  };
+
+  const handleDeleteTemplate = (name) => {
+    const updated = templates.filter(t => t.name !== name);
+    setTemplates(updated);
+    saveTemplates(updated);
+    addToast(`الگوی "${name}" حذف شد`, 'success');
+  };
+
+  useEffect(() => { try { localStorage.setItem('view_mode', viewMode); } catch {} }, [viewMode]);
+
+  const handleInlineEdit = (index, field, value) => {
+    if (serverMode) {
+      const record = currentRecords[index];
+      if (!record) return;
+      setServerLoading(true);
+      api.updateRecord(record.id, { ...record, [field]: value }).then(() => {
+        api.getAllRecords(currentWorkspaceId).then(data => { setServerRecords(data); setServerLoading(false); });
+      }).catch(() => setServerLoading(false));
+    } else {
+      const record = currentRecords[index];
+      if (!record) return;
+      updateRecord(index, { ...record, [field]: value });
+    }
+    addToast('فیلد با موفقیت ویرایش شد', 'success');
+  };
+
   const handleWorkspaceSwitch = (wsId) => {
     setCurrentWorkspaceId(wsId);
     localStorage.setItem('current_workspace_id', String(wsId));
@@ -751,6 +806,7 @@ export default function App() {
             onToggleSidebar={toggleSidebar}
             onSettingsClick={() => setTab('settings')}
             onProfileClick={() => setTab('profile')}
+            onShortcutsHelp={() => setShowShortcutsHelp(true)}
           />
 
           <div className="content-area">
@@ -842,6 +898,10 @@ export default function App() {
                     ))}
                   </div>
                   <div className="d-flex gap-2">
+                    <button className="btn btn-outline btn-sm" onClick={() => setViewMode(p => p === 'card' ? 'table' : 'card')}>
+                      <i className={`ti ${viewMode === 'card' ? 'ti-list' : 'ti-grid'}`}></i>
+                      {viewMode === 'card' ? 'نمایش جدول' : 'نمایش کارتی'}
+                    </button>
                     <button className="btn btn-outline btn-sm" onClick={toggleAll}>
                       <i className="ti ti-checkbox"></i>
                       {selected.size === sortedRecords.length && sortedRecords.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
@@ -868,40 +928,14 @@ export default function App() {
                     <option value="">همه طرف حساب‌ها</option>
                     {allParties.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <div style={{ position: 'relative', width: 'auto' }}>
-                    <input type="text" className="form-input" readOnly
-                      style={{ width: 130, marginBottom: 0, cursor: 'pointer', direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem' }}
-                      value={filterDateFrom} onClick={() => setShowDateFromPicker(p => !p)}
-                      placeholder="از تاریخ" title="از تاریخ" />
-                    <i className="ti ti-calendar"
-                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
-                      onClick={(e) => { e.stopPropagation(); setShowDateFromPicker(p => !p); }}>
-                    </i>
-                    {showDateFromPicker && (
-                      <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
-                        <DayPicker locale={faIR} dir="rtl" mode="single"
-                          onSelect={(date) => { if (date) { setFilterDateFrom(toJalaliDate(date)); setPage(1); } setShowDateFromPicker(false); }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ position: 'relative', width: 'auto' }}>
-                    <input type="text" className="form-input" readOnly
-                      style={{ width: 130, marginBottom: 0, cursor: 'pointer', direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem' }}
-                      value={filterDateTo} onClick={() => setShowDateToPicker(p => !p)}
-                      placeholder="تا تاریخ" title="تا تاریخ" />
-                    <i className="ti ti-calendar"
-                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
-                      onClick={(e) => { e.stopPropagation(); setShowDateToPicker(p => !p); }}>
-                    </i>
-                    {showDateToPicker && (
-                      <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1001, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
-                        <DayPicker locale={faIR} dir="rtl" mode="single"
-                          onSelect={(date) => { if (date) { setFilterDateTo(toJalaliDate(date)); setPage(1); } setShowDateToPicker(false); }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <Suspense fallback={null}>
+                    <DateRangePicker
+                      dateFrom={filterDateFrom}
+                      dateTo={filterDateTo}
+                      onDateFromChange={(d) => { setFilterDateFrom(d); setPage(1); }}
+                      onDateToChange={(d) => { setFilterDateTo(d); setPage(1); }}
+                    />
+                  </Suspense>
                   <input type="number" className="form-input" placeholder="حداقل مبلغ"
                     style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
@@ -937,21 +971,41 @@ export default function App() {
                       <i className="ti ti-plus"></i> افزودن رکورد
                     </button>
                   </div>
+                ) : viewMode === 'table' ? (
+                  <Suspense fallback={<TableSkeleton rows={8} />}>
+                    <TableView
+                      records={sortedRecords}
+                      recordToIndex={recordToIndex}
+                      selected={selected}
+                      onToggle={toggleSelect}
+                      onEdit={handleEdit}
+                      onView={handleView}
+                      onSort={handleSort}
+                      sortBy={sortBy}
+                      sortOrder={sortOrder}
+                    />
+                  </Suspense>
+                ) : serverLoading ? (
+                  <div className="card-grid">
+                    {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+                  </div>
                 ) : useVirtualScroll ? (
-                  <VirtualizedRecordGrid
-                    records={sortedRecords}
-                    recordToIndex={recordToIndex}
-                    selected={selected}
-                    onToggle={toggleSelect}
-                    onEdit={handleEdit}
-                    onView={handleView}
-                    getRelatedLabels={findRelated}
-                    onDragStart={handleDragStart}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDragEnd={() => setDragIndex(null)}
-                    onDrop={handleDrop}
-                    setDragIndex={setDragIndex}
-                  />
+                  <Suspense fallback={<div className="card-grid">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}</div>}>
+                    <VirtualizedRecordGrid
+                      records={sortedRecords}
+                      recordToIndex={recordToIndex}
+                      selected={selected}
+                      onToggle={toggleSelect}
+                      onEdit={handleEdit}
+                      onView={handleView}
+                      getRelatedLabels={findRelated}
+                      onDragStart={handleDragStart}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDragEnd={() => setDragIndex(null)}
+                      onDrop={handleDrop}
+                      setDragIndex={setDragIndex}
+                    />
+                  </Suspense>
                 ) : (
                   <>
                     <div className="card-grid" key={refreshKey}>
@@ -972,6 +1026,7 @@ export default function App() {
                             onDragOver={(e) => e.preventDefault()}
                             onDragEnd={() => setDragIndex(null)}
                             onDrop={(e) => handleDrop(e, realIdx)}
+                            onInlineEdit={handleInlineEdit}
                           />
                         );
                       })}
@@ -998,18 +1053,59 @@ export default function App() {
             )}
 
             {tab === 'add' && (
-              <RecordForm
-                editRecord={editRecord}
-                editIndex={editIndex}
-                availableLabels={availLabels}
-                isDuplicateCode={isDuplicateCode}
-                onSubmit={handleSubmit}
-                onCancel={() => { setEditIndex(null); setTab('records'); }}
-                addToast={addToast}
-                customFields={customFields}
-                serverMode={serverMode}
-                allTags={tags}
-              />
+              <div className="fade-in">
+                {!editIndex && (
+                  <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div className="d-flex gap-2 align-items-center">
+                      <button className="btn btn-outline btn-sm" onClick={() => setShowTemplates(p => !p)}>
+                        <i className="ti ti-template"></i> الگوها
+                      </button>
+                      {templates.length > 0 && (
+                        <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>{templates.length} الگو</span>
+                      )}
+                    </div>
+                    <div className="d-flex gap-2 align-items-center">
+                      <input type="text" className="form-input" placeholder="نام الگو..."
+                        style={{ width: 150, marginBottom: 0 }}
+                        value={templateName} onChange={e => setTemplateName(e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()} />
+                      <button className="btn btn-outline btn-sm" onClick={handleSaveTemplate}>
+                        <i className="ti ti-device-floppy"></i> ذخیره به عنوان الگو
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {showTemplates && templates.length > 0 && (
+                  <div className="form-card mb-4">
+                    <h4 style={{ marginBottom: '1rem' }}>الگوهای ذخیره شده</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      {templates.map((tmpl, i) => (
+                        <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
+                          <i className="ti ti-template" style={{ fontSize: '1.5rem', color: 'var(--primary)' }}></i>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: 600 }}>{tmpl.name}</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{tmpl.fields?.project || 'بدون پروژه'}</div>
+                          </div>
+                          <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }}></i>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <RecordForm
+                  editRecord={editRecord}
+                  editIndex={editIndex}
+                  availableLabels={availLabels}
+                  isDuplicateCode={isDuplicateCode}
+                  onSubmit={handleSubmit}
+                  onCancel={() => { setEditIndex(null); setTab('records'); }}
+                  addToast={addToast}
+                  customFields={customFields}
+                  serverMode={serverMode}
+                  allTags={tags}
+                />
+              </div>
             )}
 
             {tab === 'import' && (
