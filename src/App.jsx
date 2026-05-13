@@ -28,6 +28,10 @@ import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import VirtualizedRecordGrid from './components/VirtualizedRecordGrid';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { DayPicker } from "@daypicker/persian";
+import { faIR } from "@daypicker/persian";
+import "@daypicker/react/style.css";
+import { toJalaliDate } from './utils/formatters';
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -108,6 +112,8 @@ export default function App() {
   const [filterParty, setFilterParty] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [showDateFromPicker, setShowDateFromPicker] = useState(false);
+  const [showDateToPicker, setShowDateToPicker] = useState(false);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [bulkEditField, setBulkEditField] = useState('');
@@ -862,12 +868,40 @@ export default function App() {
                     <option value="">همه طرف حساب‌ها</option>
                     {allParties.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
-                  <input type="date" className="form-input" style={{ width: 'auto', marginBottom: 0 }}
-                    value={filterDateFrom} onChange={e => { setFilterDateFrom(e.target.value); setPage(1); }}
-                    title="از تاریخ" />
-                  <input type="date" className="form-input" style={{ width: 'auto', marginBottom: 0 }}
-                    value={filterDateTo} onChange={e => { setFilterDateTo(e.target.value); setPage(1); }}
-                    title="تا تاریخ" />
+                  <div style={{ position: 'relative', width: 'auto' }}>
+                    <input type="text" className="form-input" readOnly
+                      style={{ width: 130, marginBottom: 0, cursor: 'pointer', direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem' }}
+                      value={filterDateFrom} onClick={() => setShowDateFromPicker(p => !p)}
+                      placeholder="از تاریخ" title="از تاریخ" />
+                    <i className="ti ti-calendar"
+                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
+                      onClick={(e) => { e.stopPropagation(); setShowDateFromPicker(p => !p); }}>
+                    </i>
+                    {showDateFromPicker && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
+                        <DayPicker locale={faIR} dir="rtl" mode="single"
+                          onSelect={(date) => { if (date) { setFilterDateFrom(toJalaliDate(date)); setPage(1); } setShowDateFromPicker(false); }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ position: 'relative', width: 'auto' }}>
+                    <input type="text" className="form-input" readOnly
+                      style={{ width: 130, marginBottom: 0, cursor: 'pointer', direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem' }}
+                      value={filterDateTo} onClick={() => setShowDateToPicker(p => !p)}
+                      placeholder="تا تاریخ" title="تا تاریخ" />
+                    <i className="ti ti-calendar"
+                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
+                      onClick={(e) => { e.stopPropagation(); setShowDateToPicker(p => !p); }}>
+                    </i>
+                    {showDateToPicker && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1001, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
+                        <DayPicker locale={faIR} dir="rtl" mode="single"
+                          onSelect={(date) => { if (date) { setFilterDateTo(toJalaliDate(date)); setPage(1); } setShowDateToPicker(false); }}
+                        />
+                      </div>
+                    )}
+                  </div>
                   <input type="number" className="form-input" placeholder="حداقل مبلغ"
                     style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
