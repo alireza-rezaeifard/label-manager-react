@@ -117,9 +117,10 @@ export default function App() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('view_mode') || 'card'; } catch { return 'card'; } });
-  const [templates, setTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem('record_templates') || '[]'); } catch { return []; } });
+  const [templates, setTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem('label-studio-record-templates') || '[]'); } catch { return []; } });
   const [templateName, setTemplateName] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
+  const [templateData, setTemplateData] = useState<any>(null);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [bulkEditField, setBulkEditField] = useState('');
@@ -155,9 +156,12 @@ export default function App() {
     try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch { /* may be full */ }
   }, [useVirtualScroll]);
 
-  const refreshServerRecords = useCallback(() => {
+  const refreshServerRecords = useCallback(async () => {
     if (serverMode && currentWorkspaceId) {
-      api.getAllRecords(currentWorkspaceId).then(data => setServerRecords(data)).catch(() => {});
+      try {
+        const data = await api.getAllRecords(currentWorkspaceId);
+        setServerRecords(data);
+      } catch {}
     }
   }, [serverMode, currentWorkspaceId]);
 
@@ -222,6 +226,7 @@ export default function App() {
   const handleTabChange = useCallback((t) => {
     setTab(t);
     setEditIndex(null);
+    setTemplateData(null);
   }, []);
 
   const toggleSelect = useCallback((i) => {
@@ -344,8 +349,10 @@ export default function App() {
             return prev;
           });
           setRefreshKey(k => k + 1);
+          await refreshServerRecords();
           setServerLoading(false);
           setEditIndex(null);
+          setTemplateData(null);
           addToast('رکورد با موفقیت ویرایش شد', 'success');
           setTab('records');
         } catch (err: any) {
@@ -355,6 +362,7 @@ export default function App() {
       } else {
         updateRecord(editIndex, recordData);
         setEditIndex(null);
+        setTemplateData(null);
         addToast('رکورد با موفقیت ویرایش شد', 'success');
         setTab('records');
       }
@@ -365,6 +373,9 @@ export default function App() {
           const created = await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
           setServerRecords(prev => [created, ...prev]);
           setRefreshKey(k => k + 1);
+          setPage(1);
+          await refreshServerRecords();
+          setTemplateData(null);
           setServerLoading(false);
           addToast('رکورد با موفقیت اضافه شد', 'success');
           setTab('records');
@@ -374,13 +385,15 @@ export default function App() {
         }
       } else {
         addRecord(recordData);
+        setTemplateData(null);
         addToast('رکورد با موفقیت اضافه شد', 'success');
         setTab('records');
+        setPage(1);
       }
     }
   };
 
-  const handleEdit = (i) => { setEditIndex(i); setTab('add'); };
+  const handleEdit = (i) => { setEditIndex(i); setTemplateData(null); setTab('add'); };
   const handleView = (i) => { setViewIndex(i); setTab('view'); };
 
   const handleDelete = async () => {
@@ -397,6 +410,7 @@ export default function App() {
         setServerRecords(prev => prev.filter(r => !idSet.has(r.id)));
         setRefreshKey(k => k + 1);
         setSelected(new Set());
+        await refreshServerRecords();
         setServerLoading(false);
         addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
       } catch (err: any) {
@@ -415,9 +429,9 @@ export default function App() {
     if (serverMode) {
       ok = await serverOp(async () => {
         for (const r of imported) {
-          const created = await api.createRecord({ ...r, workspace_id: currentWorkspaceId });
-          setServerRecords(p => [created, ...p]);
+          await api.createRecord({ ...r, workspace_id: currentWorkspaceId });
         }
+        await refreshServerRecords();
       });
     } else {
       setRecords(p => [...p, ...imported]);
@@ -524,7 +538,7 @@ export default function App() {
         setServerLoading(true);
         try {
           await api.restore(data, currentWorkspaceId);
-          await api.getAllRecords(currentWorkspaceId).then(setServerRecords);
+          await refreshServerRecords();
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           setShowBackupModal(false);
@@ -634,7 +648,9 @@ export default function App() {
   const handleSaveTemplate = () => {
     if (!templateName.trim()) { addToast('نام الگو را وارد کنید', 'error'); return; }
     if (templates.some(t => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
-    const newTemplate = { name: templateName.trim(), fields: { ...(editIndex !== null ? currentRecords[editIndex] : {}) } };
+    const sourceRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
+    if (!sourceRecord || !sourceRecord.code) { addToast('ابتدا یک رکورد را باز کنید یا فیلدها را پر کنید', 'error'); return; }
+    const newTemplate = { name: templateName.trim(), fields: { ...sourceRecord } };
     const updated = [...templates, newTemplate];
     setTemplates(updated);
     saveTemplates(updated);
@@ -649,9 +665,12 @@ export default function App() {
       if (editIndex !== null) {
         updateRecord(editIndex, tmpl.fields);
       } else {
-        addRecord(tmpl.fields);
+        setTemplateData(tmpl.fields);
+        setTab('add');
       }
       addToast(`الگوی "${tmpl.name}" اعمال شد`, 'success');
+    } else {
+      addToast('این الگو معتبر نیست (قدیمی یا خالی). لطفا حذف کنید و دوباره ذخیره نمایید', 'error');
     }
   };
 
@@ -874,7 +893,7 @@ export default function App() {
   const availLabels = editIndex !== null
     ? currentRecords.filter(r => r.code !== currentRecords[editIndex]?.code)
     : currentRecords;
-  const editRecord = editIndex !== null ? currentRecords[editIndex] : null;
+  const editRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
   const selectedRecords = currentRecords.filter((_, i) => selected.has(i));
 
   const findRelated = (codes) => {
@@ -1238,10 +1257,10 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {templates.map((tmpl, i) => (
                         <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
-                          <i className="ti ti-template" style={{ fontSize: '1.5rem', color: 'var(--primary)' }}></i>
+                          <i className="ti ti-template" style={{ fontSize: '1.5rem', color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }}></i>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 600 }}>{tmpl.name}</div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{tmpl.fields?.project || 'بدون پروژه'}</div>
+                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{tmpl.fields?.project || (tmpl.fields?.code ? '' : 'نامعتبر - حذف کنید')}</div>
                           </div>
                           <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
                             onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }}></i>
@@ -1256,7 +1275,7 @@ export default function App() {
                   availableLabels={availLabels}
                   isDuplicateCode={isDuplicateCode}
                   onSubmit={handleSubmit}
-                  onCancel={() => { setEditIndex(null); setTab('records'); }}
+                  onCancel={() => { setEditIndex(null); setTemplateData(null); setTab('records'); }}
                   addToast={addToast}
                   customFields={customFields}
                   serverMode={serverMode}

@@ -39,7 +39,7 @@ export function useRecords() {
 
   const addRecord = useCallback((record) => {
     pushUndo(records);
-    setRecords(prev => [...prev, record]);
+    setRecords(prev => [record, ...prev]);
   }, [records, pushUndo]);
 
   const updateRecord = useCallback((index, record) => {

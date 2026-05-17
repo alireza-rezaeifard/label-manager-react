@@ -53,7 +53,17 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
                 <div key={f.key} className="d-flex justify-content-between mb-1" style={{ fontSize: '0.85rem' }}>
                   <span style={{ opacity: 0.6, fontWeight: 600 }}>{f.fa}:</span>
                   {f.key === 'related' ? (
-                    <span style={{ opacity: 0.3 }}>—</span>
+                    <div dir="ltr" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', justifyContent: 'flex-end' }}>
+                      {Array.isArray(r.related) && r.related.length > 0
+                        ? r.related.map((code, ci) => (
+                            <span key={ci} style={{
+                              fontSize: '0.75rem', padding: '0.1rem 0.4rem', borderRadius: 4,
+                              background: '#7c3aed', color: '#fff', fontWeight: 600,
+                            }}>{code}</span>
+                          ))
+                        : <span style={{ opacity: 0.6 }}>—</span>
+                      }
+                    </div>
                   ) : (
                     <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {r[f.key] || '—'}

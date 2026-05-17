@@ -17,7 +17,7 @@ const TEMPLATES = {
             </div>` : '')
           : `
             <div class="label-field">
-              <span class="label-key">${f.fa}:</span>
+              <span class="label-key" style="color:#000">${f.fa}:</span>
               <span class="label-value">${r[f.key] || ""}</span>
             </div>`}`
         ).join('')}
@@ -30,11 +30,18 @@ const TEMPLATES = {
         <div style="font-weight:bold;font-size:14px;font-family:monospace;flex:1;">${r.code}</div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;font-size:10px;">
-        ${fields.filter(f => f.key !== "code" && f.key !== "related").map(f => `
-          <div style="display:flex;gap:4px;">
-            <span style="font-weight:bold;color:#666;min-width:40px;">${f.fa}:</span>
-            <span style="text-align:right;">${r[f.key] || ""}</span>
-          </div>`).join('')}
+        ${fields.filter(f => f.key !== "code").map(f => `
+          ${f.key === "related" ? (r.related && r.related.length > 0 ? `
+            <div style="grid-column:1/-1;display:flex;gap:4px;flex-wrap:wrap;margin-top:2px;">
+              <span style="font-weight:bold;min-width:40px;">${f.fa}:</span>
+              ${r.related.map(c => `<span style="background:#e0e7ff;color:#000;padding:1px 5px;border-radius:3px;font-size:9px;font-family:monospace;border:1px solid #000;">${c}</span>`).join('')}
+            </div>` : '')
+          : `
+            <div style="display:flex;gap:4px;">
+              <span style="font-weight:bold;min-width:40px;">${f.fa}:</span>
+              <span style="text-align:right;">${r[f.key] || ""}</span>
+            </div>`}`
+        ).join('')}
       </div>`,
   },
   detailed: {
@@ -42,19 +49,21 @@ const TEMPLATES = {
     getLabelHtml: (r, fields) => `
       <div class="label-header">${r.code}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
-        ${fields.filter(f => f.key !== "code" && f.key !== "related").map(f => `
-          <div>
-            <div style="font-weight:bold;color:#666;font-size:9px;text-transform:uppercase;">${f.fa}</div>
-            <div>${r[f.key] || ""}</div>
-          </div>`).join('')}
-      </div>
-      ${r.related && r.related.length > 0 ? `
-        <div style="margin-top:8px;padding-top:6px;border-top:1px solid #eee;">
-          <div style="font-weight:bold;color:#666;font-size:9px;">مرتبط:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;">
-            ${r.related.map(c => `<span style="background:#7367f0;color:#fff;padding:2px 6px;border-radius:3px;font-size:9px;font-family:monospace;">${c}</span>`).join('')}
-          </div>
-        </div>` : ''}`,
+        ${fields.filter(f => f.key !== "code").map(f => `
+          ${f.key === "related" ? (r.related && r.related.length > 0 ? `
+            <div style="grid-column:1/-1;margin-top:4px;padding-top:4px;border-top:1px solid #ccc;">
+              <div style="font-weight:bold;font-size:10px;">${f.fa}:</div>
+              <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;">
+                ${r.related.map(c => `<span style="background:#e0e7ff;color:#000;padding:2px 6px;border-radius:3px;font-size:10px;font-family:monospace;border:1px solid #000;">${c}</span>`).join('')}
+              </div>
+            </div>` : '')
+          : `
+            <div>
+              <div style="font-weight:bold;font-size:10px;">${f.fa}</div>
+              <div>${r[f.key] || ""}</div>
+            </div>`}`
+        ).join('')}
+      </div>`,
   },
 };
 
@@ -160,10 +169,10 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
     .label-header { font-weight: bold; font-size: 13px; font-family: Consolas, monospace; text-align: center; padding-bottom: 8px; margin-bottom: 4px; border-bottom: 1px solid #eee; direction: ltr; unicode-bidi: embed; }
     .label-row-content { display: flex; flex-direction: column; gap: 3px; }
     .label-field { display: flex; justify-content: space-between; align-items: baseline; direction: rtl; }
-    .label-key { font-weight: bold; color: #666; min-width: 55px; direction: rtl; }
+    .label-key { font-weight: bold; color: #000; min-width: 55px; direction: rtl; }
     .label-value { text-align: right; max-width: 100px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; direction: rtl; }
     .label-related { display: flex; flex-wrap: wrap; gap: 3px; justify-content: flex-end; margin-top: 4px; direction: ltr; }
-    .label-related-badge { background: #7c3aed; color: #fff; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-family: monospace; }
+    .label-related-badge { background: #e0e7ff; color: #000; padding: 1px 5px; border-radius: 3px; font-size: 9px; font-family: monospace; border: 1px solid #000; }
     .empty-cell { width: ${width + 20}px; height: ${height}px; }
     .qr-placeholder { width: 100px; height: 100px; border: 1px solid #ddd; border-radius: 4px; flex-shrink: 0; }
     @page { size: A4; margin: 10mm; }

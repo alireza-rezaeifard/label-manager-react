@@ -12,18 +12,17 @@ async function apiRequest(path, options = {}) {
     throw new Error('ارتباط با سرور برقرار نشد. مطمئن شوید سرور در حال اجراست (npm start در پوشه server)', { cause: err });
   }
 
-  if (res.status === 401) {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    window.dispatchEvent(new Event('auth-change'));
-    throw new Error('نشست منقضی شده. لطفا دوباره وارد شوید');
-  }
   if (!res.ok) {
-    let msg = 'خطای سرور';
+    let msg = res.status === 401 ? 'نشست منقضی شده. لطفا دوباره وارد شوید' : 'خطای سرور';
     try {
       const err = await res.json();
-      msg = err.error || msg;
+      if (err.error) msg = err.error;
     } catch { /* ignore parse error */ }
+    if (res.status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      window.dispatchEvent(new Event('auth-change'));
+    }
     throw new Error(msg);
   }
   return res.json();
