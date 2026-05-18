@@ -73,7 +73,7 @@ router.post('/login', (req, res) => {
   });
 });
 
-router.get('/me', (req, res) => {
+router.get('/me', authMiddleware, (req, res) => {
   res.json(req.user);
 });
 
