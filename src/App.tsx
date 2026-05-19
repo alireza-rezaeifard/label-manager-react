@@ -425,6 +425,7 @@ export default function App() {
             if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...recordData }; return c; }
             return prev;
           });
+          setRefreshKey(k => k + 1);
           setServerLoading(false);
           setEditIndex(null);
           setTemplateData(null);
@@ -437,6 +438,7 @@ export default function App() {
         }
       } else {
         updateRecord(editIndex, recordData);
+        setRefreshKey(k => k + 1);
         setEditIndex(null);
         setTemplateData(null);
         addToast('رکورد با موفقیت ویرایش شد', 'success');
@@ -455,6 +457,7 @@ export default function App() {
             saveRecordCustomFieldsCache(cache);
           }
           setServerRecords(prev => [{ ...created, ...recordData }, ...prev]);
+          setRefreshKey(k => k + 1);
           setTemplateData(null);
           setServerLoading(false);
           addToast('رکورد با موفقیت اضافه شد', 'success');
@@ -467,6 +470,7 @@ export default function App() {
         }
       } else {
         addRecord(recordData);
+        setRefreshKey(k => k + 1);
         setTemplateData(null);
         addToast('رکورد با موفقیت اضافه شد', 'success');
         setTab('records');
@@ -821,6 +825,7 @@ export default function App() {
           if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
           return prev;
         });
+        setRefreshKey(k => k + 1);
         const merged = { ...record, [field]: value };
         const cfields = {};
         customFields.forEach(f => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
@@ -836,6 +841,7 @@ export default function App() {
       const record = currentRecords[index];
       if (!record) return;
       updateRecord(index, { ...record, [field]: value });
+      setRefreshKey(k => k + 1);
     }
     addToast('فیلد با موفقیت ویرایش شد', 'success');
   };
@@ -937,6 +943,7 @@ export default function App() {
         if (updatedMap.size > 0) {
           setServerRecords(prev => prev.map(r => updatedMap.get(r.id) || r));
         }
+        setRefreshKey(k => k + 1);
         const cache = loadRecordCustomFieldsCache();
         selectedIndices.forEach(i => {
           const record = currentRecords[i];
@@ -967,6 +974,7 @@ export default function App() {
           updateRecord(i, { ...record, ...updates });
         }
       });
+      setRefreshKey(k => k + 1);
       setShowBulkEdit(false);
       setBulkEditField('');
       setBulkEditValue('');
