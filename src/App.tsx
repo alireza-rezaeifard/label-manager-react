@@ -386,7 +386,7 @@ export default function App() {
     [currentRecords]
   );
 
-  const enabledSet = new Set(enabledCustomFieldKeys.length > 0 ? enabledCustomFieldKeys : customFields.map(f => f.key));
+  const enabledSet = new Set(enabledCustomFieldKeys);
   const allExportFields = [...FIELDS, ...customFields.filter(f => enabledSet.has(f.key))];
 
   const serverOp = async (fn) => {
@@ -1463,7 +1463,7 @@ export default function App() {
             )}
 
             {tab === 'preview' && (
-              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} />
+              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
             )}
 
             {tab === 'history' && (

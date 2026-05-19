@@ -4,7 +4,7 @@ import { formatAmount } from '../utils/formatters';
 
 const PREVIEW_PAGE_SIZE = 12;
 
-export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] }) {
+export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] as any[], enabledCustomFieldKeys = [] as string[] }) {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(selectedRecords.length / PREVIEW_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -50,7 +50,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords, customFie
               }}>
                 {r.code}
               </div>
-              {[...FIELDS, ...customFields].filter(f => f.key !== 'code').map(f => (
+              {[...FIELDS, ...customFields.filter(f => enabledCustomFieldKeys.includes(f.key))].filter(f => f.key !== 'code').map(f => (
                 <div key={f.key} className="d-flex justify-content-between mb-1" style={{ fontSize: '0.85rem' }}>
                   <span style={{ opacity: 0.6, fontWeight: 600 }}>{f.fa}:</span>
                   {f.key === 'related' ? (
