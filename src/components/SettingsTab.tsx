@@ -17,7 +17,7 @@ const FIELD_TYPE_BADGES = {
 };
 
 export default function SettingsTab({
-  customFields, onAddField, onRemoveField, newFieldName, onNewFieldNameChange,
+  customFields, onAddField, onRemoveField, onEditField, newFieldName, onNewFieldNameChange,
   newFieldType, onNewFieldTypeChange,
   serverMode, authUser,
   tags, onAddTag, onRemoveTag,
@@ -25,6 +25,33 @@ export default function SettingsTab({
   theme, onThemeChange,
 }) {
   const [newTag, setNewTag] = useState('');
+  const [editingKey, setEditingKey] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editType, setEditType] = useState('text');
+  const [editOptions, setEditOptions] = useState('');
+
+  const startEdit = (f) => {
+    setEditingKey(f.key);
+    setEditName(f.fa || f.label || '');
+    setEditType(f.fieldType || 'text');
+    setEditOptions((f.options || []).join(', '));
+  };
+
+  const cancelEdit = () => {
+    setEditingKey(null);
+    setEditName('');
+    setEditType('text');
+    setEditOptions('');
+  };
+
+  const saveEdit = () => {
+    if (!editName.trim()) return;
+    const options = editType === 'dropdown'
+      ? editOptions.split(',').map(s => s.trim()).filter(Boolean)
+      : undefined;
+    onEditField(editingKey, { label: editName.trim(), fa: editName.trim(), fieldType: editType, options });
+    cancelEdit();
+  };
 
   return (
     <div className="fade-in">
@@ -125,6 +152,44 @@ export default function SettingsTab({
           <div style={{ marginBottom: '1.5rem' }}>
             {customFields.map(f => {
               const badge = FIELD_TYPE_BADGES[f.fieldType] || FIELD_TYPE_BADGES.text;
+              const isEditing = editingKey === f.key;
+
+              if (isEditing) {
+                return (
+                  <div key={f.key} style={{
+                    padding: '1rem', background: 'var(--bg-body)',
+                    borderRadius: 8, marginBottom: '0.5rem',
+                  }}>
+                    <div className="d-flex gap-2" style={{ flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                      <input type="text" className="form-input" value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder="نام فیلد" style={{ marginBottom: 0, flex: 1, minWidth: 120 }} />
+                      <select className="form-input" value={editType}
+                        onChange={e => setEditType(e.target.value)}
+                        style={{ width: 'auto', marginBottom: 0 }}>
+                        {FIELD_TYPES.map(t => (
+                          <option key={t.value} value={t.value}>{t.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    {editType === 'dropdown' && (
+                      <input type="text" className="form-input" value={editOptions}
+                        onChange={e => setEditOptions(e.target.value)}
+                        placeholder="گزینه‌ها را با کاما جدا کنید: opt1, opt2, opt3"
+                        style={{ marginBottom: '0.75rem' }} />
+                    )}
+                    <div className="d-flex gap-2">
+                      <button className="btn btn-primary btn-sm" onClick={saveEdit}>
+                        <i className="ti ti-check"></i> ذخیره
+                      </button>
+                      <button className="btn btn-outline btn-sm" onClick={cancelEdit}>
+                        <i className="ti ti-x"></i> لغو
+                      </button>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div key={f.key} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -139,9 +204,18 @@ export default function SettingsTab({
                     }}>
                       {badge.label}
                     </span>
+                    {f.fieldType === 'dropdown' && f.options?.length > 0 && (
+                      <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
+                        ({f.options.length} گزینه)
+                      </span>
+                    )}
                   </div>
-                  <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
-                    onClick={() => onRemoveField(f.key)}></i>
+                  <div className="d-flex gap-2" style={{ alignItems: 'center' }}>
+                    <i className="ti ti-pencil" style={{ cursor: 'pointer', opacity: 0.5, fontSize: '1rem' }}
+                      onClick={() => startEdit(f)}></i>
+                    <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
+                      onClick={() => onRemoveField(f.key)}></i>
+                  </div>
                 </div>
               );
             })}

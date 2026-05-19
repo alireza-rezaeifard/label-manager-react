@@ -1,4 +1,5 @@
 const NAV_ITEMS = [
+  { tab: 'dashboard', icon: 'ti-layout-dashboard', label: 'داشبورد' },
   { tab: 'records', icon: 'ti-files', label: 'سوابق' },
   { tab: 'add', icon: 'ti-plus', label: 'افزودن رکورد' },
   { tab: 'import', icon: 'ti-upload', label: 'ورود CSV' },
@@ -52,12 +53,6 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
               <span>{item.label}</span>
             </div>
           ))}
-
-          <div className="nav-section-title" style={{ marginTop: '1rem' }}>System</div>
-          <div className={`nav-item ${tab === 'records' ? 'active' : ''}`} onClick={() => handleClick('records')}>
-            <i className="ti ti-layout-dashboard"></i>
-            <span>داشبورد</span>
-          </div>
         </nav>
 
         {serverMode && activityLog.length > 0 && (

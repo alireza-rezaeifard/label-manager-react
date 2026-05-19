@@ -129,6 +129,9 @@ export const api = {
   batchSaveCustomFields: (fields, workspaceId) =>
     apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
 
+  updateCustomField: (key, field, workspaceId) =>
+    apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'PUT', body: JSON.stringify({ ...field, workspace_id: workspaceId }) }),
+
   deleteCustomField: (key, workspaceId) =>
     apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'DELETE' }),
 };

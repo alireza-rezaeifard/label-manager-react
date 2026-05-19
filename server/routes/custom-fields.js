@@ -68,6 +68,22 @@ router.post('/batch', asyncHandler((req, res) => {
   res.json({ ok: true, count: fields.length });
 }));
 
+router.put('/:key', asyncHandler((req, res) => {
+  const { key } = req.params;
+  const { label, fa, placeholder, fieldType, options, workspace_id } = req.body;
+  const wsId = workspace_id || 1;
+
+  const existing = db.prepare('SELECT id FROM custom_fields WHERE workspace_id = ? AND key = ?').get(wsId, key);
+  if (!existing) throw new AppError('Field not found', 404, 'NOT_FOUND');
+
+  db.prepare(
+    `UPDATE custom_fields SET label = ?, fa = ?, placeholder = ?, field_type = ?, options = ?
+     WHERE workspace_id = ? AND key = ?`
+  ).run(label || '', fa || '', placeholder || '', fieldType || 'text', JSON.stringify(options || []), wsId, key);
+
+  res.json({ key, label, fa, placeholder, fieldType, options, isCustom: true });
+}));
+
 router.delete('/:key', asyncHandler((req, res) => {
   const { key } = req.params;
   const { workspace_id } = req.query;

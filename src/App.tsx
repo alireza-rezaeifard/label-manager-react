@@ -24,6 +24,7 @@ const ImportCSV = lazy(() => import('./components/ImportCSV'));
 const LabelPreview = lazy(() => import('./components/LabelPreview'));
 const ViewDetail = lazy(() => import('./components/ViewDetail'));
 const ReportsTab = lazy(() => import('./components/ReportsTab'));
+const DashboardTab = lazy(() => import('./components/DashboardTab'));
 const LoginPage = lazy(() => import('./components/LoginPage'));
 const ProfileTab = lazy(() => import('./components/ProfileTab'));
 const HistoryTab = lazy(() => import('./components/HistoryTab'));
@@ -187,8 +188,16 @@ export default function App() {
     if (serverMode && currentWorkspaceId) {
       api.getCustomFields(currentWorkspaceId).then(serverFields => {
         if (serverFields && serverFields.length > 0) {
-          setCustomFields(serverFields);
-          saveCustomFields(serverFields);
+          setCustomFields(prev => {
+            const merged = [...serverFields];
+            for (const local of prev) {
+              if (!merged.find(f => f.key === local.key)) {
+                merged.push(local);
+              }
+            }
+            saveCustomFields(merged);
+            return merged;
+          });
         }
       }).catch(() => {});
     }
@@ -734,6 +743,17 @@ export default function App() {
     addToast('فیلد حذف شد', 'success');
   };
 
+  const handleEditCustomField = (key, updatedField) => {
+    const updated = customFields.map(f => f.key === key ? { ...f, ...updatedField, key } : f);
+    setCustomFields(updated);
+    saveCustomFields(updated);
+    if (serverMode) {
+      api.updateCustomField(key, { ...updatedField, key }, currentWorkspaceId)
+        .catch(() => addToast('خطا در بروزرسانی فیلد در سرور', 'error'));
+    }
+    addToast('فیلد ویرایش شد', 'success');
+  };
+
   const handleAddTag = (tag) => {
     if (!tag.trim()) return;
     if (tags.includes(tag.trim())) { addToast('این برچسب قبلا اضافه شده', 'error'); return; }
@@ -1084,6 +1104,7 @@ export default function App() {
                   {tab === 'profile' && 'پروفایل'}
                   {tab === 'settings' && 'تنظیمات'}
                   {tab === 'reports' && 'گزارش‌ها و آمار'}
+                  {tab === 'dashboard' && 'داشبورد'}
                 </h1>
                 <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
               </div>
@@ -1470,15 +1491,26 @@ export default function App() {
 
             {tab === 'reports' && (
               <ReportsTab records={currentRecords} onFilter={(type, value) => {
-                if (type === 'type') { setFilterType(value); setSelectedTagFilter(null); }
-                else if (type === 'party') { setFilterParty(value); setFilterType(''); setSelectedTagFilter(null); }
-                else { setFilterType(''); setFilterParty(''); setSelectedTagFilter(null); }
-                setSearch(type === 'project' || type === 'monthly' ? value : '');
-                setFilterDateFrom(''); setFilterDateTo('');
-                setFilterAmountMin(''); setFilterAmountMax('');
+                setSearch('');
+                setFilterType('');
+                setFilterParty('');
+                setFilterDateFrom('');
+                setFilterDateTo('');
+                setFilterAmountMin('');
+                setFilterAmountMax('');
+                setSelectedTagFilter(null);
+                if (type === 'type') setFilterType(value);
+                else if (type === 'party') setFilterParty(value);
+                else setSearch(value);
                 setPage(1);
                 setTab('records');
               }} />
+            )}
+
+            {tab === 'dashboard' && (
+              <Suspense fallback={<LoadingScreen message="در حال بارگذاری داشبورد..." />}>
+                <DashboardTab records={currentRecords} customFields={customFields} tags={tags} activityLog={activityLog} onTabChange={setTab} />
+              </Suspense>
             )}
 
             {tab === 'profile' && (
@@ -1498,6 +1530,7 @@ export default function App() {
                 customFields={customFields}
                 onAddField={handleAddCustomField}
                 onRemoveField={handleRemoveCustomField}
+                onEditField={handleEditCustomField}
                 newFieldName={newFieldName}
                 onNewFieldNameChange={setNewFieldName}
                 newFieldType={newFieldType}
