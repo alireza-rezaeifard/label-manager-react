@@ -14,6 +14,7 @@ import { initWebSocket } from './ws.js';
 import authRoutes from './routes/auth.js';
 import recordRoutes from './routes/records.js';
 import workspaceRoutes from './routes/workspaces.js';
+import customFieldRoutes from './routes/custom-fields.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -99,6 +100,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/workspaces', workspaceRoutes);
+app.use('/api/custom-fields', customFieldRoutes);
 
 const distPath = join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {

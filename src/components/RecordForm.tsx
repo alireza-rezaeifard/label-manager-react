@@ -105,7 +105,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (Object.keys(errors).length) { setFormErrors(errors); return; }
     const recordData = {
       code: form.code, project: form.project, type: form.type, date: form.date,
-      party: form.party, amount: String(form.amount || '').replace(/[^0-9]/g, ''), related: form.related, tags: form.tags,
+      party: form.party, amount: String(form.amount || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[^0-9]/g, ''), related: form.related, tags: form.tags,
       image: form.image, color: form.color,
     };
     customFields.forEach((f: any) => { recordData[f.key] = form[f.key] || ""; });

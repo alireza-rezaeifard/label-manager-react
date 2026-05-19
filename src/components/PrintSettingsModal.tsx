@@ -6,6 +6,9 @@ export default function PrintSettingsModal({
   printHeight, setPrintHeight,
   printQr, setPrintQr,
   printBarcode, setPrintBarcode,
+  customFields = [] as any[],
+  enabledCustomFieldKeys,
+  onToggleCustomField,
 }) {
   if (!show) return null;
 
@@ -52,6 +55,30 @@ export default function PrintSettingsModal({
             نمایش بارکد روی برچسب
           </label>
         </div>
+
+        {customFields.length > 0 && (
+          <div className="form-group">
+            <label className="form-label">فیلدهای سفارشی در خروجی</label>
+            <div className="d-flex gap-1 flex-wrap">
+              {customFields.map(f => {
+                const active = enabledCustomFieldKeys.includes(f.key);
+                return (
+                  <span key={f.key} onClick={() => onToggleCustomField(f.key)} style={{
+                    padding: '0.3rem 0.7rem', borderRadius: 12, cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    background: active ? 'var(--primary)' : 'var(--bg-body)',
+                    color: active ? 'white' : 'var(--text-color)',
+                    border: active ? 'none' : '1px solid var(--border-color)',
+                    transition: 'all 0.2s',
+                  }}>
+                    {f.fa}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <button className="btn btn-primary w-100" onClick={onClose}>تایید</button>
       </div>
     </div>

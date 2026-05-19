@@ -83,6 +83,21 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
   );
+
+  CREATE TABLE IF NOT EXISTS custom_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER DEFAULT 1,
+    key TEXT NOT NULL,
+    label TEXT NOT NULL,
+    fa TEXT DEFAULT '',
+    placeholder TEXT DEFAULT '',
+    field_type TEXT DEFAULT 'text',
+    options TEXT DEFAULT '[]',
+    sort_order INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(workspace_id, key),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+  );
 `);
 
 function ensureColumn(table, column, definition) {

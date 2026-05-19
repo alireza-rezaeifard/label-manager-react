@@ -119,4 +119,16 @@ export const api = {
 
   changePassword: (currentPassword, newPassword) =>
     apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+
+  getCustomFields: (workspaceId) =>
+    apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
+
+  createCustomField: (field) =>
+    apiRequest('/custom-fields', { method: 'POST', body: JSON.stringify(field) }),
+
+  batchSaveCustomFields: (fields, workspaceId) =>
+    apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
+
+  deleteCustomField: (key, workspaceId) =>
+    apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'DELETE' }),
 };

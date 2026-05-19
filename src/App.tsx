@@ -116,11 +116,11 @@ export default function App() {
   const [dragIndex, setDragIndex] = useState(null);
 
   const [customFields, setCustomFields] = useState(loadCustomFields);
-  const [enabledCustomFieldKeys, setEnabledCustomFieldKeys] = useState<Set<string>>(() => {
+  const [enabledCustomFieldKeys, setEnabledCustomFieldKeys] = useState<string[]>(() => {
     const saved = localStorage.getItem('label-studio-enabled-cfields');
-    if (saved) return new Set(JSON.parse(saved));
+    if (saved) return JSON.parse(saved);
     const fields = loadCustomFields();
-    return new Set(fields.map(f => f.key));
+    return fields.map(f => f.key);
   });
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
@@ -177,10 +177,22 @@ export default function App() {
     setEnabledCustomFieldKeys(prev => {
       const next = new Set(prev);
       for (const f of customFields) next.add(f.key);
-      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify([...next]));
-      return next;
+      const arr = [...next];
+      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(arr));
+      return arr;
     });
   }, [customFields]);
+
+  useEffect(() => {
+    if (serverMode && currentWorkspaceId) {
+      api.getCustomFields(currentWorkspaceId).then(serverFields => {
+        if (serverFields && serverFields.length > 0) {
+          setCustomFields(serverFields);
+          saveCustomFields(serverFields);
+        }
+      }).catch(() => {});
+    }
+  }, [serverMode, currentWorkspaceId]);
 
   const refreshServerRecords = useCallback(async () => {
     if (serverMode && currentWorkspaceId) {
@@ -374,10 +386,8 @@ export default function App() {
     [currentRecords]
   );
 
-  const allExportFields = useMemo(() => {
-    const enabled = enabledCustomFieldKeys.size > 0 ? enabledCustomFieldKeys : new Set(customFields.map(f => f.key));
-    return [...FIELDS, ...customFields.filter(f => enabled.has(f.key))];
-  }, [customFields, enabledCustomFieldKeys]);
+  const enabledSet = new Set(enabledCustomFieldKeys.length > 0 ? enabledCustomFieldKeys : customFields.map(f => f.key));
+  const allExportFields = [...FIELDS, ...customFields.filter(f => enabledSet.has(f.key))];
 
   const serverOp = async (fn) => {
     if (!serverMode) return true;
@@ -571,6 +581,14 @@ export default function App() {
     addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
   };
 
+  const handleToggleCustomField = (key) => {
+    setEnabledCustomFieldKeys(prev => {
+      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
+      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
+      return next;
+    });
+  };
+
   const handleDragStart = (e, idx) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
   const handleDrop = (e, dropIdx) => {
     e.preventDefault();
@@ -616,6 +634,9 @@ export default function App() {
       if (serverMode) {
         setServerLoading(true);
         try {
+          if (restoredCustomFields.length > 0) {
+            await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId);
+          }
           await api.restore(restoredRecords, currentWorkspaceId);
           await refreshServerRecords();
           setRefreshKey(k => k + 1);
@@ -697,6 +718,9 @@ export default function App() {
     const updated = [...customFields, field];
     setCustomFields(updated);
     saveCustomFields(updated);
+    if (serverMode) {
+      api.createCustomField({ ...field, workspace_id: currentWorkspaceId }).catch(() => {});
+    }
     setNewFieldName('');
     setNewFieldType('text');
     addToast('فیلد جدید اضافه شد', 'success');
@@ -706,6 +730,9 @@ export default function App() {
     const updated = customFields.filter(f => f.key !== key);
     setCustomFields(updated);
     saveCustomFields(updated);
+    if (serverMode) {
+      api.deleteCustomField(key, currentWorkspaceId).catch(() => {});
+    }
     addToast('فیلد حذف شد', 'success');
   };
 
@@ -1143,13 +1170,12 @@ export default function App() {
                     <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.75rem' }}>
                       <span style={{ opacity: 0.5 }}>فیلدهای سفارشی:</span>
                       {customFields.map(f => {
-                        const active = enabledCustomFieldKeys.has(f.key);
+                        const active = enabledCustomFieldKeys.includes(f.key);
                         return (
                           <span key={f.key} onClick={() => {
                             setEnabledCustomFieldKeys(prev => {
-                              const next = new Set(prev);
-                              if (next.has(f.key)) next.delete(f.key); else next.add(f.key);
-                              localStorage.setItem('label-studio-enabled-cfields', JSON.stringify([...next]));
+                              const next = prev.includes(f.key) ? prev.filter(k => k !== f.key) : [...prev, f.key];
+                              localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
                               return next;
                             });
                           }} style={{
@@ -1511,6 +1537,9 @@ export default function App() {
           setPrintQr={setPrintQr}
           printBarcode={printBarcode}
           setPrintBarcode={setPrintBarcode}
+          customFields={customFields}
+          enabledCustomFieldKeys={enabledCustomFieldKeys}
+          onToggleCustomField={handleToggleCustomField}
         />
 
         <BackupModal
