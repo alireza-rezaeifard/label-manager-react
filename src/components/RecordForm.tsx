@@ -3,7 +3,7 @@ import { DayPicker } from "@daypicker/persian";
 import { faIR } from "@daypicker/persian";
 import "@daypicker/react/style.css";
 import { FIELDS } from "../data/fields";
-import { toJalaliDate, formatAmount } from "../utils/formatters";
+import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
@@ -15,7 +15,13 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (editRecord) {
       const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
       allFields.forEach((f: any) => {
-        form[f.key] = f.key === 'amount' ? formatAmount(editRecord[f.key]) : (editRecord[f.key] || (f.isRelated ? [] : ""));
+        form[f.key] = f.key === 'amount'
+        ? (() => {
+            const normalized = String(editRecord[f.key] || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+            const numStr = normalized.replace(/[^0-9]/g, '');
+            return numStr ? Number(numStr).toLocaleString('en-US') : '';
+          })()
+        : (editRecord[f.key] || (f.isRelated ? [] : ""));
       });
       form.related = editRecord.related || [];
       form.tags = editRecord.tags || [];
@@ -190,6 +196,16 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     <option key={i} value={opt}>{opt}</option>
                   ))}
                 </select>
+              ) : f.key === "amount" ? (
+                <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
+                  value={form[f.key] || ''}
+                  onChange={e => {
+                    const raw = e.target.value;
+                    const normalized = raw.replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+                    const digitsOnly = normalized.replace(/[^0-9]/g, '');
+                    setField('amount', digitsOnly ? Number(digitsOnly).toLocaleString('en-US') : '');
+                  }}
+                  placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               ) : (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={form[f.key]} onChange={e => setField(f.key, e.target.value)}

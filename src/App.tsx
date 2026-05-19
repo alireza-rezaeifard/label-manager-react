@@ -416,13 +416,12 @@ export default function App() {
             if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...recordData }; return c; }
             return prev;
           });
-          setRefreshKey(k => k + 1);
-          await refreshServerRecords();
           setServerLoading(false);
           setEditIndex(null);
           setTemplateData(null);
           addToast('رکورد با موفقیت ویرایش شد', 'success');
           setTab('records');
+          refreshServerRecords();
         } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ویرایش: ' + err.message, 'error');
@@ -447,13 +446,12 @@ export default function App() {
             saveRecordCustomFieldsCache(cache);
           }
           setServerRecords(prev => [{ ...created, ...recordData }, ...prev]);
-          setRefreshKey(k => k + 1);
-          setPage(1);
-          await refreshServerRecords();
           setTemplateData(null);
           setServerLoading(false);
           addToast('رکورد با موفقیت اضافه شد', 'success');
           setTab('records');
+          setPage(1);
+          refreshServerRecords();
         } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ایجاد: ' + err.message, 'error');
