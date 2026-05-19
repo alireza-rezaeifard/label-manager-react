@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { FIELDS } from '../data/fields';
+import { formatAmount } from '../utils/formatters';
 
 const PREVIEW_PAGE_SIZE = 12;
 
-export default function LabelPreview({ selectedRecords, onGoToRecords }) {
+export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] }) {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(selectedRecords.length / PREVIEW_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -49,7 +50,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
               }}>
                 {r.code}
               </div>
-              {FIELDS.filter(f => f.key !== 'code').map(f => (
+              {[...FIELDS, ...customFields].filter(f => f.key !== 'code').map(f => (
                 <div key={f.key} className="d-flex justify-content-between mb-1" style={{ fontSize: '0.85rem' }}>
                   <span style={{ opacity: 0.6, fontWeight: 600 }}>{f.fa}:</span>
                   {f.key === 'related' ? (
@@ -66,7 +67,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords }) {
                     </div>
                   ) : (
                     <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {r[f.key] || '—'}
+                      {f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || '—')}
                     </span>
                   )}
                 </div>

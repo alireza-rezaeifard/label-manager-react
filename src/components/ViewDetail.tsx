@@ -1,6 +1,7 @@
 import { FIELDS } from '../data/fields';
+import { formatAmount } from '../utils/formatters';
 
-export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated }) {
+export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [] }) {
   return (
     <div className="form-card fade-in">
       <div>
@@ -29,10 +30,10 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
           gap: '1rem', marginBottom: '2rem',
         }}>
-          {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
+          {[...FIELDS.filter(f => f.key !== 'code' && f.key !== 'related'), ...customFields].map(f => (
             <div key={f.key} style={{ background: 'var(--bg-body)', padding: '1rem', borderRadius: 8 }}>
               <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>{f.fa}</div>
-              <div style={{ fontWeight: 600, direction: f.key === 'amount' ? 'ltr' : 'rtl' }}>{record[f.key] || '—'}</div>
+              <div style={{ fontWeight: 600, direction: f.key === 'amount' ? 'ltr' : 'rtl' }}>{f.key === 'amount' ? formatAmount(record[f.key]) : (record[f.key] || '—')}</div>
             </div>
           ))}
           {record.tags && record.tags.length > 0 && (

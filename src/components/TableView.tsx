@@ -1,9 +1,10 @@
 import { memo, useState } from 'react';
 import { FIELDS } from '../data/fields';
+import { formatAmount } from '../utils/formatters';
 import type { Record } from '../types';
 
 function TableView({
-  records, selected, onToggle, onEdit, onView: _onView, onSort, sortBy, sortOrder, recordToIndex,
+  records, selected, onToggle, onEdit, onView: _onView, onSort, sortBy, sortOrder, recordToIndex, customFields = [],
 }: {
   records: Record[];
   selected: Set<number>;
@@ -15,7 +16,7 @@ function TableView({
   sortOrder?: string;
   recordToIndex: Map<Record, number>;
 }) {
-  const displayFields = FIELDS.filter(f => f.key !== 'related');
+  const displayFields = [...FIELDS.filter(f => f.key !== 'related'), ...customFields];
   const [editCell, setEditCell] = useState<{ idx: number; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
 
@@ -84,7 +85,7 @@ function TableView({
                       onClick={e => e.stopPropagation()}
                     />
                   ) : (
-                    <span>{r[f.key] || '—'}</span>
+                    <span>{f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || '—')}</span>
                   )}
                 </div>
               );

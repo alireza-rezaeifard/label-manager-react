@@ -19,9 +19,10 @@ interface CellDataProps {
   onDragOver: (e: any) => void;
   onDrop: (e: any, index: number) => void;
   setDragIndex: (i: number | null) => void;
+  customFields: any[];
 }
 
-const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex }: any) => {
+const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex, customFields }: any) => {
   const index = rowIndex * columnCount + columnIndex;
   if (index >= items.length) return null;
 
@@ -43,6 +44,7 @@ const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, 
         onDragEnd={() => { setDragIndex?.(null); }}
         onDrop={(e) => onDrop?.(e, realIdx)}
         onInlineEdit={undefined}
+        customFields={customFields}
       />
     </div>
   );
@@ -63,6 +65,7 @@ export default function VirtualizedRecordGrid({
   onDrop,
   setDragIndex,
   overscanCount = 2,
+  customFields = [],
 }) {
   const [containerWidth, setContainerWidth] = useState(1100);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -99,6 +102,7 @@ export default function VirtualizedRecordGrid({
           onDragOver,
           onDrop,
           setDragIndex,
+          customFields,
         }}
         columnCount={columnCount}
         columnWidth={CARD_WIDTH + GAP}

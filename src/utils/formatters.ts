@@ -8,7 +8,7 @@ export const toJalaliDate = (date) => {
 };
 
 export const formatAmount = (value) => {
-  if (!value) return '';
+  if (value === null || value === undefined || value === '') return '';
   const num = String(value).replace(/[^0-9]/g, '');
   if (!num) return value;
   return Number(num).toLocaleString('fa-IR');

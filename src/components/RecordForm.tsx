@@ -3,7 +3,7 @@ import { DayPicker } from "@daypicker/persian";
 import { faIR } from "@daypicker/persian";
 import "@daypicker/react/style.css";
 import { FIELDS } from "../data/fields";
-import { toJalaliDate } from "../utils/formatters";
+import { toJalaliDate, formatAmount } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
@@ -14,7 +14,9 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   const getInitialForm = (): any => {
     if (editRecord) {
       const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
-      allFields.forEach((f: any) => { form[f.key] = editRecord[f.key] || (f.isRelated ? [] : ""); });
+      allFields.forEach((f: any) => {
+        form[f.key] = f.key === 'amount' ? formatAmount(editRecord[f.key]) : (editRecord[f.key] || (f.isRelated ? [] : ""));
+      });
       form.related = editRecord.related || [];
       form.tags = editRecord.tags || [];
       form.image = editRecord.image || "";
@@ -103,7 +105,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (Object.keys(errors).length) { setFormErrors(errors); return; }
     const recordData = {
       code: form.code, project: form.project, type: form.type, date: form.date,
-      party: form.party, amount: form.amount, related: form.related, tags: form.tags,
+      party: form.party, amount: String(form.amount || '').replace(/[^0-9]/g, ''), related: form.related, tags: form.tags,
       image: form.image, color: form.color,
     };
     customFields.forEach((f: any) => { recordData[f.key] = form[f.key] || ""; });

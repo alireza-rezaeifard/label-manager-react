@@ -3,6 +3,7 @@ import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
+import { formatAmount } from './utils/formatters';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
 import ErrorBoundary from './components/ErrorBoundary';
@@ -59,6 +60,16 @@ function saveTags(t) {
   try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch { /* localStorage may be full */ }
 }
 
+const RECORD_CUSTOM_FIELDS_CACHE_KEY = 'label-studio-record-cfields-cache';
+
+function loadRecordCustomFieldsCache() {
+  try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CACHE_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveRecordCustomFieldsCache(data) {
+  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
+}
+
 function getTabFromHash() {
   const hash = window.location.hash.replace('#', '');
   const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
@@ -105,6 +116,12 @@ export default function App() {
   const [dragIndex, setDragIndex] = useState(null);
 
   const [customFields, setCustomFields] = useState(loadCustomFields);
+  const [enabledCustomFieldKeys, setEnabledCustomFieldKeys] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('label-studio-enabled-cfields');
+    if (saved) return new Set(JSON.parse(saved));
+    const fields = loadCustomFields();
+    return new Set(fields.map(f => f.key));
+  });
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
   const [showBackupModal, setShowBackupModal] = useState(false);
@@ -156,14 +173,36 @@ export default function App() {
     try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch { /* may be full */ }
   }, [useVirtualScroll]);
 
+  useEffect(() => {
+    setEnabledCustomFieldKeys(prev => {
+      const next = new Set(prev);
+      for (const f of customFields) next.add(f.key);
+      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify([...next]));
+      return next;
+    });
+  }, [customFields]);
+
   const refreshServerRecords = useCallback(async () => {
     if (serverMode && currentWorkspaceId) {
       try {
         const data = await api.getAllRecords(currentWorkspaceId);
-        setServerRecords(data);
+        setServerRecords(prev => {
+          const customKeys = new Set(customFields.map(f => f.key));
+          return data.map(serverRecord => {
+            const existing = prev.find(r => r.id === serverRecord.id);
+            if (existing) {
+              const merged = { ...serverRecord };
+              for (const key of customKeys) {
+                if (key in existing) merged[key] = existing[key];
+              }
+              return merged;
+            }
+            return serverRecord;
+          });
+        });
       } catch {}
     }
-  }, [serverMode, currentWorkspaceId]);
+  }, [serverMode, currentWorkspaceId, customFields]);
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
@@ -195,7 +234,10 @@ export default function App() {
         }
       }).catch(() => {});
 
-      api.getAllRecords(currentWorkspaceId).then(data => setServerRecords(data)).catch(() => {});
+      api.getAllRecords(currentWorkspaceId).then(data => {
+        const cache = loadRecordCustomFieldsCache();
+        setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
+      }).catch(() => {});
     }
   }, [serverMode, currentWorkspaceId]);
 
@@ -251,13 +293,17 @@ export default function App() {
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = currentRecords.filter(r =>
-        Object.values(r).some(v =>
+      result = currentRecords.filter(r => {
+        const formattedAmount = formatAmount(r.amount);
+        const customFieldMatch = customFields.some(f =>
+          r[f.key] && formatAmount(r[f.key]).toLowerCase().includes(q)
+        );
+        return Object.values(r).some(v =>
           Array.isArray(v)
             ? v.some(item => String(item).toLowerCase().includes(q))
             : String(v).toLowerCase().includes(q)
-        )
-      );
+        ) || (formattedAmount && formattedAmount.toLowerCase().includes(q)) || customFieldMatch;
+      });
     }
 
     if (filterType) {
@@ -295,7 +341,7 @@ export default function App() {
       });
     }
     return result;
-  }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax]);
+  }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
 
   const handleSort = (field) => {
     if (sortBy === field) setSortOrder(p => p === 'asc' ? 'desc' : 'asc');
@@ -328,6 +374,11 @@ export default function App() {
     [currentRecords]
   );
 
+  const allExportFields = useMemo(() => {
+    const enabled = enabledCustomFieldKeys.size > 0 ? enabledCustomFieldKeys : new Set(customFields.map(f => f.key));
+    return [...FIELDS, ...customFields.filter(f => enabled.has(f.key))];
+  }, [customFields, enabledCustomFieldKeys]);
+
   const serverOp = async (fn) => {
     if (!serverMode) return true;
     setServerLoading(true);
@@ -343,9 +394,16 @@ export default function App() {
         setServerLoading(true);
         try {
           const updated = await api.updateRecord(record.id, recordData);
+          const cfields = {};
+          customFields.forEach(f => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
+          if (Object.keys(cfields).length > 0) {
+            const cache = loadRecordCustomFieldsCache();
+            cache[record.id] = cfields;
+            saveRecordCustomFieldsCache(cache);
+          }
           setServerRecords(prev => {
             const idx = prev.findIndex(r => r.id === record.id);
-            if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
+            if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...recordData }; return c; }
             return prev;
           });
           setRefreshKey(k => k + 1);
@@ -371,7 +429,14 @@ export default function App() {
         setServerLoading(true);
         try {
           const created = await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
-          setServerRecords(prev => [created, ...prev]);
+          const cfields = {};
+          customFields.forEach(f => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
+          if (Object.keys(cfields).length > 0) {
+            const cache = loadRecordCustomFieldsCache();
+            cache[created.id] = cfields;
+            saveRecordCustomFieldsCache(cache);
+          }
+          setServerRecords(prev => [{ ...created, ...recordData }, ...prev]);
           setRefreshKey(k => k + 1);
           setPage(1);
           await refreshServerRecords();
@@ -457,7 +522,7 @@ export default function App() {
   const handlePrint = () => {
     const sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    exportUtils.printLabels(sel, FIELDS, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
+    exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     const entry = {
       date: new Date().toLocaleDateString('fa-IR'),
       time: new Date().toLocaleTimeString('fa-IR'),
@@ -470,14 +535,14 @@ export default function App() {
   const handleExcel = () => {
     const sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    exportUtils.downloadExcel(sel, FIELDS);
+    exportUtils.downloadExcel(sel, allExportFields);
     addToast('فایل اکسل با موفقیت ساخته شد', 'success');
   };
 
   const handleCSVExport = () => {
     const sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    exportUtils.downloadCSV(sel, FIELDS);
+    exportUtils.downloadCSV(sel, allExportFields);
     addToast('فایل CSV با موفقیت ساخته شد', 'success');
   };
 
@@ -490,19 +555,19 @@ export default function App() {
 
   const handleExportAllExcel = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadExcel(currentRecords, FIELDS);
+    exportUtils.downloadExcel(currentRecords, allExportFields);
     addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllCSV = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadCSV(currentRecords, FIELDS);
+    exportUtils.downloadCSV(currentRecords, allExportFields);
     addToast('فایل CSV همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllPrint = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    exportUtils.printLabels(currentRecords, FIELDS, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
+    exportUtils.printLabels(currentRecords, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
   };
 
@@ -519,7 +584,7 @@ export default function App() {
   const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
 
   const handleBackup = () => {
-    const blob = new Blob([JSON.stringify(currentRecords, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ records: currentRecords, customFields }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -532,25 +597,39 @@ export default function App() {
     try {
       const text = await backupFile.text();
       const data = JSON.parse(text);
-      if (!Array.isArray(data)) throw new Error('فرمت فایل نامعتبر');
+      let restoredRecords, restoredCustomFields;
+      if (Array.isArray(data)) {
+        restoredRecords = data;
+        restoredCustomFields = [];
+      } else if (data && data.records) {
+        restoredRecords = data.records;
+        restoredCustomFields = data.customFields || [];
+      } else {
+        throw new Error('فرمت فایل نامعتبر');
+      }
+
+      if (restoredCustomFields.length > 0) {
+        setCustomFields(restoredCustomFields);
+        saveCustomFields(restoredCustomFields);
+      }
 
       if (serverMode) {
         setServerLoading(true);
         try {
-          await api.restore(data, currentWorkspaceId);
+          await api.restore(restoredRecords, currentWorkspaceId);
           await refreshServerRecords();
           setRefreshKey(k => k + 1);
           setServerLoading(false);
           setShowBackupModal(false);
-          addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
+          addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
         } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در بازیابی: ' + err.message, 'error');
         }
       } else {
-        setRecords(data);
+        setRecords(restoredRecords);
         setShowBackupModal(false);
-        addToast(`${data.length} رکورد با موفقیت بازیابی شد`, 'success');
+        addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
       }
     } catch (err: any) {
       addToast('خطا در بازیابی: ' + err.message, 'error');
@@ -578,7 +657,10 @@ export default function App() {
           const wsId = wsList[0].id;
           setCurrentWorkspaceId(wsId);
           localStorage.setItem('current_workspace_id', String(wsId));
-          api.getAllRecords(wsId).then(data => setServerRecords(data)).catch(() => {}).finally(() => setServerLoading(false));
+          api.getAllRecords(wsId).then(data => {
+            const cache = loadRecordCustomFieldsCache();
+            setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
+          }).catch(() => {}).finally(() => setServerLoading(false));
         } else {
           setServerLoading(false);
         }
@@ -691,10 +773,19 @@ export default function App() {
       api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
         setServerRecords(prev => {
           const idx = prev.findIndex(r => r.id === record.id);
-          if (idx >= 0) { const c = [...prev]; c[idx] = updated; return c; }
+          if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
           return prev;
         });
+        const merged = { ...record, [field]: value };
+        const cfields = {};
+        customFields.forEach(f => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
+        if (Object.keys(cfields).length > 0) {
+          const cache = loadRecordCustomFieldsCache();
+          cache[record.id] = cfields;
+          saveRecordCustomFieldsCache(cache);
+        }
         setServerLoading(false);
+        refreshServerRecords();
       }).catch(() => setServerLoading(false));
     } else {
       const record = currentRecords[index];
@@ -712,7 +803,8 @@ export default function App() {
       fetchedRef.current = false;
       setServerLoading(true);
       api.getAllRecords(wsId).then(data => {
-        setServerRecords(data);
+        const cache = loadRecordCustomFieldsCache();
+        setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
         setServerLoading(false);
       }).catch(() => setServerLoading(false));
     }
@@ -800,6 +892,16 @@ export default function App() {
         if (updatedMap.size > 0) {
           setServerRecords(prev => prev.map(r => updatedMap.get(r.id) || r));
         }
+        const cache = loadRecordCustomFieldsCache();
+        selectedIndices.forEach(i => {
+          const record = currentRecords[i];
+          if (record) {
+            const cfields = {};
+            customFields.forEach(f => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
+            if (Object.keys(cfields).length > 0) cache[record.id] = cfields;
+          }
+        });
+        saveRecordCustomFieldsCache(cache);
         setServerLoading(false);
         setShowBulkEdit(false);
         setBulkEditField('');
@@ -807,6 +909,7 @@ export default function App() {
         setBulkEditTags([]);
         setBulkEditColor('');
         addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
+        refreshServerRecords();
       }).catch(() => {
         setServerLoading(false);
         addToast('خطا در ویرایش دسته‌جمعی', 'error');
@@ -847,6 +950,7 @@ export default function App() {
         if (serverMode) {
           api.createRecord({ ...dup, workspace_id: currentWorkspaceId }).then(created => {
             setServerRecords(prev => [created, ...prev]);
+            refreshServerRecords();
           }).catch(e => addToast(e.message, 'error'));
         } else {
           addRecord(dup);
@@ -1035,6 +1139,32 @@ export default function App() {
                       </button>
                     ))}
                   </div>
+                  {customFields.length > 0 && (
+                    <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.75rem' }}>
+                      <span style={{ opacity: 0.5 }}>فیلدهای سفارشی:</span>
+                      {customFields.map(f => {
+                        const active = enabledCustomFieldKeys.has(f.key);
+                        return (
+                          <span key={f.key} onClick={() => {
+                            setEnabledCustomFieldKeys(prev => {
+                              const next = new Set(prev);
+                              if (next.has(f.key)) next.delete(f.key); else next.add(f.key);
+                              localStorage.setItem('label-studio-enabled-cfields', JSON.stringify([...next]));
+                              return next;
+                            });
+                          }} style={{
+                            padding: '0.2rem 0.5rem', borderRadius: 12, cursor: 'pointer',
+                            background: active ? 'var(--primary)' : 'var(--bg-body)',
+                            color: active ? 'white' : 'var(--text-color)',
+                            border: active ? 'none' : '1px solid var(--border-color)',
+                            transition: 'all 0.2s',
+                          }}>
+                            {f.fa}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div className="d-flex gap-2">
                     <button className="btn btn-outline btn-sm" onClick={() => setViewMode(p => p === 'card' ? 'table' : 'card')}>
                       <i className={`ti ${viewMode === 'card' ? 'ti-list' : 'ti-grid'}`}></i>
@@ -1152,6 +1282,7 @@ export default function App() {
                       onSort={handleSort}
                       sortBy={sortBy}
                       sortOrder={sortOrder}
+                      customFields={customFields}
                     />
                   </Suspense>
                 ) : serverLoading ? (
@@ -1172,6 +1303,7 @@ export default function App() {
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={handleDrop}
                       setDragIndex={setDragIndex}
+                      customFields={customFields}
                     />
                   </Suspense>
                 ) : (
@@ -1191,6 +1323,7 @@ export default function App() {
                             getRelatedLabels={findRelated}
                             index={realIdx}
                             onDragStart={(e) => handleDragStart(e, realIdx)}
+                            customFields={customFields}
                             onDragOver={(e) => e.preventDefault()}
                             onDragEnd={() => setDragIndex(null)}
                             onDrop={(e) => handleDrop(e, realIdx)}
@@ -1295,6 +1428,7 @@ export default function App() {
                 record={currentRecords[viewIndex]}
                 relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
                 onEdit={() => handleEdit(viewIndex)}
+                customFields={customFields}
                 onNavigateToRelated={(rel) => {
                   const idx = currentRecords.findIndex(r => r.code === rel.code);
                   if (idx !== -1) setViewIndex(idx);
@@ -1303,7 +1437,7 @@ export default function App() {
             )}
 
             {tab === 'preview' && (
-              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} />
+              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} />
             )}
 
             {tab === 'history' && (

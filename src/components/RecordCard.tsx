@@ -1,5 +1,6 @@
 import { memo, useState, useCallback } from 'react';
 import { FIELDS } from '../data/fields';
+import { formatAmount } from '../utils/formatters';
 
 function Checkbox({ checked, onChange }) {
   return (
@@ -9,7 +10,7 @@ function Checkbox({ checked, onChange }) {
   );
 }
 
-function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit }) {
+function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [] }) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -44,7 +45,7 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
       </div>
       <div className="label-card-body">
         <div className="label-fields-grid">
-          {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
+          {[...FIELDS.filter(f => f.key !== 'code' && f.key !== 'related'), ...customFields].map(f => (
             <div key={f.key} className="label-field-item" onDoubleClick={(e) => { e.stopPropagation(); if (onInlineEdit) { setEditField(f.key); setEditValue(record[f.key] || ''); } }}>
               <span className="label-field-key">{f.fa}</span>
               {editField === f.key ? (
@@ -56,7 +57,7 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
                   onClick={e => e.stopPropagation()}
                 />
               ) : (
-                <span className="label-field-value">{record[f.key] || '—'}</span>
+                <span className="label-field-value">{f.key === 'amount' ? formatAmount(record[f.key]) : (record[f.key] || '—')}</span>
               )}
             </div>
           ))}
