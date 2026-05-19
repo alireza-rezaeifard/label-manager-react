@@ -1167,7 +1167,7 @@ export default function App() {
               </div>
             </div>
 
-            {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && (
+            {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
               <StatsCards records={currentRecords} selected={selected} filtered={sortedRecords} />
             )}
 
