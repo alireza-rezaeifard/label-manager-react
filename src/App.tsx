@@ -208,7 +208,7 @@ export default function App() {
       try {
         const data = await api.getAllRecords(currentWorkspaceId);
         setServerRecords(prev => {
-          const customKeys = new Set(customFields.map(f => f.key));
+          const customKeys = new Set<string>(customFields.map((f: any) => f.key));
           return data.map(serverRecord => {
             const existing = prev.find(r => r.id === serverRecord.id);
             if (existing) {

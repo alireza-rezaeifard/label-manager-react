@@ -15,6 +15,7 @@ function TableView({
   sortBy?: string | null;
   sortOrder?: string;
   recordToIndex: Map<Record, number>;
+  customFields?: any[];
 }) {
   const displayFields = [...FIELDS.filter(f => f.key !== 'related'), ...customFields];
   const [editCell, setEditCell] = useState<{ idx: number; field: string } | null>(null);

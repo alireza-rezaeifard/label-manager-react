@@ -24,12 +24,12 @@ router.post('/register', (req, res) => {
     return res.status(400).json({ error: 'Username and password required' });
   }
 
-  const pwError = validatePassword(password);
-  if (pwError) {
-    return res.status(400).json({ error: pwError });
-  }
-
   try {
+    const pwError = validatePassword(password);
+    if (pwError) {
+      return res.status(400).json({ error: pwError });
+    }
+
     const hash = bcrypt.hashSync(password, 10);
     const result = db.prepare('INSERT INTO users (username, password) VALUES (?, ?)').run(username, hash);
     const userId = result.lastInsertRowid;
@@ -43,7 +43,8 @@ router.post('/register', (req, res) => {
     const token = generateToken(user);
     res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
   } catch (err) {
-    if (err.message.includes('UNIQUE')) {
+    const msg = err?.message || String(err);
+    if (msg.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Username already exists' });
     }
     res.status(500).json({ error: 'Registration failed' });

@@ -26,7 +26,7 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
       setPwCurrent('');
       setPwNew('');
       setPwConfirm('');
-    } catch (err) {
+    } catch (err: any) {
       addToast(err.message, 'error');
     } finally {
       setPwLoading(false);
