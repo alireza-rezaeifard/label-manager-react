@@ -7,7 +7,7 @@ import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [] }: Record<string, any>) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange }: Record<string, any>) {
   const allFields = [...FIELDS.filter(f => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find(f => f.isRelated);
 
@@ -58,6 +58,10 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (onFormChange) onFormChange(form);
+  }, [form, onFormChange]);
 
   const setField = (key: string, value: any) => {
     setForm(p => ({ ...p, [key]: value }));

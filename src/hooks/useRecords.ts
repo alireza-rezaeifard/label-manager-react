@@ -62,6 +62,11 @@ export function useRecords() {
     });
   }, [records, pushUndo]);
 
+  const replaceAllRecords = useCallback((newRecords) => {
+    pushUndo(records);
+    setRecords(newRecords);
+  }, [records, pushUndo]);
+
   const undo = useCallback(() => {
     setUndoStack(prev => {
       if (prev.length === 0) return prev;
@@ -110,7 +115,7 @@ export function useRecords() {
 
   return {
     records, setRecords,
-    addRecord, updateRecord, deleteRecords, reorderRecords,
+    addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
     undo, undoStack,
     getRelatedLabels, getAvailableLabels,
     isDuplicateCode, checkDuplicateCode, searchRecords,
