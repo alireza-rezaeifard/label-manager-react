@@ -218,18 +218,19 @@ export default function App() {
   }, [serverMode, currentWorkspaceId]);
 
   const refreshServerRecords = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId || isRestoringRef.current) return;
-    try {
-      const data = await api.getAllRecords(currentWorkspaceId);
-      const codeCache = loadRecordCustomFieldsCodeCache();
-      setServerRecords(prev => {
-        const customKeys = new Set(customFields.map(f => f.key));
-        return data.map(serverRecord => {
-          const existing = prev.find(r => r.id === serverRecord.id);
-          if (existing) {
-            const merged = { ...serverRecord };
-            for (const key of customKeys) {
-              if (key in existing) merged[key] = existing[key];
+    if (serverMode && currentWorkspaceId) {
+      try {
+        const data = await api.getAllRecords(currentWorkspaceId);
+        setServerRecords(prev => {
+          const customKeys = new Set<string>(customFields.map((f: any) => f.key));
+          return data.map(serverRecord => {
+            const existing = prev.find(r => r.id === serverRecord.id);
+            if (existing) {
+              const merged = { ...serverRecord };
+              for (const key of customKeys) {
+                if (key in existing) merged[key] = existing[key];
+              }
+              return merged;
             }
             return merged;
           }
