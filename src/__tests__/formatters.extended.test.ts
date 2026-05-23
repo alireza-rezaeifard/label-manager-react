@@ -25,8 +25,7 @@ describe('formatters (extended)', () => {
   describe('formatAmount', () => {
     it('formats plain number strings', () => {
       const result = formatAmount('5000000');
-      expect(result).toBeTruthy();
-      expect(result.includes(',') || result.includes('\u066C')).toBe(true);
+      expect(result).toBe('5,000,000');
     });
 
     it('handles empty/null/undefined', () => {

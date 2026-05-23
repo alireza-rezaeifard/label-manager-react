@@ -88,7 +88,7 @@ export default function WorkspaceSwitcher({
             <strong>فضاهای کاری</strong>
           </div>
 
-          <div style={{ maxHeight: 250, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 300, overflowY: 'auto' }}>
             {workspaces.map(ws => (
               <div key={ws.id} onClick={() => { onSwitch(ws.id); setOpen(false); }}
                 style={{

@@ -1,6 +1,7 @@
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { formatAmount } from './formatters';
 
 
 const TEMPLATES = {
@@ -18,7 +19,7 @@ const TEMPLATES = {
           : `
             <div class="label-field">
               <span class="label-key" style="color:#000">${f.fa}:</span>
-              <span class="label-value">${r[f.key] || ""}</span>
+              <span class="label-value">${f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || "")}</span>
             </div>`}`
         ).join('')}
       </div>`,
@@ -39,7 +40,7 @@ const TEMPLATES = {
           : `
             <div style="display:flex;gap:4px;">
               <span style="font-weight:bold;min-width:40px;">${f.fa}:</span>
-              <span style="text-align:right;">${r[f.key] || ""}</span>
+              <span style="text-align:right;">${f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || "")}</span>
             </div>`}`
         ).join('')}
       </div>`,
@@ -60,7 +61,7 @@ const TEMPLATES = {
           : `
             <div>
               <div style="font-weight:bold;font-size:10px;">${f.fa}</div>
-              <div>${r[f.key] || ""}</div>
+              <div>${f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || "")}</div>
             </div>`}`
         ).join('')}
       </div>`,

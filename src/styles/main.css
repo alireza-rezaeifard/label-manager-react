@@ -357,9 +357,7 @@ body {
   flex-wrap: wrap;
 }
 .page-header .d-flex.gap-2 {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.25rem;
+  flex-wrap: wrap;
 }
 
 .page-title {
@@ -438,9 +436,6 @@ body {
   gap: 0.5rem;
   flex-wrap: wrap;
   align-items: center;
-  overflow-x: auto;
-  padding-bottom: 0.25rem;
-  -webkit-overflow-scrolling: touch;
 }
 
 /* Records Filter */

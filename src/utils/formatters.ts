@@ -12,7 +12,7 @@ export const formatAmount = (value) => {
   const normalized = String(value).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
   const num = normalized.replace(/[^0-9]/g, '');
   if (!num) return value;
-  return Number(num).toLocaleString('fa-IR');
+  return Number(num).toLocaleString('en-US');
 };
 
 export const getTotalAmount = (records) => {

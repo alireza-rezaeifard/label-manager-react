@@ -14,10 +14,9 @@ describe('formatters', () => {
     expect(toJalaliDate('')).toBe('');
   });
 
-  it('formatAmount formats numbers with Persian separators', () => {
+  it('formatAmount formats numbers with comma separators', () => {
     const result = formatAmount('5000000');
-    expect(result).toBeTruthy();
-    expect(result.includes(',') || result.includes('\u066C')).toBe(true);
+    expect(result).toBe('5,000,000');
   });
 
   it('formatAmount handles empty input', () => {
