@@ -85,7 +85,7 @@ export default function App() {
   const {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
-    undo, undoStack,
+    undo, undoStack, pushUndo,
     isDuplicateCode,
   } = useRecords();
 
@@ -311,6 +311,18 @@ export default function App() {
     }
   };
 
+  const sortByCode = useCallback((records: Record[]) => {
+    return [...records].sort((a, b) => {
+      const pa = parseCode(a.code);
+      const pb = parseCode(b.code);
+      if (!pa || !pb) return 0;
+      if (pa.projectNum !== pb.projectNum) return pa.projectNum - pb.projectNum;
+      if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
+      if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
+      return pb.sequence - pa.sequence;
+    });
+  }, []);
+
   const getSortedRecords = useCallback(() => {
     let result = currentRecords;
 
@@ -356,12 +368,17 @@ export default function App() {
         return !isNaN(amt) && amt <= parseFloat(filterAmountMax);
       });
     }
-    if (sortBy) {
+    if (sortBy === 'code') {
+      result = sortByCode(result);
+      if (sortOrder === 'desc') result.reverse();
+    } else if (sortBy) {
       result = [...result].sort((a, b) => {
         const aVal = String(a[sortBy] || '').toLowerCase();
         const bVal = String(b[sortBy] || '').toLowerCase();
         return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       });
+    } else {
+      result = sortByCode(result);
     }
     return result;
   }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
@@ -543,8 +560,9 @@ export default function App() {
   };
 
   const handlePrint = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     const entry = {
       date: new Date().toLocaleDateString('fa-IR'),
@@ -556,15 +574,17 @@ export default function App() {
   };
 
   const handleExcel = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.downloadExcel(sel, allExportFields);
     addToast('فایل اکسل با موفقیت ساخته شد', 'success');
   };
 
   const handleCSVExport = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.downloadCSV(sel, allExportFields);
     addToast('فایل CSV با موفقیت ساخته شد', 'success');
   };
@@ -578,19 +598,19 @@ export default function App() {
 
   const handleExportAllExcel = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadExcel(currentRecords, allExportFields);
+    exportUtils.downloadExcel(sortByCode(currentRecords), allExportFields);
     addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllCSV = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadCSV(currentRecords, allExportFields);
+    exportUtils.downloadCSV(sortByCode(currentRecords), allExportFields);
     addToast('فایل CSV همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllPrint = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    exportUtils.printLabels(currentRecords, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
+    exportUtils.printLabels(sortByCode(currentRecords), allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
   };
 
@@ -615,7 +635,7 @@ export default function App() {
   const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
 
   const handleBackup = () => {
-    const blob = new Blob([JSON.stringify({ records: currentRecords, customFields }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ records: sortByCode(currentRecords), customFields }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -990,6 +1010,7 @@ export default function App() {
     if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
     if (currentRecords.length === 0) { addToast('هیچ رکوردی وجود ندارد', 'error'); return; }
 
+    const snapshot = [...currentRecords];
     setServerLoading(true);
     try {
       const parsed = currentRecords.map((r, i) => {
@@ -1032,7 +1053,7 @@ export default function App() {
         return yearB.localeCompare(yearA);
       });
 
-      const newRecordsOrder: { record: any; index: number }[] = [];
+      const newRecordsOrder: { record: any }[] = [];
       const updates: { id: number; newCode: string }[] = [];
 
       for (const groupKey of groupKeys) {
@@ -1040,28 +1061,35 @@ export default function App() {
         const { projectNum, type, year } = items[0].parsed!;
         items.forEach((item, seqIdx) => {
           const newCode = formatCode(projectNum, type, year, seqIdx + 1);
-          updates.push({ id: currentRecords[item.index]?.id, newCode });
-          newRecordsOrder.push({ record: { ...item.record, code: newCode }, index: item.index });
+          if (currentRecords[item.index]?.id) {
+            updates.push({ id: currentRecords[item.index].id, newCode });
+          }
+          newRecordsOrder.push({ record: { ...item.record, code: newCode } });
         });
       }
 
       for (const item of unparseable) {
-        newRecordsOrder.push({ record: item.record, index: item.index });
+        newRecordsOrder.push({ record: { ...item.record } });
       }
 
+      const finalRecords = newRecordsOrder.map(item => item.record);
+
       if (serverMode) {
-        const payload = updates.filter(u => u.id != null);
-        if (payload.length > 0) {
-          await api.renumberRecords(payload);
+        if (updates.length > 0) {
+          await api.renumberRecords(updates);
         }
-        await refreshServerRecords();
-        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+        setServerRecords(finalRecords);
+        pushUndo(snapshot);
       } else {
-        replaceAllRecords(newRecordsOrder.map(item => item.record));
-        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+        try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {}
+        setRecords(finalRecords);
+        pushUndo(snapshot);
+        setRefreshKey(k => k + 1);
       }
 
       setSelected(new Set());
+      setPage(1);
+      addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
       setServerLoading(false);
       setShowRenumberConfirm(false);
     } catch (err: any) {
@@ -1355,12 +1383,12 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="d-flex gap-2 mb-4 flex-wrap">
-                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
+                <div className="records-filter">
+                  <select className="form-input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
                     <option value="">همه انواع</option>
                     {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
+                  <select className="form-input" value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
                     <option value="">همه طرف حساب‌ها</option>
                     {allParties.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
@@ -1373,10 +1401,8 @@ export default function App() {
                     />
                   </Suspense>
                   <input type="number" className="form-input" placeholder="حداقل مبلغ"
-                    style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
                   <input type="number" className="form-input" placeholder="حداکثر مبلغ"
-                    style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMax} onChange={e => { setFilterAmountMax(e.target.value); setPage(1); }} />
                   {(filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax) && (
                     <button className="btn btn-outline btn-sm" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setFilterAmountMin(''); setFilterAmountMax(''); setPage(1); }}>
@@ -1384,13 +1410,13 @@ export default function App() {
                     </button>
                   )}
                   {tags.length > 0 && (
-                    <div className="d-flex gap-1 flex-wrap align-items-center">
-                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>برچسب:</span>
+                    <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.6 }}>برچسب:</span>
                       {tags.map(tag => (
                         <button key={tag}
                           className={`btn btn-sm ${selectedTagFilter === tag ? 'btn-primary' : 'btn-outline'}`}
                           onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? null : tag)}
-                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
+                          >
                           {tag}
                         </button>
                       ))}

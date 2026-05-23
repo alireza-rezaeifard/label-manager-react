@@ -443,6 +443,43 @@ body {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Records Filter */
+.records-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.records-filter .form-input,
+.records-filter .btn-sm {
+  font-size: 0.85rem;
+}
+.records-filter .form-input {
+  width: auto;
+  min-width: 110px;
+  flex: 0 1 auto;
+  padding: 0.5rem 1rem;
+  margin-bottom: 0;
+}
+.records-filter .date-range-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.records-filter .date-range-picker input.form-input {
+  width: 95px !important;
+  min-width: 80px !important;
+  padding: 0.5rem 1rem !important;
+  padding-left: 2rem !important;
+  font-size: 0.85rem;
+}
+.records-filter .btn-outline.btn-sm,
+.records-filter .btn-primary.btn-sm {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+}
+
 /* Card Grid */
 .card-grid {
   display: grid;
