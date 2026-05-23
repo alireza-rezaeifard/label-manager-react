@@ -1,4 +1,5 @@
-import Database from 'better-sqlite3';
+import initSqlJs from 'sql.js';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import bcrypt from 'bcryptjs';
@@ -6,10 +7,115 @@ import bcrypt from 'bcryptjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = process.env.DB_PATH || join(__dirname, 'data.db');
-const db = new Database(dbPath);
+class Statement {
+  constructor(db, sql, saveFn) {
+    this.db = db;
+    this.sql = sql;
+    this.saveFn = saveFn;
+  }
 
-db.pragma('journal_mode = WAL');
+  _bind(stmt, params) {
+    if (params.length > 0) stmt.bind(params.map(p => p === undefined ? null : p));
+  }
+
+  all(...params) {
+    const stmt = this.db.prepare(this.sql);
+    this._bind(stmt, params);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    stmt.free();
+    return rows;
+  }
+
+  get(...params) {
+    const stmt = this.db.prepare(this.sql);
+    this._bind(stmt, params);
+    const row = stmt.step() ? stmt.getAsObject() : undefined;
+    stmt.free();
+    return row;
+  }
+
+  run(...params) {
+    const stmt = this.db.prepare(this.sql);
+    this._bind(stmt, params);
+    try {
+      stmt.step();
+    } finally {
+      stmt.free();
+    }
+
+    const changes = this.db.getRowsModified();
+    const rs = this.db.exec("SELECT last_insert_rowid() as id");
+    this.saveFn?.();
+
+    if (changes === 0) return { changes: 0, lastInsertRowid: undefined };
+
+    const lastInsertRowid = rs?.[0]?.values?.[0]?.[0];
+    return { changes, lastInsertRowid: lastInsertRowid != null ? Number(lastInsertRowid) : undefined };
+  }
+}
+
+class Database {
+  constructor(dbf, path, saveFn) {
+    this.dbf = dbf;
+    this.path = path;
+    this.saveFn = saveFn;
+  }
+
+  pragma(value) {
+    this.dbf.run(`PRAGMA ${value}`);
+  }
+
+  exec(sql) {
+    this.dbf.exec(sql);
+  }
+
+  prepare(sql) {
+    return new Statement(this.dbf, sql, this.saveFn);
+  }
+
+  getRowsModified() {
+    return this.dbf.getRowsModified();
+  }
+
+  transaction(fn) {
+    return (...args) => {
+      this.dbf.exec('BEGIN');
+      try {
+        const result = fn(...args);
+        this.dbf.exec('COMMIT');
+        return result;
+      } catch (e) {
+        this.dbf.exec('ROLLBACK');
+        throw e;
+      }
+    };
+  }
+}
+
+const dbPath = process.env.DB_PATH || join(__dirname, 'data.db');
+
+const SQL = await initSqlJs();
+let dbf;
+if (fs.existsSync(dbPath)) {
+  const buffer = fs.readFileSync(dbPath);
+  dbf = new SQL.Database(buffer);
+} else {
+  dbf = new SQL.Database();
+}
+
+function save() {
+  const data = dbf.export();
+  fs.writeFileSync(dbPath, Buffer.from(data));
+}
+
+const db = new Database(dbf, dbPath, save);
+
+const origExec = db.exec.bind(db);
+db.exec = (sql) => { origExec(sql); save(); };
+
+const origPragma = db.pragma.bind(db);
+db.pragma = (v) => { origPragma(v); save(); };
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

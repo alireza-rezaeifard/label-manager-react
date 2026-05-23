@@ -151,10 +151,10 @@ export default function WorkspaceSwitcher({
                   <input type="text" className="form-input" placeholder="نام کاربری"
                     value={inviteUsername} onChange={e => setInviteUsername(e.target.value)}
                     style={{ marginBottom: 0, padding: '0.5rem', fontSize: '0.85rem' }}
-                    onKeyDown={e => e.key === 'Enter' && inviteUsername.trim() && onInviteMember(currentWorkspaceId, inviteUsername.trim())} />
+                    onKeyDown={e => e.key === 'Enter' && inviteUsername.trim() && currentWorkspaceId && onInviteMember(currentWorkspaceId, inviteUsername.trim())} />
                   <div className="d-flex gap-2">
                     <button className="btn btn-primary btn-sm" style={{ flex: 1 }}
-                      onClick={() => { if (inviteUsername.trim()) { onInviteMember(currentWorkspaceId, inviteUsername.trim()); setInviteUsername(''); setShowInvite(false); } }}>
+                      onClick={() => { if (inviteUsername.trim() && currentWorkspaceId) { onInviteMember(currentWorkspaceId, inviteUsername.trim()); setInviteUsername(''); setShowInvite(false); } }}>
                       دعوت
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={() => setShowInvite(false)}>انصراف</button>
@@ -196,14 +196,14 @@ export default function WorkspaceSwitcher({
 
             {isOwner && (
               <button className="btn btn-outline btn-sm w-100" style={{ color: 'var(--danger)' }}
-                onClick={() => { if (confirm('آیا از حذف این فضای کاری اطمینان دارید؟ تمام رکوردها و اعضا حذف خواهند شد.')) { onDeleteWorkspace(currentWorkspaceId); setOpen(false); } }}>
+                onClick={() => { if (confirm('آیا از حذف این فضای کاری اطمینان دارید؟ تمام رکوردها و اعضا حذف خواهند شد.') && currentWorkspaceId) { onDeleteWorkspace(currentWorkspaceId); setOpen(false); } }}>
                 <i className="ti ti-trash"></i> حذف فضای کاری
               </button>
             )}
 
             {workspaces.length > 1 && (
               <button className="btn btn-outline btn-sm w-100" style={{ color: 'var(--danger)' }}
-                onClick={() => { if (confirm('آیا از خروج از این فضای کاری اطمینان دارید؟')) { onLeave(currentWorkspaceId); setOpen(false); } }}>
+                onClick={() => { if (confirm('آیا از خروج از این فضای کاری اطمینان دارید؟') && currentWorkspaceId) { onLeave(currentWorkspaceId); setOpen(false); } }}>
                 <i className="ti ti-logout"></i> خروج از فضای کاری
               </button>
             )}
