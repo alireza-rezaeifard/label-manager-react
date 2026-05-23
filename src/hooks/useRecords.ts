@@ -116,7 +116,7 @@ export function useRecords() {
   return {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
-    undo, undoStack,
+    undo, undoStack, pushUndo,
     getRelatedLabels, getAvailableLabels,
     isDuplicateCode, checkDuplicateCode, searchRecords,
   };

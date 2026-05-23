@@ -85,7 +85,7 @@ export default function App() {
   const {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
-    undo, undoStack,
+    undo, undoStack, pushUndo,
     isDuplicateCode,
   } = useRecords();
 
@@ -990,6 +990,7 @@ export default function App() {
     if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
     if (currentRecords.length === 0) { addToast('هیچ رکوردی وجود ندارد', 'error'); return; }
 
+    const snapshot = [...currentRecords];
     setServerLoading(true);
     try {
       const parsed = currentRecords.map((r, i) => {
@@ -1032,7 +1033,7 @@ export default function App() {
         return yearB.localeCompare(yearA);
       });
 
-      const newRecordsOrder: { record: any; index: number }[] = [];
+      const newRecordsOrder: { record: any }[] = [];
       const updates: { id: number; newCode: string }[] = [];
 
       for (const groupKey of groupKeys) {
@@ -1040,28 +1041,35 @@ export default function App() {
         const { projectNum, type, year } = items[0].parsed!;
         items.forEach((item, seqIdx) => {
           const newCode = formatCode(projectNum, type, year, seqIdx + 1);
-          updates.push({ id: currentRecords[item.index]?.id, newCode });
-          newRecordsOrder.push({ record: { ...item.record, code: newCode }, index: item.index });
+          if (currentRecords[item.index]?.id) {
+            updates.push({ id: currentRecords[item.index].id, newCode });
+          }
+          newRecordsOrder.push({ record: { ...item.record, code: newCode } });
         });
       }
 
       for (const item of unparseable) {
-        newRecordsOrder.push({ record: item.record, index: item.index });
+        newRecordsOrder.push({ record: { ...item.record } });
       }
 
+      const finalRecords = newRecordsOrder.map(item => item.record);
+
       if (serverMode) {
-        const payload = updates.filter(u => u.id != null);
-        if (payload.length > 0) {
-          await api.renumberRecords(payload);
+        if (updates.length > 0) {
+          await api.renumberRecords(updates);
         }
-        await refreshServerRecords();
-        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+        setServerRecords(finalRecords);
+        pushUndo(snapshot);
       } else {
-        replaceAllRecords(newRecordsOrder.map(item => item.record));
-        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+        try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {}
+        setRecords(finalRecords);
+        pushUndo(snapshot);
+        setRefreshKey(k => k + 1);
       }
 
       setSelected(new Set());
+      setPage(1);
+      addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
       setServerLoading(false);
       setShowRenumberConfirm(false);
     } catch (err: any) {
