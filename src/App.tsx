@@ -1363,12 +1363,12 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="d-flex gap-2 mb-4 flex-wrap">
-                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
+                <div className="records-filter">
+                  <select className="form-input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
                     <option value="">همه انواع</option>
                     {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
-                  <select className="form-input" style={{ width: 'auto', marginBottom: 0 }} value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
+                  <select className="form-input" value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
                     <option value="">همه طرف حساب‌ها</option>
                     {allParties.map(p => <option key={p} value={p}>{p}</option>)}
                   </select>
@@ -1381,10 +1381,8 @@ export default function App() {
                     />
                   </Suspense>
                   <input type="number" className="form-input" placeholder="حداقل مبلغ"
-                    style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
                   <input type="number" className="form-input" placeholder="حداکثر مبلغ"
-                    style={{ width: 120, marginBottom: 0 }}
                     value={filterAmountMax} onChange={e => { setFilterAmountMax(e.target.value); setPage(1); }} />
                   {(filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax) && (
                     <button className="btn btn-outline btn-sm" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setFilterAmountMin(''); setFilterAmountMax(''); setPage(1); }}>
@@ -1392,13 +1390,13 @@ export default function App() {
                     </button>
                   )}
                   {tags.length > 0 && (
-                    <div className="d-flex gap-1 flex-wrap align-items-center">
-                      <span style={{ fontSize: '0.8rem', opacity: 0.6 }}>برچسب:</span>
+                    <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.85rem' }}>
+                      <span style={{ opacity: 0.6 }}>برچسب:</span>
                       {tags.map(tag => (
                         <button key={tag}
                           className={`btn btn-sm ${selectedTagFilter === tag ? 'btn-primary' : 'btn-outline'}`}
                           onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? null : tag)}
-                          style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
+                          >
                           {tag}
                         </button>
                       ))}
