@@ -62,6 +62,7 @@ function saveTags(t) {
 }
 
 const RECORD_CUSTOM_FIELDS_CACHE_KEY = 'label-studio-record-cfields-cache';
+const RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY = 'label-studio-record-cfields-code-cache';
 
 function loadRecordCustomFieldsCache() {
   try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CACHE_KEY) || '{}'); } catch { return {}; }
@@ -69,6 +70,14 @@ function loadRecordCustomFieldsCache() {
 
 function saveRecordCustomFieldsCache(data) {
   try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
+}
+
+function loadRecordCustomFieldsCodeCache() {
+  try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY) || '{}'); } catch { return {}; }
+}
+
+function saveRecordCustomFieldsCodeCache(data) {
+  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
 }
 
 function getTabFromHash() {
@@ -93,6 +102,7 @@ export default function App() {
   const [serverLoading, setServerLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const fetchedRef = useRef(false);
+  const isRestoringRef = useRef(false);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [tab, setTab] = useState(() => getTabFromHash() || 'records');
@@ -127,6 +137,8 @@ export default function App() {
   const [newFieldType, setNewFieldType] = useState('text');
   const [showBackupModal, setShowBackupModal] = useState(false);
   const [backupFile, setBackupFile] = useState<File | null>(null);
+  const [pendingRestore, setPendingRestore] = useState<{ records: any[]; customFields: any[] } | null>(null);
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
 
   const [tags, setTags] = useState(loadTags);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
@@ -206,25 +218,41 @@ export default function App() {
   }, [serverMode, currentWorkspaceId]);
 
   const refreshServerRecords = useCallback(async () => {
-    if (serverMode && currentWorkspaceId) {
-      try {
-        const data = await api.getAllRecords(currentWorkspaceId);
-        setServerRecords(prev => {
-          const customKeys = new Set(customFields.map(f => f.key));
-          return data.map(serverRecord => {
-            const existing = prev.find(r => r.id === serverRecord.id);
-            if (existing) {
-              const merged = { ...serverRecord };
-              for (const key of customKeys) {
-                if (key in existing) merged[key] = existing[key];
-              }
-              return merged;
+    if (!serverMode || !currentWorkspaceId || isRestoringRef.current) return;
+    try {
+      const data = await api.getAllRecords(currentWorkspaceId);
+      const codeCache = loadRecordCustomFieldsCodeCache();
+      setServerRecords(prev => {
+        const customKeys = new Set(customFields.map(f => f.key));
+        return data.map(serverRecord => {
+          const existing = prev.find(r => r.id === serverRecord.id);
+          if (existing) {
+            const merged = { ...serverRecord };
+            for (const key of customKeys) {
+              if (key in existing) merged[key] = existing[key];
             }
-            return serverRecord;
-          });
+            return merged;
+          }
+          const byCode = prev.find(r => r.code === serverRecord.code);
+          if (byCode) {
+            const merged = { ...serverRecord };
+            for (const key of customKeys) {
+              if (key in byCode) merged[key] = byCode[key];
+            }
+            return merged;
+          }
+          const cachedByCode = codeCache[serverRecord.code];
+          if (cachedByCode) {
+            const merged = { ...serverRecord };
+            for (const key of customKeys) {
+              if (key in cachedByCode) merged[key] = cachedByCode[key];
+            }
+            return merged;
+          }
+          return serverRecord;
         });
-      } catch {}
-    }
+      });
+    } catch {}
   }, [serverMode, currentWorkspaceId, customFields]);
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
@@ -259,7 +287,8 @@ export default function App() {
 
       api.getAllRecords(currentWorkspaceId).then(data => {
         const cache = loadRecordCustomFieldsCache();
-        setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
+        const codeCache = loadRecordCustomFieldsCodeCache();
+        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
       }).catch(() => {});
     }
   }, [serverMode, currentWorkspaceId]);
@@ -442,6 +471,9 @@ export default function App() {
             const cache = loadRecordCustomFieldsCache();
             cache[record.id] = cfields;
             saveRecordCustomFieldsCache(cache);
+            const codeCache = loadRecordCustomFieldsCodeCache();
+            if (updated.code) codeCache[updated.code] = cfields;
+            saveRecordCustomFieldsCodeCache(codeCache);
           }
           setServerRecords(prev => {
             const idx = prev.findIndex(r => r.id === record.id);
@@ -478,6 +510,9 @@ export default function App() {
             const cache = loadRecordCustomFieldsCache();
             cache[created.id] = cfields;
             saveRecordCustomFieldsCache(cache);
+            const codeCache = loadRecordCustomFieldsCodeCache();
+            if (created.code) codeCache[created.code] = cfields;
+            saveRecordCustomFieldsCodeCache(codeCache);
           }
           setServerRecords(prev => [{ ...created, ...recordData }, ...prev]);
           setRefreshKey(k => k + 1);
@@ -653,6 +688,7 @@ export default function App() {
       const text = await backupFile.text();
       const data = JSON.parse(text);
       let restoredRecords, restoredCustomFields;
+      const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order']);
       if (Array.isArray(data)) {
         restoredRecords = data;
         restoredCustomFields = [];
@@ -663,34 +699,79 @@ export default function App() {
         throw new Error('فرمت فایل نامعتبر');
       }
 
-      if (restoredCustomFields.length > 0) {
-        setCustomFields(restoredCustomFields);
-        saveCustomFields(restoredCustomFields);
+      if (!restoredCustomFields.length && restoredRecords.length > 0) {
+        const customKeys = new Set<string>();
+        for (const r of restoredRecords) {
+          for (const k of Object.keys(r)) {
+            if (!STATIC_KEYS.has(k)) customKeys.add(k);
+          }
+        }
+        if (customKeys.size > 0) {
+          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, field_type: 'text' }));
+        }
       }
 
-      if (serverMode) {
-        setServerLoading(true);
-        try {
-          if (restoredCustomFields.length > 0) {
-            await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId);
-          }
-          await api.restore(restoredRecords, currentWorkspaceId);
-          await refreshServerRecords();
-          setRefreshKey(k => k + 1);
-          setServerLoading(false);
-          setShowBackupModal(false);
-          addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
-        } catch (err: any) {
-          setServerLoading(false);
-          addToast('خطا در بازیابی: ' + err.message, 'error');
-        }
+      if (restoredCustomFields.length > 0) {
+        setPendingRestore({ records: restoredRecords, customFields: restoredCustomFields });
+        setShowRestoreConfirm(true);
       } else {
-        setRecords(restoredRecords);
-        setShowBackupModal(false);
-        addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
+        executeRestore(restoredRecords, []);
       }
     } catch (err: any) {
       addToast('خطا در بازیابی: ' + err.message, 'error');
+    }
+  };
+
+  const executeRestore = async (restoredRecords, restoredCustomFields) => {
+    if (restoredCustomFields.length > 0) {
+      setCustomFields(restoredCustomFields);
+      saveCustomFields(restoredCustomFields);
+    }
+
+    if (serverMode) {
+      setServerLoading(true);
+      isRestoringRef.current = true;
+      try {
+        if (restoredCustomFields.length > 0) {
+          await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId);
+        }
+        await api.restore(restoredRecords, currentWorkspaceId);
+        const freshRecords = await api.getAllRecords(currentWorkspaceId);
+        const merged = freshRecords.map(sr => {
+          const br = restoredRecords.find(r => r.code === sr.code);
+          if (br) return { ...br, id: sr.id, created_at: sr.created_at, updated_at: sr.updated_at, workspace_id: sr.workspace_id };
+          return sr;
+        });
+        setServerRecords(merged);
+        const existingCache = loadRecordCustomFieldsCache();
+        const codeCache = loadRecordCustomFieldsCodeCache();
+        const restoredKeys = new Set(restoredCustomFields.map(f => f.key));
+        for (const r of merged) {
+          const entry: any = {};
+          for (const k of restoredKeys) {
+            if (k in r) entry[k] = r[k];
+          }
+          if (Object.keys(entry).length) {
+            if (r.id) existingCache[r.id] = entry;
+            if (r.code) codeCache[r.code] = entry;
+          }
+        }
+        saveRecordCustomFieldsCache(existingCache);
+        saveRecordCustomFieldsCodeCache(codeCache);
+        setRefreshKey(k => k + 1);
+        setServerLoading(false);
+        setShowBackupModal(false);
+        addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
+      } catch (err: any) {
+        setServerLoading(false);
+        addToast('خطا در بازیابی: ' + err.message, 'error');
+      } finally {
+        isRestoringRef.current = false;
+      }
+    } else {
+      setRecords(restoredRecords);
+      setShowBackupModal(false);
+      addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
     }
   };
 
@@ -859,6 +940,9 @@ export default function App() {
           const cache = loadRecordCustomFieldsCache();
           cache[record.id] = cfields;
           saveRecordCustomFieldsCache(cache);
+          const codeCache = loadRecordCustomFieldsCodeCache();
+          if (updated.code) codeCache[updated.code] = cfields;
+          saveRecordCustomFieldsCodeCache(codeCache);
         }
         setServerLoading(false);
         refreshServerRecords();
@@ -881,7 +965,8 @@ export default function App() {
       setServerLoading(true);
       api.getAllRecords(wsId).then(data => {
         const cache = loadRecordCustomFieldsCache();
-        setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
+        const codeCache = loadRecordCustomFieldsCodeCache();
+        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
         setServerLoading(false);
       }).catch(() => setServerLoading(false));
     }
@@ -971,15 +1056,21 @@ export default function App() {
         }
         setRefreshKey(k => k + 1);
         const cache = loadRecordCustomFieldsCache();
+        const codeCache = loadRecordCustomFieldsCodeCache();
         selectedIndices.forEach(i => {
           const record = currentRecords[i];
           if (record) {
             const cfields = {};
             customFields.forEach(f => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
-            if (Object.keys(cfields).length > 0) cache[record.id] = cfields;
+            if (Object.keys(cfields).length > 0) {
+              const updated = updatedMap.get(record.id) || record;
+              cache[record.id] = cfields;
+              if (updated.code) codeCache[updated.code] = cfields;
+            }
           }
         });
         saveRecordCustomFieldsCache(cache);
+        saveRecordCustomFieldsCodeCache(codeCache);
         setServerLoading(false);
         setShowBulkEdit(false);
         setBulkEditField('');
@@ -1723,6 +1814,43 @@ export default function App() {
           setBackupFile={setBackupFile}
           isViewer={isViewer}
         />
+
+        {showRestoreConfirm && pendingRestore && (
+          <div className="modal-overlay" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0 }}>بازیابی فیلدهای سفارشی</h3>
+                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}></i>
+              </div>
+              <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
+                فایل پشتیبان شامل <strong>{pendingRestore.customFields.length} فیلد سفارشی</strong> است:
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                {pendingRestore.customFields.map(cf => (
+                  <span key={cf.key} style={{ padding: '0.3rem 0.7rem', background: 'var(--hover-bg)', borderRadius: 8, fontSize: '0.85rem' }}>
+                    {cf.fa || cf.label || cf.key}
+                  </span>
+                ))}
+              </div>
+              <p style={{ opacity: 0.7, marginBottom: '1.5rem', lineHeight: 1.8 }}>
+                آیا مایل به بازیابی این فیلدها هستید؟
+              </p>
+              <div className="d-flex gap-2" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn btn-outline" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}>
+                  فقط رکوردها
+                </button>
+                <button className="btn btn-primary" onClick={() => {
+                  const pr = pendingRestore;
+                  setShowRestoreConfirm(false);
+                  setPendingRestore(null);
+                  executeRestore(pr.records, pr.customFields);
+                }}>
+                  بازیابی با فیلدها
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showRenumberConfirm && (
           <div className="modal-overlay" onClick={() => setShowRenumberConfirm(false)}>
