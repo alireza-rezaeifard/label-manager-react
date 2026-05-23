@@ -40,10 +40,13 @@ export function useWebSocket(
     socketRef.current = socket;
 
     return () => {
-      if (workspaceId) {
-        socket.emit('leave-workspace', workspaceId);
+      socket.removeAllListeners();
+      if (socket.connected) {
+        if (workspaceId) {
+          socket.emit('leave-workspace', workspaceId);
+        }
+        socket.disconnect();
       }
-      socket.disconnect();
     };
   }, [workspaceId]);
 
