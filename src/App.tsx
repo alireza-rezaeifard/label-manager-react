@@ -315,11 +315,15 @@ export default function App() {
     return [...records].sort((a, b) => {
       const pa = parseCode(a.code);
       const pb = parseCode(b.code);
-      if (!pa || !pb) return 0;
-      if (pa.projectNum !== pb.projectNum) return pa.projectNum - pb.projectNum;
-      if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
-      if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
-      return pb.sequence - pa.sequence;
+      if (pa && pb) {
+        if (pa.projectNum !== pb.projectNum) return pa.projectNum - pb.projectNum;
+        if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
+        if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
+        return pb.sequence - pa.sequence;
+      }
+      if (pa) return -1;
+      if (pb) return 1;
+      return a.code.localeCompare(b.code);
     });
   }, []);
 
@@ -1166,7 +1170,7 @@ export default function App() {
     ? currentRecords.filter(r => r.code !== currentRecords[editIndex]?.code)
     : currentRecords;
   const editRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
-  const selectedRecords = currentRecords.filter((_, i) => selected.has(i));
+  const selectedRecords = sortByCode(currentRecords.filter((_, i) => selected.has(i)));
 
   const findRelated = (codes) => {
     if (!codes || !codes.length) return [];
