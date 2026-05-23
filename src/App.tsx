@@ -3,7 +3,7 @@ import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
-import { formatAmount } from './utils/formatters';
+import { formatAmount, parseCode, formatCode } from './utils/formatters';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
 import ErrorBoundary from './components/ErrorBoundary';
@@ -84,7 +84,7 @@ export default function App() {
 
   const {
     records, setRecords,
-    addRecord, updateRecord, deleteRecords, reorderRecords,
+    addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
     undo, undoStack,
     isDuplicateCode,
   } = useRecords();
@@ -139,6 +139,7 @@ export default function App() {
   const [templateName, setTemplateName] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateData, setTemplateData] = useState<any>(null);
+  const formDraftRef = useRef<any>(null);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [bulkEditField, setBulkEditField] = useState('');
@@ -146,6 +147,7 @@ export default function App() {
   const [bulkEditTags, setBulkEditTags] = useState<string[]>([]);
   const [bulkEditColor, setBulkEditColor] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -779,7 +781,7 @@ export default function App() {
   const handleSaveTemplate = () => {
     if (!templateName.trim()) { addToast('نام الگو را وارد کنید', 'error'); return; }
     if (templates.some(t => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
-    const sourceRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
+    const sourceRecord = editIndex !== null ? currentRecords[editIndex] : (templateData || formDraftRef.current);
     if (!sourceRecord || !sourceRecord.code) { addToast('ابتدا یک رکورد را باز کنید یا فیلدها را پر کنید', 'error'); return; }
     const newTemplate = { name: templateName.trim(), fields: { ...sourceRecord } };
     const updated = [...templates, newTemplate];
@@ -984,6 +986,90 @@ export default function App() {
     }
   };
 
+  const handleRenumber = async () => {
+    if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
+    if (currentRecords.length === 0) { addToast('هیچ رکوردی وجود ندارد', 'error'); return; }
+
+    setServerLoading(true);
+    try {
+      const parsed = currentRecords.map((r, i) => {
+        const p = parseCode(r.code);
+        return { record: r, index: i, parsed: p };
+      });
+
+      const parseable = parsed.filter(x => x.parsed !== null);
+      const unparseable = parsed.filter(x => x.parsed === null);
+
+      if (parseable.length === 0) {
+        addToast('هیچ رکوردی با فرمت معتبر (PROJxxx-YYY-xxxx-xxx) یافت نشد', 'error');
+        setServerLoading(false);
+        setShowRenumberConfirm(false);
+        return;
+      }
+
+      const groups: Record<string, typeof parseable> = {};
+      for (const item of parseable) {
+        const key = `${item.parsed!.projectNum}|${item.parsed!.type}|${item.parsed!.year}`;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(item);
+      }
+
+      for (const key of Object.keys(groups)) {
+        groups[key].sort((a, b) => {
+          const dateA = a.record.date || '';
+          const dateB = b.record.date || '';
+          return dateA.localeCompare(dateB);
+        });
+      }
+
+      const groupKeys = Object.keys(groups).sort((a, b) => {
+        const [projA, typeA, yearA] = a.split('|');
+        const [projB, typeB, yearB] = b.split('|');
+        const pNumA = parseInt(projA, 10);
+        const pNumB = parseInt(projB, 10);
+        if (pNumA !== pNumB) return pNumA - pNumB;
+        if (typeA !== typeB) return typeA.localeCompare(typeB);
+        return yearB.localeCompare(yearA);
+      });
+
+      const newRecordsOrder: { record: any; index: number }[] = [];
+      const updates: { id: number; newCode: string }[] = [];
+
+      for (const groupKey of groupKeys) {
+        const items = groups[groupKey];
+        const { projectNum, type, year } = items[0].parsed!;
+        items.forEach((item, seqIdx) => {
+          const newCode = formatCode(projectNum, type, year, seqIdx + 1);
+          updates.push({ id: currentRecords[item.index]?.id, newCode });
+          newRecordsOrder.push({ record: { ...item.record, code: newCode }, index: item.index });
+        });
+      }
+
+      for (const item of unparseable) {
+        newRecordsOrder.push({ record: item.record, index: item.index });
+      }
+
+      if (serverMode) {
+        const payload = updates.filter(u => u.id != null);
+        if (payload.length > 0) {
+          await api.renumberRecords(payload);
+        }
+        await refreshServerRecords();
+        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+      } else {
+        replaceAllRecords(newRecordsOrder.map(item => item.record));
+        addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
+      }
+
+      setSelected(new Set());
+      setServerLoading(false);
+      setShowRenumberConfirm(false);
+    } catch (err: any) {
+      setServerLoading(false);
+      addToast('خطا در بازنویسی کدها: ' + (err.message || 'خطای ناشناخته'), 'error');
+    }
+  };
+
   const keyboardHandlers = {
     onNewRecord: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } setEditIndex(null); setTab('add'); },
     onEdit: () => {
@@ -1030,6 +1116,7 @@ export default function App() {
       if (showPrintQueue) { setShowPrintQueue(false); return; }
       if (showPrintSettings) { setShowPrintSettings(false); return; }
       if (showBackupModal) { setShowBackupModal(false); return; }
+      if (showRenumberConfirm) { setShowRenumberConfirm(false); return; }
       if (showBulkEdit) { setShowBulkEdit(false); return; }
       if (showScanner) { setShowScanner(false); return; }
       if (editIndex !== null) { setEditIndex(null); setTab('records'); return; }
@@ -1075,7 +1162,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="app-container">
+      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}`}>
         <Sidebar
           tab={tab}
           onTabChange={handleTabChange}
@@ -1181,7 +1268,7 @@ export default function App() {
 
             {tab === 'records' && (
               <div>
-                <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                <div className="records-toolbar">
                   <div className="d-flex gap-2 align-items-center flex-wrap">
                     <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>مرتب‌سازی:</span>
                     {['code', 'project', 'date', 'amount'].map(f => (
@@ -1193,32 +1280,32 @@ export default function App() {
                       </button>
                     ))}
                   </div>
-                  {customFields.length > 0 && (
-                    <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.75rem' }}>
-                      <span style={{ opacity: 0.5 }}>فیلدهای سفارشی:</span>
-                      {customFields.map(f => {
-                        const active = enabledCustomFieldKeys.includes(f.key);
-                        return (
-                          <span key={f.key} onClick={() => {
-                            setEnabledCustomFieldKeys(prev => {
-                              const next = prev.includes(f.key) ? prev.filter(k => k !== f.key) : [...prev, f.key];
-                              localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
-                              return next;
-                            });
-                          }} style={{
-                            padding: '0.2rem 0.5rem', borderRadius: 12, cursor: 'pointer',
-                            background: active ? 'var(--primary)' : 'var(--bg-body)',
-                            color: active ? 'white' : 'var(--text-color)',
-                            border: active ? 'none' : '1px solid var(--border-color)',
-                            transition: 'all 0.2s',
-                          }}>
-                            {f.fa}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  )}
-                  <div className="d-flex gap-2">
+                  <div className="records-toolbar-actions">
+                    {customFields.length > 0 && (
+                      <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.75rem' }}>
+                        <span style={{ opacity: 0.5 }}>فیلدهای سفارشی:</span>
+                        {customFields.map(f => {
+                          const active = enabledCustomFieldKeys.includes(f.key);
+                          return (
+                            <span key={f.key} onClick={() => {
+                              setEnabledCustomFieldKeys(prev => {
+                                const next = prev.includes(f.key) ? prev.filter(k => k !== f.key) : [...prev, f.key];
+                                localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
+                                return next;
+                              });
+                            }} style={{
+                              padding: '0.2rem 0.5rem', borderRadius: 12, cursor: 'pointer',
+                              background: active ? 'var(--primary)' : 'var(--bg-body)',
+                              color: active ? 'white' : 'var(--text-color)',
+                              border: active ? 'none' : '1px solid var(--border-color)',
+                              transition: 'all 0.2s',
+                            }}>
+                              {f.fa}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
                     <button className="btn btn-outline btn-sm" onClick={() => setViewMode(p => p === 'card' ? 'table' : 'card')}>
                       <i className={`ti ${viewMode === 'card' ? 'ti-list' : 'ti-grid'}`}></i>
                       {viewMode === 'card' ? 'نمایش جدول' : 'نمایش کارتی'}
@@ -1239,6 +1326,21 @@ export default function App() {
                           <i className="ti ti-printer"></i> چاپ همه
                         </button>
                       </>
+                    )}
+                    {selected.size > 0 && (
+                      <>
+                        <button className="btn btn-outline btn-sm" onClick={handleExcel} title="خروجی اکسل رکوردهای انتخاب شده">
+                          <i className="ti ti-file-excel"></i> اکسل ({selected.size})
+                        </button>
+                        <button className="btn btn-outline btn-sm" onClick={handleCSVExport} title="خروجی CSV رکوردهای انتخاب شده">
+                          <i className="ti ti-file-text"></i> CSV ({selected.size})
+                        </button>
+                      </>
+                    )}
+                    {!isViewer && currentRecords.length > 0 && (
+                      <button className="btn btn-outline btn-sm" onClick={() => setShowRenumberConfirm(true)} title="بازنویسی کدها بر اساس پروژه، نوع و تاریخ">
+                        <i className="ti ti-sort-numeric"></i> بازنویسی کدها
+                      </button>
                     )}
                     {selected.size > 0 && !isViewer && (
                       <>
@@ -1466,6 +1568,7 @@ export default function App() {
                   customFields={customFields}
                   serverMode={serverMode}
                   allTags={tags}
+                  onFormChange={(data) => { formDraftRef.current = data; }}
                 />
               </>
             )}
@@ -1590,6 +1693,29 @@ export default function App() {
           setBackupFile={setBackupFile}
           isViewer={isViewer}
         />
+
+        {showRenumberConfirm && (
+          <div className="modal-overlay" onClick={() => setShowRenumberConfirm(false)}>
+            <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h3 style={{ margin: 0 }}>بازنویسی کدها</h3>
+                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowRenumberConfirm(false)}></i>
+              </div>
+              <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
+                همه رکوردها بر اساس پروژه، نوع و سال مرتب شده و کدهای آنها بازنویسی می‌شوند.
+                محتوای رکوردها تغییری نمی‌کند. ادامه می‌دهید؟
+              </p>
+              <div className="d-flex gap-2" style={{ justifyContent: 'flex-end' }}>
+                <button className="btn btn-outline" onClick={() => setShowRenumberConfirm(false)}>
+                  انصراف
+                </button>
+                <button className="btn btn-primary" onClick={handleRenumber} disabled={serverLoading}>
+                  {serverLoading ? 'در حال اجرا...' : 'تایید و بازنویسی'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showBulkEdit && (
           <div className="modal-overlay" onClick={() => setShowBulkEdit(false)}>

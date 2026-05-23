@@ -270,6 +270,44 @@ router.post('/reorder', asyncHandler((req, res) => {
   res.json({ ok: true });
 }));
 
+router.post('/renumber', asyncHandler((req, res) => {
+  const { records: updates } = req.body;
+  if (!Array.isArray(updates) || updates.length === 0) {
+    throw new AppError('records array required', 400, 'MISSING_RECORDS');
+  }
+
+  if (updates.length === 0) return res.json({ ok: true, count: 0 });
+
+  const firstWsId = (() => {
+    const first = db.prepare('SELECT workspace_id FROM records WHERE id = ?').get(updates[0].id);
+    return first ? first.workspace_id : null;
+  })();
+
+  const roleInfo = firstWsId ? db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  ).get(firstWsId, req.user.id) : null;
+
+  if (!roleInfo || (ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Renumbering records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
+
+  const txn = db.transaction(() => {
+    const stmt = db.prepare(
+      "UPDATE records SET code = ?, updated_at = datetime('now') WHERE id = ?"
+    );
+    for (const u of updates) {
+      if (u.id && u.newCode) {
+        stmt.run(u.newCode, u.id);
+      }
+    }
+  });
+  txn();
+
+  logActivity(req.user.id, 'renumber', `Renumbered ${updates.length} records`);
+  if (firstWsId) broadcastToWorkspace(firstWsId, 'records:renumbered', { count: updates.length });
+  res.json({ ok: true, count: updates.length });
+}));
+
 router.get('/backup', asyncHandler((req, res) => {
   const { workspace_id } = req.query;
   let records;

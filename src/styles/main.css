@@ -204,12 +204,19 @@ body {
 }
 
 .menu-toggle {
-  display: none;
+  display: flex;
   background: none;
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
   color: var(--text-color);
+  padding: 0.5rem;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+.menu-toggle:hover {
+  background: var(--hover-bg);
+  color: var(--primary);
 }
 
 .search-box {
@@ -346,6 +353,13 @@ body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2.5rem;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.page-header .d-flex.gap-2 {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.25rem;
 }
 
 .page-title {
@@ -412,11 +426,29 @@ body {
   opacity: 0.6;
 }
 
+/* Records Toolbar */
+.records-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.records-toolbar-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Card Grid */
 .card-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 1.5rem;
+  min-width: 0;
 }
 
 .label-card {
@@ -426,6 +458,7 @@ body {
   overflow: hidden;
   transition: all 0.3s ease;
   cursor: pointer;
+  min-width: 0;
 }
 
 .label-card:hover {
@@ -445,6 +478,7 @@ body {
   justify-content: space-between;
   align-items: center;
   background: var(--hover-bg);
+  min-width: 0;
 }
 
 .label-card.selected .label-card-header {
@@ -457,6 +491,10 @@ body {
   font-family: 'Consolas', monospace;
   font-weight: 600;
   font-size: 0.95rem;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .label-card.selected .code-badge {
@@ -472,12 +510,14 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1.25rem;
+  min-width: 0;
 }
 
 .label-field-item {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
 
 .label-field-key {
@@ -1045,11 +1085,20 @@ body {
   .sidebar-overlay.show {
     display: block;
   }
-  .menu-toggle {
-    display: flex;
-  }
   .search-box { display: none; }
   .card-grid { grid-template-columns: 1fr; }
+}
+
+@media (min-width: 993px) {
+  .sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar-collapsed .main-content {
+    margin-left: 0;
+  }
+  .sidebar-collapsed .sidebar-overlay {
+    display: none !important;
+  }
 }
 
 /* Shortcuts Help Modal */

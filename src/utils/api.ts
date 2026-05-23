@@ -72,6 +72,9 @@ export const api = {
   reorder: (ids) =>
     apiRequest('/records/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
+  renumberRecords: (records) =>
+    apiRequest('/records/renumber', { method: 'POST', body: JSON.stringify({ records }) }),
+
   backup: (workspaceId) =>
     apiRequest(`/records/backup${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
