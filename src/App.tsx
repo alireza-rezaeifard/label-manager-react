@@ -311,6 +311,18 @@ export default function App() {
     }
   };
 
+  const sortByCode = useCallback((records: Record[]) => {
+    return [...records].sort((a, b) => {
+      const pa = parseCode(a.code);
+      const pb = parseCode(b.code);
+      if (!pa || !pb) return 0;
+      if (pa.projectNum !== pb.projectNum) return pa.projectNum - pb.projectNum;
+      if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
+      if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
+      return pb.sequence - pa.sequence;
+    });
+  }, []);
+
   const getSortedRecords = useCallback(() => {
     let result = currentRecords;
 
@@ -356,12 +368,17 @@ export default function App() {
         return !isNaN(amt) && amt <= parseFloat(filterAmountMax);
       });
     }
-    if (sortBy) {
+    if (sortBy === 'code') {
+      result = sortByCode(result);
+      if (sortOrder === 'desc') result.reverse();
+    } else if (sortBy) {
       result = [...result].sort((a, b) => {
         const aVal = String(a[sortBy] || '').toLowerCase();
         const bVal = String(b[sortBy] || '').toLowerCase();
         return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
       });
+    } else {
+      result = sortByCode(result);
     }
     return result;
   }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
@@ -543,8 +560,9 @@ export default function App() {
   };
 
   const handlePrint = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     const entry = {
       date: new Date().toLocaleDateString('fa-IR'),
@@ -556,15 +574,17 @@ export default function App() {
   };
 
   const handleExcel = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.downloadExcel(sel, allExportFields);
     addToast('فایل اکسل با موفقیت ساخته شد', 'success');
   };
 
   const handleCSVExport = () => {
-    const sel = currentRecords.filter((_, i) => selected.has(i));
+    let sel = currentRecords.filter((_, i) => selected.has(i));
     if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+    sel = sortByCode(sel);
     exportUtils.downloadCSV(sel, allExportFields);
     addToast('فایل CSV با موفقیت ساخته شد', 'success');
   };
@@ -578,19 +598,19 @@ export default function App() {
 
   const handleExportAllExcel = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadExcel(currentRecords, allExportFields);
+    exportUtils.downloadExcel(sortByCode(currentRecords), allExportFields);
     addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllCSV = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadCSV(currentRecords, allExportFields);
+    exportUtils.downloadCSV(sortByCode(currentRecords), allExportFields);
     addToast('فایل CSV همه رکوردها ساخته شد', 'success');
   };
 
   const handleExportAllPrint = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    exportUtils.printLabels(currentRecords, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
+    exportUtils.printLabels(sortByCode(currentRecords), allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
   };
 
@@ -615,7 +635,7 @@ export default function App() {
   const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
 
   const handleBackup = () => {
-    const blob = new Blob([JSON.stringify({ records: currentRecords, customFields }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ records: sortByCode(currentRecords), customFields }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
