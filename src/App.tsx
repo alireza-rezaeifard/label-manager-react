@@ -1,21 +1,32 @@
 import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useLocation, useNavigate, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
+import { useSWR, invalidateCache } from './hooks/useSWR';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
 import { formatAmount, parseCode, formatCode } from './utils/formatters';
+import { estimatePaperCount } from './utils/printHelpers';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import TransitionPage from './components/TransitionPage';
 import RecordCard from './components/RecordCard';
 import RecordForm from './components/RecordForm';
 import Toast from './components/Toast';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import LoadingScreen from './components/LoadingScreen';
-import { CardSkeleton, TableSkeleton } from './components/LoadingSkeleton';
+import LoadingSpinner from './components/LoadingSpinner';
+import ConfirmDialog from './components/ConfirmDialog';
+import {
+  CardSkeleton, TableSkeleton, StatsSkeleton, FormSkeleton,
+  DashboardSkeleton, ReportsSkeleton, SettingsSkeleton,
+  ProfileSkeleton, HistorySkeleton, ViewDetailSkeleton,
+  ImportSkeleton, PreviewSkeleton,
+} from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useWebSocket } from './hooks/useWebSocket';
 
@@ -80,13 +91,29 @@ function saveRecordCustomFieldsCodeCache(data) {
   try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
 }
 
-function getTabFromHash() {
-  const hash = window.location.hash.replace('#', '');
-  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
-  return validTabs.includes(hash) ? hash : null;
-}
-
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const urlParams = useParams();
+
+  const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard'];
+  const initialTab = validTabs.includes(pathTab) ? pathTab : 'records';
+
+  const [tab, setTabState] = useState(initialTab);
+  const viewCode = location.pathname.startsWith('/view/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : '';
+
+  useEffect(() => {
+    const p = location.pathname.replace('/', '').split('/')[0] || 'records';
+    const t = validTabs.includes(p) ? p : 'records';
+    setTabState(prev => prev !== t ? t : prev);
+  }, [location.pathname]);
+
+  const setTab = useCallback((t: string) => {
+    const target = '/' + t;
+    if (location.pathname !== target) navigate(target);
+    setTabState(t);
+  }, [navigate, location.pathname]);
   const [localMode, setLocalMode] = useState(() => localStorage.getItem('local_mode') === 'true');
   const [authUser, setAuthUser] = useState(() => localMode ? null : getAuthUser());
   const [serverMode, setServerMode] = useState(() => localMode ? false : !!getAuthUser());
@@ -105,12 +132,22 @@ export default function App() {
   const isRestoringRef = useRef(false);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-  const [tab, setTab] = useState(() => getTabFromHash() || 'records');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCompact, setSidebarCompact] = useState(() => {
+    try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
+  });
+
+  const toggleSidebarCompact = useCallback(() => {
+    setSidebarCompact(p => {
+      const next = !p;
+      try { localStorage.setItem('sidebar-compact', String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState('asc');
@@ -160,6 +197,7 @@ export default function App() {
   const [bulkEditColor, setBulkEditColor] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -178,6 +216,14 @@ export default function App() {
     } else {
       setActivityLog([]);
     }
+  }, [serverMode, currentWorkspaceId]);
+
+  const handleRefreshActivity = useCallback(async () => {
+    if (!serverMode || !currentWorkspaceId) return;
+    try {
+      const data = await api.getActivity(currentWorkspaceId);
+      setActivityLog(data);
+    } catch {}
   }, [serverMode, currentWorkspaceId]);
 
   const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
@@ -217,47 +263,47 @@ export default function App() {
     }
   }, [serverMode, currentWorkspaceId]);
 
-  const refreshServerRecords = useCallback(async () => {
-    if (serverMode && currentWorkspaceId) {
-      try {
-        const data = await api.getAllRecords(currentWorkspaceId);
-        setServerRecords(prev => {
-          const customKeys = new Set<string>(customFields.map((f: any) => f.key));
-          return data.map(serverRecord => {
-            const existing = prev.find(r => r.id === serverRecord.id);
-            if (existing) {
-              const merged = { ...serverRecord };
-              for (const key of customKeys) {
-                if (key in existing) merged[key] = existing[key];
-              }
-              return merged;
-            }
-            const byCode = prev.find(r => r.code === serverRecord.code);
-          if (byCode) {
-            const merged = { ...serverRecord };
-            for (const key of customKeys) {
-              if (key in byCode) merged[key] = byCode[key];
-            }
-            return merged;
-          }
-          const cachedByCode = codeCache[serverRecord.code];
-          if (cachedByCode) {
-            const merged = { ...serverRecord };
-            for (const key of customKeys) {
-              if (key in cachedByCode) merged[key] = cachedByCode[key];
-            }
-            return merged;
-          }
-          return serverRecord;
-          });
-        });
-      } catch {}
-    }
+  // SWR fetcher: fetch records from server + merge custom fields
+  const fetchServerRecords = useCallback(async () => {
+    if (!serverMode || !currentWorkspaceId) return [];
+    const data = await api.getAllRecords(currentWorkspaceId);
+    const cache = loadRecordCustomFieldsCache();
+    const codeCache = loadRecordCustomFieldsCodeCache();
+    const customKeys = new Set<string>(customFields.map((f: any) => f.key));
+    return data.map(serverRecord => {
+      const merged: any = { ...serverRecord };
+      for (const key of customKeys) {
+        const val = cache[serverRecord.id]?.[key] ?? codeCache[serverRecord.code]?.[key];
+        if (val !== undefined) merged[key] = val;
+      }
+      return merged;
+    });
   }, [serverMode, currentWorkspaceId, customFields]);
+
+  const { data: swrData, isLoading: swrLoading, revalidate } = useSWR(
+    serverMode && currentWorkspaceId ? `records:${currentWorkspaceId}` : null,
+    fetchServerRecords,
+  );
+
+  // Sync SWR data to serverRecords
+  useEffect(() => {
+    if (swrData) setServerRecords(swrData as any[]);
+  }, [swrData]);
+
+  const refreshServerRecords = useCallback(() => {
+    invalidateCache(serverMode && currentWorkspaceId ? `records:${currentWorkspaceId}` : undefined);
+    revalidate();
+  }, [revalidate, serverMode, currentWorkspaceId]);
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
   const currentRecords: any[] = serverMode ? serverRecords : records;
+
+  useEffect(() => {
+    if (!viewCode || currentRecords.length === 0) return;
+    const idx = currentRecords.findIndex(r => r.code === viewCode);
+    if (idx !== -1) setViewIndex(idx);
+  }, [viewCode, currentRecords]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -284,34 +330,8 @@ export default function App() {
           localStorage.setItem('current_workspace_id', String(wsList[0].id));
         }
       }).catch(() => {});
-
-      api.getAllRecords(currentWorkspaceId).then(data => {
-        const cache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
-        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
-      }).catch(() => {});
     }
   }, [serverMode, currentWorkspaceId]);
-
-  useEffect(() => {
-    const handler = () => {
-      const ht = getTabFromHash();
-      if (ht) setTab(ht);
-    };
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
-
-  const prevTabRef = useRef(tab);
-  useEffect(() => {
-    if (prevTabRef.current !== tab) {
-      prevTabRef.current = tab;
-      const valid = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
-      if (valid.includes(tab)) {
-        window.location.hash = tab;
-      }
-    }
-  }, [tab]);
 
   const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
   const toggleSidebar = () => setSidebarOpen(p => !p);
@@ -321,7 +341,7 @@ export default function App() {
     setTab(t);
     setEditIndex(null);
     setTemplateData(null);
-  }, []);
+  }, [setTab]);
 
   const toggleSelect = useCallback((i) => {
     setSelected(prev => {
@@ -540,9 +560,15 @@ export default function App() {
   const handleEdit = (i) => { setEditIndex(i); setTemplateData(null); setTab('add'); };
   const handleView = (i) => { setViewIndex(i); setTab('view'); };
 
+  const handleDeleteClick = () => {
+    if (selected.size === 0) return;
+    setShowDeleteConfirm(true);
+  };
+
   const handleDelete = async () => {
     const count = selected.size;
     if (count === 0) return;
+    setShowDeleteConfirm(false);
 
     if (serverMode) {
       const ids = [...selected].map(i => currentRecords[i]?.id).filter(Boolean);
@@ -598,9 +624,13 @@ export default function App() {
     handleView(idx);
   };
 
-  const handlePrint = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
+  const handlePrint = (scope: 'selected' | 'filtered' = 'selected') => {
+    const source = scope === 'filtered' ? sortedRecords : currentRecords;
+    let sel = source.filter((_, i) => selected.has(i));
+    if (!sel.length && scope === 'selected') {
+      sel = source;
+    }
+    if (!sel.length) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
     sel = sortByCode(sel);
     exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
     const entry = {
@@ -610,6 +640,7 @@ export default function App() {
     };
     const updated = [entry, ...printHistory].slice(0, 50);
     setPrintHistory(updated); saveHistory(updated);
+    addToast(`${sel.length} برچسب برای چاپ ارسال شد (حدود ${estimatePaperCount(sel.length, printCols)} برگ)`, 'success');
   };
 
   const handleExcel = () => {
@@ -650,7 +681,7 @@ export default function App() {
   const handleExportAllPrint = () => {
     if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
     exportUtils.printLabels(sortByCode(currentRecords), allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
-    addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
+    addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد (حدود ${estimatePaperCount(currentRecords.length, printCols)} برگ)`, 'success');
   };
 
   const handleToggleCustomField = (key) => {
@@ -796,10 +827,7 @@ export default function App() {
           const wsId = wsList[0].id;
           setCurrentWorkspaceId(wsId);
           localStorage.setItem('current_workspace_id', String(wsId));
-          api.getAllRecords(wsId).then(data => {
-            const cache = loadRecordCustomFieldsCache();
-            setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
-          }).catch(() => {}).finally(() => setServerLoading(false));
+          setServerLoading(false);
         } else {
           setServerLoading(false);
         }
@@ -963,12 +991,9 @@ export default function App() {
     if (serverMode) {
       fetchedRef.current = false;
       setServerLoading(true);
-      api.getAllRecords(wsId).then(data => {
-        const cache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
-        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
-        setServerLoading(false);
-      }).catch(() => setServerLoading(false));
+      invalidateCache(`records:${currentWorkspaceId}`);
+      setCurrentWorkspaceId(wsId);
+      setServerLoading(false);
     }
   };
 
@@ -1222,7 +1247,7 @@ export default function App() {
         addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
       }
     },
-    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDelete(); },
+    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDeleteClick(); },
     onSearch: () => {
       const input = document.querySelector<HTMLInputElement>('.search-box input');
       if (input) { input.focus(); input.select(); }
@@ -1236,6 +1261,7 @@ export default function App() {
     },
     onSelectAll: () => toggleAll(),
     onEscape: () => {
+      if (showDeleteConfirm) { setShowDeleteConfirm(false); return; }
       if (showPrintQueue) { setShowPrintQueue(false); return; }
       if (showPrintSettings) { setShowPrintSettings(false); return; }
       if (showBackupModal) { setShowBackupModal(false); return; }
@@ -1276,7 +1302,7 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  if (serverMode && serverLoading && currentRecords.length === 0) {
+  if (serverMode && (serverLoading || (swrLoading && currentRecords.length === 0))) {
     return <LoadingScreen message="در حال بارگذاری..." />;
   }
 
@@ -1285,7 +1311,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}${sidebarCompact ? ' sidebar-compact' : ''}`}>
         <Sidebar
           tab={tab}
           onTabChange={handleTabChange}
@@ -1295,6 +1321,9 @@ export default function App() {
           isViewer={isViewer}
           serverMode={serverMode}
           activityLog={activityLog}
+          compact={sidebarCompact}
+          onToggleCompact={toggleSidebarCompact}
+          onRefreshActivity={handleRefreshActivity}
         />
 
         <main className="main-content">
@@ -1342,9 +1371,9 @@ export default function App() {
                     <button className="btn btn-outline btn-sm" onClick={handlePDF}>
                       <i className="ti ti-file-type-pdf"></i> PDF
                     </button>
-                    <button className="btn btn-success btn-sm" onClick={handlePrint}>
-                      <i className="ti ti-printer"></i> چاپ
-                    </button>
+                    <button className="btn btn-success btn-sm" onClick={() => handlePrint('selected')}>
+                       <i className="ti ti-printer"></i> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, printCols)} برگ)
+                     </button>
                   </>
                 )}
                 {tab === 'view' && viewIndex !== null && (
@@ -1385,7 +1414,8 @@ export default function App() {
               </div>
             </div>
 
-            {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
+            <TransitionPage tab={tab}>
+              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
               <StatsCards records={currentRecords} selected={selected} filtered={sortedRecords} />
             )}
 
@@ -1470,7 +1500,7 @@ export default function App() {
                         <button className="btn btn-outline btn-sm" onClick={() => setShowBulkEdit(true)}>
                           <i className="ti ti-edit"></i> ویرایش دسته‌جمعی ({selected.size})
                         </button>
-                        <button className="btn btn-danger btn-sm" onClick={handleDelete}>
+                        <button className="btn btn-danger btn-sm" onClick={handleDeleteClick}>
                           <i className="ti ti-trash"></i> حذف ({selected.size})
                         </button>
                       </>
@@ -1689,6 +1719,7 @@ export default function App() {
                   customFields={customFields}
                   serverMode={serverMode}
                   allTags={tags}
+                  loading={serverLoading}
                   onFormChange={(data) => { formDraftRef.current = data; }}
                 />
               </>
@@ -1697,87 +1728,98 @@ export default function App() {
         )}
 
             {tab === 'import' && (
-              <ImportCSV onImport={handleImport} addToast={addToast} />
+              <Suspense fallback={<ImportSkeleton />}>
+                <ImportCSV onImport={handleImport} addToast={addToast} />
+              </Suspense>
             )}
 
             {tab === 'view' && viewIndex !== null && (
-              <ViewDetail
-                record={currentRecords[viewIndex]}
-                relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
-                onEdit={() => handleEdit(viewIndex)}
-                customFields={customFields}
-                onNavigateToRelated={(rel) => {
-                  const idx = currentRecords.findIndex(r => r.code === rel.code);
-                  if (idx !== -1) setViewIndex(idx);
-                }}
-              />
+              <Suspense fallback={<ViewDetailSkeleton />}>
+                <ViewDetail
+                  record={currentRecords[viewIndex]}
+                  relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
+                  onEdit={() => handleEdit(viewIndex)}
+                  customFields={customFields}
+                  onNavigateToRelated={(rel) => {
+                    const idx = currentRecords.findIndex(r => r.code === rel.code);
+                    if (idx !== -1) setViewIndex(idx);
+                  }}
+                />
+              </Suspense>
             )}
 
             {tab === 'preview' && (
-              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
+              <Suspense fallback={<PreviewSkeleton />}>
+                <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
+              </Suspense>
             )}
 
             {tab === 'history' && (
-              <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
+              <Suspense fallback={<HistorySkeleton />}>
+                <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
+              </Suspense>
             )}
 
             {tab === 'reports' && (
-              <ReportsTab records={currentRecords} onFilter={(type, value) => {
-                setSearch('');
-                setFilterType('');
-                setFilterParty('');
-                setFilterDateFrom('');
-                setFilterDateTo('');
-                setFilterAmountMin('');
-                setFilterAmountMax('');
-                setSelectedTagFilter(null);
-                if (type === 'type') setFilterType(value);
-                else if (type === 'party') setFilterParty(value);
-                else setSearch(value);
-                setPage(1);
-                setTab('records');
-              }} />
+              <Suspense fallback={<ReportsSkeleton />}>
+                <ReportsTab records={currentRecords} onFilter={(type, value) => {
+                  setSearch(''); setFilterType(''); setFilterParty('');
+                  setFilterDateFrom(''); setFilterDateTo('');
+                  setFilterAmountMin(''); setFilterAmountMax('');
+                  setSelectedTagFilter(null);
+                  if (type === 'type') setFilterType(value);
+                  else if (type === 'party') setFilterParty(value);
+                  else setSearch(value);
+                  setPage(1);
+                  setTab('records');
+                }} />
+              </Suspense>
             )}
 
             {tab === 'dashboard' && (
-              <Suspense fallback={<LoadingScreen message="در حال بارگذاری داشبورد..." />}>
+              <Suspense fallback={<DashboardSkeleton />}>
                 <DashboardTab records={currentRecords} customFields={customFields} tags={tags} activityLog={activityLog} onTabChange={setTab} />
               </Suspense>
             )}
 
             {tab === 'profile' && (
-              <ProfileTab
-                authUser={authUser}
-                serverMode={serverMode}
-                recordCount={currentRecords.length}
-                onLogin={handleLoginGoToServer}
-                onBackup={handleBackup}
-                onOpenBackupModal={() => setShowBackupModal(true)}
-                addToast={addToast}
-              />
+              <Suspense fallback={<ProfileSkeleton />}>
+                <ProfileTab
+                  authUser={authUser}
+                  serverMode={serverMode}
+                  recordCount={currentRecords.length}
+                  onLogin={handleLoginGoToServer}
+                  onBackup={handleBackup}
+                  onOpenBackupModal={() => setShowBackupModal(true)}
+                  addToast={addToast}
+                />
+              </Suspense>
             )}
 
             {tab === 'settings' && (
-              <SettingsTab
-                customFields={customFields}
-                onAddField={handleAddCustomField}
-                onRemoveField={handleRemoveCustomField}
-                onEditField={handleEditCustomField}
-                newFieldName={newFieldName}
-                onNewFieldNameChange={setNewFieldName}
-                newFieldType={newFieldType}
-                onNewFieldTypeChange={setNewFieldType}
-                serverMode={serverMode}
-                authUser={authUser}
-                tags={tags}
-                onAddTag={handleAddTag}
-                onRemoveTag={handleRemoveTag}
-                useVirtualScroll={useVirtualScroll}
-                onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
+              <Suspense fallback={<SettingsSkeleton />}>
+                <SettingsTab
+                  customFields={customFields}
+                  onAddField={handleAddCustomField}
+                  onRemoveField={handleRemoveCustomField}
+                  onEditField={handleEditCustomField}
+                  newFieldName={newFieldName}
+                  onNewFieldNameChange={setNewFieldName}
+                  newFieldType={newFieldType}
+                  onNewFieldTypeChange={setNewFieldType}
+                  serverMode={serverMode}
+                  authUser={authUser}
+                  tags={tags}
+                  onAddTag={handleAddTag}
+                  onRemoveTag={handleRemoveTag}
+                  useVirtualScroll={useVirtualScroll}
+                  onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
+                  theme={theme}
+                  onThemeChange={setTheme}
+                />
+              </Suspense>
             )}
+            </TransitionPage>
           </div>
         </main>
 
@@ -1852,6 +1894,19 @@ export default function App() {
           </div>
         )}
 
+        <ConfirmDialog
+          show={showDeleteConfirm}
+          title="حذف رکوردها"
+          message={`آیا از حذف ${selected.size} رکورد انتخاب شده اطمینان دارید؟ این عملیات قابل بازگشت نیست.`}
+          confirmLabel="حذف شود"
+          cancelLabel="انصراف"
+          variant="danger"
+          icon="ti-alert-triangle"
+          loading={serverLoading}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+
         {showRenumberConfirm && (
           <div className="modal-overlay" onClick={() => setShowRenumberConfirm(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
@@ -1868,7 +1923,7 @@ export default function App() {
                   انصراف
                 </button>
                 <button className="btn btn-primary" onClick={handleRenumber} disabled={serverLoading}>
-                  {serverLoading ? 'در حال اجرا...' : 'تایید و بازنویسی'}
+                  {serverLoading ? <><LoadingSpinner size={18} /> در حال اجرا...</> : 'تایید و بازنویسی'}
                 </button>
               </div>
             </div>
@@ -1947,8 +2002,8 @@ export default function App() {
                 </div>
               </div>
 
-              <button className="btn btn-primary w-100" onClick={handleBulkEdit}>
-                <i className="ti ti-check"></i> اعمال به {selected.size} رکورد
+              <button className="btn btn-primary w-100" onClick={handleBulkEdit} disabled={serverLoading}>
+                {serverLoading ? <LoadingSpinner size={18} /> : <i className="ti ti-check"></i>} اعمال به {selected.size} رکورد
               </button>
             </div>
           </div>

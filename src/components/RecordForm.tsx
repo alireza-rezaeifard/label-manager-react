@@ -6,8 +6,9 @@ import { FIELDS } from "../data/fields";
 import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
+import LoadingSpinner from "./LoadingSpinner";
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange }: Record<string, any>) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: Record<string, any>) {
   const allFields = [...FIELDS.filter(f => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find(f => f.isRelated);
 
@@ -305,9 +306,9 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
       </div>
 
       <div className="d-flex gap-3 mt-4">
-        <button className="btn btn-primary" onClick={handleSubmit}>
-          <i className={`ti ${editIndex !== null ? 'ti-check' : 'ti-plus'}`}></i>
-          {editIndex !== null ? 'ذخیره تغییرات' : 'افزودن رکورد'}
+        <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
+          {loading ? <LoadingSpinner size={18} /> : <i className={`ti ${editIndex !== null ? 'ti-check' : 'ti-plus'}`}></i>}
+          {loading ? 'در حال ذخیره...' : (editIndex !== null ? 'ذخیره تغییرات' : 'افزودن رکورد')}
         </button>
         <button className="btn btn-outline" onClick={onCancel}>انصراف</button>
       </div>
