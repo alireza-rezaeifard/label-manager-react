@@ -232,9 +232,7 @@ export default function App() {
               }
               return merged;
             }
-            return merged;
-          }
-          const byCode = prev.find(r => r.code === serverRecord.code);
+            const byCode = prev.find(r => r.code === serverRecord.code);
           if (byCode) {
             const merged = { ...serverRecord };
             for (const key of customKeys) {
@@ -251,9 +249,10 @@ export default function App() {
             return merged;
           }
           return serverRecord;
+          });
         });
-      });
-    } catch {}
+      } catch {}
+    }
   }, [serverMode, currentWorkspaceId, customFields]);
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
