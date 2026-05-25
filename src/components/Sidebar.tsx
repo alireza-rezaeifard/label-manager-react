@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import type { ActivityEntry } from '../types';
 
 const SECTIONS = [
   {
@@ -44,27 +45,41 @@ const ACTIVITY_ICONS = {
   restore: 'ti-refresh',
   'bulk-edit': 'ti-edit',
   reorder: 'ti-arrows-sort',
-};
+} as Record<string, string>;
 
 function loadCollapsed() {
   try { return JSON.parse(localStorage.getItem('sidebar-collapsed-sections') || '{}'); } catch { return {}; }
 }
-function saveCollapsed(s) {
+function saveCollapsed(s: Record<string, boolean>) {
   try { localStorage.setItem('sidebar-collapsed-sections', JSON.stringify(s)); } catch {}
 }
 
-export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer, serverMode, activityLog, compact, onToggleCompact, onRefreshActivity }) {
-  const [collapsedSections, setCollapsedSections] = useState(loadCollapsed);
+interface SidebarProps {
+  tab: string;
+  onTabChange: (tab: string) => void;
+  sidebarOpen: boolean;
+  onClose: () => void;
+  onResetForm: () => void;
+  isViewer: boolean;
+  serverMode: boolean;
+  activityLog: ActivityEntry[];
+  compact: boolean;
+  onToggleCompact: () => void;
+  onRefreshActivity?: () => void;
+}
 
-  const toggleSection = (key) => {
-    setCollapsedSections(prev => {
+export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer, serverMode, activityLog, compact, onToggleCompact, onRefreshActivity: _onRefreshActivity }: SidebarProps) {
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(loadCollapsed);
+
+  const toggleSection = (key: string) => {
+    setCollapsedSections((prev: Record<string, boolean>) => {
       const next = { ...prev, [key]: !prev[key] };
       saveCollapsed(next);
       return next;
     });
   };
 
-  const handleClick = (t) => {
+  const handleClick = (t: string) => {
     onTabChange(t);
     if (t !== 'add') onResetForm();
     onClose();
@@ -73,7 +88,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
   const visibleSections = SECTIONS
     .map(s => ({
       ...s,
-      items: s.items.filter(item => !(isViewer && s.viewerHide)),
+      items: s.items.filter(_item => !(isViewer && s.viewerHide)),
     }))
     .filter(s => s.items.length > 0);
 
@@ -124,7 +139,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
               </div>
             </div>
             <div className="activity-feed">
-              {activityLog.slice(0, 8).map((a, i) => (
+              {activityLog.slice(0, 8).map((a: ActivityEntry, i) => (
                 <div key={i} className="activity-item" title={`${a.action}${a.details ? ': ' + a.details : ''}`}>
                   <i className={`ti ${ACTIVITY_ICONS[a.action] || 'ti-info-circle'}`}></i>
                   <div className="activity-body">

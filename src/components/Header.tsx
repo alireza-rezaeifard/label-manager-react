@@ -1,6 +1,17 @@
 import { useState } from 'react';
 
-export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp }) {
+interface HeaderProps {
+  search: string;
+  onSearchChange: (value: string) => void;
+  theme: string;
+  onToggleTheme: () => void;
+  onToggleSidebar: () => void;
+  onSettingsClick: () => void;
+  onProfileClick: () => void;
+  onShortcutsHelp: () => void;
+}
+
+export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp }: HeaderProps) {
   const [notifications] = useState([]);
 
   return (

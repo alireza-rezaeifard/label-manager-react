@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { api } from '../utils/api';
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin }: {
+  onLogin: (user: any) => void;
+}) {
   const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);

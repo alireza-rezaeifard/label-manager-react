@@ -57,8 +57,8 @@ export function TableSkeleton({ rows = 8 }: { rows?: number }) {
   );
 }
 
-function SkeletonBlock({ width = '100%', height = 16, mb = '0.75rem' }) {
-  return <div className="skeleton-box" style={{ width, height, borderRadius: 6, marginBottom: mb }} />;
+function SkeletonBlock({ width = '100%', height = 16, mb = '0.75rem', style }: { width?: string | number; height?: string | number; mb?: string | number; style?: React.CSSProperties }) {
+  return <div className="skeleton-box" style={{ width, height, borderRadius: 6, marginBottom: mb, ...style }} />;
 }
 
 export function FormSkeleton() {

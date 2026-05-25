@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import type React from "react";
 import { DayPicker } from "@daypicker/persian";
 import { faIR } from "@daypicker/persian";
 import "@daypicker/react/style.css";
@@ -7,15 +8,56 @@ import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import LoadingSpinner from "./LoadingSpinner";
+import type { RecordItem } from "../types";
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: Record<string, any>) {
-  const allFields = [...FIELDS.filter(f => !f.isRelated), ...customFields];
-  const relatedField = FIELDS.find(f => f.isRelated);
+interface RecordFormState {
+  code: string;
+  project: string;
+  type: string;
+  date: string;
+  party: string;
+  amount: string;
+  related: string[];
+  tags: string[];
+  image: string;
+  color: string;
+  [key: string]: unknown;
+}
 
-  const getInitialForm = (): any => {
+interface FormField {
+  key: string;
+  label: string;
+  fa: string;
+  placeholder?: string;
+  isRelated?: boolean;
+  isCustom?: boolean;
+  fieldType?: string;
+  options?: string[];
+}
+
+interface RecordFormProps {
+  editRecord: RecordItem | null;
+  editIndex: number | null;
+  availableLabels: { code: string; project: string }[];
+  isDuplicateCode: (code: string, index: number | null) => boolean;
+  onSubmit: (record: RecordItem) => void;
+  onCancel: () => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+  customFields?: FormField[];
+  serverMode: boolean;
+  allTags?: string[];
+  onFormChange?: (form: RecordFormState) => void;
+  loading?: boolean;
+}
+
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: RecordFormProps) {
+  const allFields: FormField[] = [...FIELDS.filter((f: FormField) => !f.isRelated), ...customFields];
+  const relatedField = FIELDS.find((f: FormField) => f.isRelated);
+
+  const getInitialForm = (): RecordFormState => {
     if (editRecord) {
-      const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
-      allFields.forEach((f: any) => {
+      const form: RecordFormState = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "" };
+      allFields.forEach((f: FormField) => {
         form[f.key] = f.key === 'amount'
         ? (() => {
             const normalized = String(editRecord[f.key] || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
@@ -30,17 +72,17 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
       form.color = editRecord.color || "";
       return form;
     }
-    const form = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#7367f0" };
-    customFields.forEach((f: any) => { form[f.key] = ""; });
+    const form: RecordFormState = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#7367f0" };
+    customFields.forEach((f: FormField) => { form[f.key] = ""; });
     return form;
   };
 
-  const [form, setForm] = useState(getInitialForm());
+  const [form, setForm] = useState<RecordFormState>(getInitialForm());
   const [formErrors, setFormErrors] = useState<Record<string, string | undefined>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
-  const prevEditKey = useRef<any>(null);
+  const prevEditKey = useRef<string | number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const currentKey = editRecord?.code ?? editIndex;
@@ -64,12 +106,12 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (onFormChange) onFormChange(form);
   }, [form, onFormChange]);
 
-  const setField = (key: string, value: any) => {
-    setForm(p => ({ ...p, [key]: value }));
-    setFormErrors(p => ({ ...p, [key]: "" }));
+  const setField = (key: string, value: unknown) => {
+    setForm((p: RecordFormState) => ({ ...p, [key]: value }));
+    setFormErrors((p: Record<string, string | undefined>) => ({ ...p, [key]: "" }));
   };
 
-  const validateField = (key: string, currentForm: any) => {
+  const validateField = (key: string, currentForm: RecordFormState) => {
     if (key === 'code' && !currentForm.code.trim()) {
       return "فیلد ضروری است";
     }
@@ -100,7 +142,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     return errors;
   };
 
-  const handleImageSelect = async (e) => {
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -118,8 +160,8 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           const result = await api.uploadImage(base64);
           setField("image", result.url);
           addToast("تصویر با موفقیت آپلود شد", "success");
-        } catch (err: any) {
-          addToast("خطا در آپلود تصویر: " + err.message, "error");
+        } catch (err: unknown) {
+          addToast("خطا در آپلود تصویر: " + (err instanceof Error ? err.message : String(err)), "error");
         } finally {
           setImageUploading(false);
         }
@@ -134,19 +176,19 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   const handleSubmit = () => {
     const errors = validate();
     if (Object.keys(errors).length) { setFormErrors(errors); return; }
-    const recordData = {
+    const recordData: RecordItem = {
       code: form.code, project: form.project, type: form.type, date: form.date,
       party: form.party, amount: String(form.amount || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).replace(/[^0-9]/g, ''), related: form.related, tags: form.tags,
       image: form.image, color: form.color,
     };
-    customFields.forEach((f: any) => { recordData[f.key] = form[f.key] || ""; });
+    customFields.forEach((f: FormField) => { recordData[f.key] = form[f.key] || ""; });
     onSubmit(recordData);
   };
 
   return (
     <div className="form-card fade-in">
       <div className="row">
-        {allFields.map((f: any) => (
+        {allFields.map((f: FormField) => (
           <div key={f.key} className="col-md-6">
             <div className="form-group">
               <label className="form-label">
@@ -180,14 +222,14 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                 </div>
               ) : f.isCustom && f.fieldType === 'number' ? (
                 <input type="number" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                  value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
                   onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               ) : f.isCustom && f.fieldType === 'date' ? (
                 <div style={{ position: 'relative' }} ref={datePickerRef}>
                   <div style={{ position: 'relative' }}>
                     <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                      value={form[f.key] || ""}
+                      value={(form[f.key] as string) || ""}
                       onChange={e => setField(f.key, e.target.value)}
                       onBlur={() => handleBlur(f.key)}
                       onClick={() => setShowDatePicker(true)}
@@ -200,7 +242,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                   {showDatePicker && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
                       <DayPicker locale={faIR} dir="rtl" mode="single"
-                        selected={form[f.key] ? new Date(form[f.key]) : undefined}
+                        selected={form[f.key] ? new Date(form[f.key] as string) : undefined}
                         onSelect={(date) => { if (date) setField(f.key, toJalaliDate(date)); setShowDatePicker(false); }}
                       />
                     </div>
@@ -208,25 +250,25 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                 </div>
               ) : f.isCustom && f.fieldType === 'color' ? (
                 <div className="d-flex gap-2 align-items-center">
-                  <input type="color" value={form[f.key] || '#7367f0'}
+                  <input type="color" value={(form[f.key] as string) || '#7367f0'}
                     onChange={e => setField(f.key, e.target.value)}
                     style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--border-color)', cursor: 'pointer', padding: 2, background: 'none' }} />
-                  <input type="text" className="form-input" value={form[f.key] || ''}
+                  <input type="text" className="form-input" value={(form[f.key] as string) || ''}
                     onChange={e => setField(f.key, e.target.value)}
                     placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
                 </div>
               ) : f.isCustom && f.fieldType === 'dropdown' ? (
                 <select className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                  value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
                   style={{ direction: 'ltr', textAlign: 'left' }}>
                   <option value="">انتخاب کنید...</option>
-                  {(f.options || []).map((opt, i) => (
+                  {(f.options || []).map((opt: string, i: number) => (
                     <option key={i} value={opt}>{opt}</option>
                   ))}
                 </select>
               ) : f.key === "amount" ? (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                  value={form[f.key] || ''}
+                  value={(form[f.key] as string) || ''}
                   onChange={e => {
                     const raw = e.target.value;
                     const normalized = raw.replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
@@ -237,7 +279,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               ) : (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                  value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
                   onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               )}
@@ -293,7 +335,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
             <MultiSelectDropdown
               options={availableLabels}
               selected={form.related}
-              onChange={(selected) => setField("related", selected)}
+              onChange={(selected: string[]) => setField("related", selected)}
             />
             <small style={{ color: 'var(--text-color)', opacity: 0.5, marginTop: '0.5rem', display: 'block' }}>
               می‌توانید چندین رکورد مرتبط را انتخاب کنید
@@ -308,11 +350,11 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
               برچسب‌ها <span style={{ opacity: 0.5 }}>(اختیاری)</span>
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-              {allTags.map(tag => {
+              {allTags.map((tag: string) => {
                 const active = form.tags.includes(tag);
                 return (
                   <span key={tag} onClick={() => {
-                    const next = active ? form.tags.filter(t => t !== tag) : [...form.tags, tag];
+                    const next = active ? form.tags.filter((t: string) => t !== tag) : [...form.tags, tag];
                     setField('tags', next);
                   }} style={{
                     padding: '0.4rem 0.8rem', borderRadius: 20, cursor: 'pointer',

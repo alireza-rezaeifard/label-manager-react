@@ -2,12 +2,18 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import { formatAmount } from './formatters';
+import type { RecordItem, FieldDef } from '../types';
 
 
-const TEMPLATES = {
+interface Template {
+  name: string;
+  getLabelHtml: (r: RecordItem, fields: FieldDef[]) => string;
+}
+
+const TEMPLATES: Record<string, Template> = {
   classic: {
     name: 'کلاسیک',
-    getLabelHtml: (r, fields) => `
+    getLabelHtml: (r: RecordItem, fields: FieldDef[]) => `
       <div class="label-header">${r.code}</div>
       <div class="label-row-content">
         ${fields.filter(f => f.key !== "code").map(f => `
@@ -26,7 +32,7 @@ const TEMPLATES = {
   },
   compact: {
     name: 'فشرده',
-    getLabelHtml: (r, fields) => `
+    getLabelHtml: (r: RecordItem, fields: FieldDef[]) => `
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;">
         <div style="font-weight:bold;font-size:14px;font-family:monospace;flex:1;">${r.code}</div>
       </div>
@@ -47,7 +53,7 @@ const TEMPLATES = {
   },
   detailed: {
     name: 'جزئیات کامل',
-    getLabelHtml: (r, fields) => `
+    getLabelHtml: (r: RecordItem, fields: FieldDef[]) => `
       <div class="label-header">${r.code}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
         ${fields.filter(f => f.key !== "code").map(f => `
@@ -70,7 +76,7 @@ const TEMPLATES = {
 
 export { TEMPLATES };
 
-export const downloadTemplate = (_fields, template) => {
+export const downloadTemplate = (_fields: FieldDef[], template: string) => {
   const blob = new Blob([template], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
@@ -78,11 +84,11 @@ export const downloadTemplate = (_fields, template) => {
   a.click();
 };
 
-export const downloadExcel = (records, fields) => {
-  const data = records.map(r => {
-    const row = {};
+export const downloadExcel = (records: RecordItem[], fields: FieldDef[]) => {
+  const data: Record<string, string>[] = records.map(r => {
+    const row: Record<string, string> = {};
     fields.forEach(f => {
-      row[f.fa] = f.key === "related" ? (r.related ? r.related.join(', ') : "") : (r[f.key] || "");
+      row[f.fa] = f.key === "related" ? (r.related ? r.related.join(', ') : "") : ((r as any)[f.key] || "");
     });
     return row;
   });
@@ -94,7 +100,7 @@ export const downloadExcel = (records, fields) => {
   XLSX.writeFile(wb, "labels_export.xlsx");
 };
 
-export const downloadPDF = async (element) => {
+export const downloadPDF = async (element: HTMLElement | null) => {
   if (!element) return;
   const canvas = await html2canvas(element, { scale: 2, useCORS: true });
   const imgData = canvas.toDataURL('image/png');
@@ -118,12 +124,12 @@ export const downloadPDF = async (element) => {
   pdf.save('labels_export.pdf');
 };
 
-function encodeBarcodeData(r) {
-  const val = v => (v ?? '').replace(/"/g, "'");
+function encodeBarcodeData(r: RecordItem) {
+  const val = (v: string | null | undefined) => (v ?? '').replace(/"/g, "'");
   return `C:${val(r.code)} P:${val(r.project)} T:${val(r.type)} D:${val(r.date)} A:${val(r.party)} M:${val(r.amount)}`;
 }
 
-export const getPrintHtml = (records, fields, cols, width, height, templateKey = 'classic', showQr = false, showBarcode = false) => {
+export const getPrintHtml = (records: RecordItem[], fields: FieldDef[], cols: number, width: number, height: number, templateKey = 'classic', showQr = false, showBarcode = false) => {
   const template = TEMPLATES[templateKey] || TEMPLATES.classic;
   const totalRows = Math.ceil(records.length / cols);
   const gapSize = 12;
@@ -210,7 +216,7 @@ export const getPrintHtml = (records, fields, cols, width, height, templateKey =
 </html>`;
 };
 
-export const downloadCSV = (records, fields) => {
+export const downloadCSV = (records: RecordItem[], fields: FieldDef[]) => {
   const headers = fields.filter(f => !f.isRelated).map(f => f.key);
   const rows = records.map(r =>
     headers.map(h => {
@@ -226,7 +232,7 @@ export const downloadCSV = (records, fields) => {
   a.click();
 };
 
-export const printLabels = (records, fields, cols, width, height, templateKey, showQr, showBarcode) => {
+export const printLabels = (records: RecordItem[], fields: FieldDef[], cols: number, width: number, height: number, templateKey: string, showQr: boolean, showBarcode: boolean) => {
   const html = getPrintHtml(records, fields, cols, width, height, templateKey, showQr, showBarcode);
   const win = window.open("", "_blank");
   if (!win) return;

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toJalaliDate, formatAmount, getTotalAmount } from '../utils/formatters';
+import type { RecordItem } from '../types';
 
 describe('formatters (extended)', () => {
   describe('toJalaliDate', () => {
@@ -18,7 +19,7 @@ describe('formatters (extended)', () => {
       expect(toJalaliDate(null)).toBe('');
       expect(toJalaliDate(undefined)).toBe('');
       expect(toJalaliDate('')).toBe('');
-      expect(toJalaliDate(false)).toBe('');
+      expect(toJalaliDate(false as any)).toBe('');
     });
   });
 
@@ -46,7 +47,7 @@ describe('formatters (extended)', () => {
   });
 
   describe('getTotalAmount', () => {
-    const persianToNumber = (s) => {
+    const persianToNumber = (s: string) => {
       const persianDigits = '۰۱۲۳۴۵۶۷۸۹';
       const western = String(s).replace(/[۰-۹]/g, d => String(persianDigits.indexOf(d)));
       return parseInt(western.replace(/[^0-9]/g, ''), 10);
@@ -57,7 +58,7 @@ describe('formatters (extended)', () => {
         { amount: '1000' },
         { amount: '2000' },
         { amount: '3000' },
-      ];
+      ] as RecordItem[];
       const total = getTotalAmount(records);
       expect(persianToNumber(total)).toBe(6000);
     });
@@ -73,7 +74,7 @@ describe('formatters (extended)', () => {
         { amount: '2,000 تومان' },
         { amount: '' },
         { amount: '500' },
-      ];
+      ] as RecordItem[];
       const total = getTotalAmount(records);
       expect(persianToNumber(total)).toBe(3500);
     });
@@ -84,7 +85,7 @@ describe('formatters (extended)', () => {
         {},
         { amount: null },
         { amount: undefined },
-      ];
+      ] as RecordItem[];
       const total = getTotalAmount(records);
       expect(persianToNumber(total)).toBe(1000);
     });

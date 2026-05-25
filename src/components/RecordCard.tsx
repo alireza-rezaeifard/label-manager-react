@@ -1,8 +1,14 @@
 import { memo, useState, useCallback } from 'react';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
+import type { RecordItem, CustomField } from '../types';
 
-function Checkbox({ checked, onChange }) {
+interface CheckboxProps {
+  checked: boolean;
+  onChange: () => void;
+}
+
+function Checkbox({ checked, onChange }: CheckboxProps) {
   return (
     <div className={`custom-checkbox ${checked ? 'checked' : ''}`} onClick={onChange}>
       {checked && <i className="ti ti-check" style={{ fontSize: 12 }}></i>}
@@ -10,7 +16,23 @@ function Checkbox({ checked, onChange }) {
   );
 }
 
-function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [] }) {
+interface RecordCardProps {
+  record: RecordItem;
+  selected: boolean;
+  onToggle: () => void;
+  onEdit: () => void;
+  onView: () => void;
+  getRelatedLabels?: (related: string[]) => { code: string }[];
+  index: number;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
+  onDrop?: (e: React.DragEvent) => void;
+  onInlineEdit?: (index: number, field: string, value: string) => void;
+  customFields?: CustomField[];
+}
+
+function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [] }: RecordCardProps) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -27,10 +49,10 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
       className={`label-card ${selected ? 'selected' : ''} fade-in`}
       onClick={onToggle}
       draggable
-      onDragStart={(e) => { e.dataTransfer.setData('text/plain', index); onDragStart && onDragStart(e); }}
-      onDragOver={(e) => { e.preventDefault(); onDragOver && onDragOver(e); }}
+      onDragStart={(e: React.DragEvent) => { e.dataTransfer.setData('text/plain', String(index)); onDragStart?.(e); }}
+      onDragOver={(e: React.DragEvent) => { e.preventDefault(); onDragOver?.(e); }}
       onDragEnd={onDragEnd}
-      onDrop={(e) => { e.preventDefault(); onDrop && onDrop(e); }}
+      onDrop={(e: React.DragEvent) => { e.preventDefault(); onDrop?.(e); }}
     >
       {record.color && (
         <div style={{ height: 4, background: record.color }} />
@@ -46,18 +68,18 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
       <div className="label-card-body">
         <div className="label-fields-grid">
           {[...FIELDS.filter(f => f.key !== 'code' && f.key !== 'related'), ...customFields].map(f => (
-            <div key={f.key} className="label-field-item" onDoubleClick={(e) => { e.stopPropagation(); if (onInlineEdit) { setEditField(f.key); setEditValue(record[f.key] || ''); } }}>
+            <div key={f.key} className="label-field-item" onDoubleClick={(e: React.MouseEvent) => { e.stopPropagation(); if (onInlineEdit) { setEditField(f.key); setEditValue((record as any)[f.key] || ''); } }}>
               <span className="label-field-key">{f.fa}</span>
               {editField === f.key ? (
                 <input type="text" className="inline-edit-input" autoFocus
                   value={editValue}
-                  onChange={e => setEditValue(e.target.value)}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditValue(e.target.value)}
                   onBlur={handleInlineSave}
-                  onKeyDown={e => { if (e.key === 'Enter') handleInlineSave(); if (e.key === 'Escape') setEditField(null); }}
-                  onClick={e => e.stopPropagation()}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleInlineSave(); if (e.key === 'Escape') setEditField(null); }}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 />
               ) : (
-                <span className="label-field-value">{f.key === 'amount' ? formatAmount(record[f.key]) : (record[f.key] || '—')}</span>
+                <span className="label-field-value">{f.key === 'amount' ? formatAmount((record as any)[f.key]) : ((record as any)[f.key] || '—')}</span>
               )}
             </div>
           ))}
@@ -98,10 +120,10 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
       </div>
       <div className="label-card-footer">
         <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); onView(); }}>
+          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); onView(); }}>
             <i className="ti ti-eye"></i> مشاهده
           </button>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); onEdit(); }}>
             <i className="ti ti-edit"></i> ویرایش
           </button>
         </div>

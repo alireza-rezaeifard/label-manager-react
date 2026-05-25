@@ -35,7 +35,7 @@ export default function WorkspaceSwitcher({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handler = (e) => {
+    const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', handler);
@@ -43,7 +43,7 @@ export default function WorkspaceSwitcher({
   }, []);
 
   const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
-  const canManage = currentRole && (ROLE_HIERARCHY[currentRole] || 0) >= ROLE_HIERARCHY.admin;
+  const canManage = currentRole && (ROLE_HIERARCHY[currentRole as keyof typeof ROLE_HIERARCHY] || 0) >= ROLE_HIERARCHY.admin;
   const isOwner = currentRole === 'owner';
 
   const loadMembers = async () => {
@@ -71,7 +71,7 @@ export default function WorkspaceSwitcher({
             fontSize: '0.6rem', padding: '0.1rem 0.4rem', borderRadius: 4,
             background: 'var(--primary)', color: '#fff', marginRight: '0.25rem',
           }}>
-            {ROLE_LABELS[currentRole] || currentRole}
+            {ROLE_LABELS[currentRole as keyof typeof ROLE_LABELS] || currentRole}
           </span>
         )}
         <i className={`ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.8rem' }}></i>
@@ -107,7 +107,7 @@ export default function WorkspaceSwitcher({
                     background: ws.member_role === 'owner' ? 'var(--warning)' : ws.member_role === 'admin' ? 'var(--primary)' : 'var(--border-color)',
                     color: ws.member_role === 'owner' ? '#000' : '#fff',
                   }}>
-                    {ROLE_LABELS[ws.member_role] || ws.member_role}
+                    {ROLE_LABELS[ws.member_role as keyof typeof ROLE_LABELS] || ws.member_role}
                   </span>
                 </div>
                 {ws.id === currentWorkspaceId && (
@@ -185,7 +185,7 @@ export default function WorkspaceSwitcher({
                           background: m.member_role === 'owner' ? 'var(--warning)' : m.member_role === 'admin' ? 'var(--primary)' : 'var(--border-color)',
                           color: m.member_role === 'owner' ? '#000' : '#fff',
                         }}>
-                          {ROLE_LABELS[m.member_role] || m.member_role}
+                          {ROLE_LABELS[m.member_role as keyof typeof ROLE_LABELS] || m.member_role}
                         </span>
                       </div>
                     ))}

@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { RecordItem } from '../types';
 const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
-export default function ReportsTab({ records, onFilter }) {
+interface Props {
+  records: RecordItem[];
+  onFilter?: (type: string, value: string) => void;
+}
+
+export default function ReportsTab({ records, onFilter }: Props) {
   const [reportType, setReportType] = useState('type');
 
   const typeData = useMemo(() => {
@@ -63,7 +69,7 @@ export default function ReportsTab({ records, onFilter }) {
     : amountByProject;
 
   const getReportName = () => {
-    const names = { type: 'نوع', project: 'پروژه', party: 'طرف حساب', monthly: 'ماهانه', amount: 'مبلغ به تفکیک پروژه' };
+    const names: Record<string, string> = { type: 'نوع', project: 'پروژه', party: 'طرف حساب', monthly: 'ماهانه', amount: 'مبلغ به تفکیک پروژه' };
     return names[reportType] || '';
   };
 

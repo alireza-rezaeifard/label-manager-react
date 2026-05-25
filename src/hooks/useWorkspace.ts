@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { api, isAuthenticated } from '../utils/api';
+import { api } from '../utils/api';
 
 interface WorkspaceDeps {
   serverMode: boolean;

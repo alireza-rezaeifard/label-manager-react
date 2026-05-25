@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toJalaliDate, formatAmount, getTotalAmount } from '../utils/formatters';
+import type { RecordItem } from '../types';
 
 describe('formatters', () => {
   it('toJalaliDate formats a date string', () => {
@@ -35,7 +36,7 @@ describe('formatters', () => {
       { amount: '1000' },
       { amount: '2000' },
       { amount: '3000' },
-    ];
+    ] as RecordItem[];
     const total = getTotalAmount(records);
     expect(total).toBeTruthy();
   });
@@ -49,7 +50,7 @@ describe('formatters', () => {
       { amount: '1,000' },
       { amount: '2,000 تومان' },
       { amount: '' },
-    ];
+    ] as RecordItem[];
     const total = getTotalAmount(records);
     expect(total).toBeTruthy();
   });

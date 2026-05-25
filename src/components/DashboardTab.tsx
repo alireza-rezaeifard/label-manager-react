@@ -1,10 +1,19 @@
 import { useMemo } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
 import { formatAmount } from '../utils/formatters';
+import { RecordItem, CustomField } from '../types';
 
 const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
-export default function DashboardTab({ records, customFields, tags, activityLog, onTabChange }) {
+interface Props {
+  records: RecordItem[];
+  customFields: CustomField[];
+  tags: string[];
+  activityLog: Array<{ action: string; details?: string; date?: string; time?: string }>;
+  onTabChange: (tab: string) => void;
+}
+
+export default function DashboardTab({ records, customFields, tags, activityLog, onTabChange }: Props) {
   const totalAmount = useMemo(() => {
     let total = 0;
     for (const r of records) {
@@ -18,54 +27,54 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
   const uniqueTypes = useMemo(() => new Set(records.map(r => r.type).filter(Boolean)).size, [records]);
 
   const typeData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => { const k = r.type || 'نامشخص'; map[k] = (map[k] || 0) + 1; });
     return Object.entries(map).map(([name, value]) => ({ name, value }));
   }, [records]);
 
   const projectData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => { const k = r.project || 'نامشخص'; map[k] = (map[k] || 0) + 1; });
-    return Object.entries(map).sort(([, a]: any, [, b]: any) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
   }, [records]);
 
   const partyData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => { const k = r.party || 'نامشخص'; map[k] = (map[k] || 0) + 1; });
-    return Object.entries(map).sort(([, a]: any, [, b]: any) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
   }, [records]);
 
   const monthlyData = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const month = (r.date || '').slice(0, 7);
       if (month) map[month] = (map[month] || 0) + 1;
     });
-    return Object.entries(map).sort(([a]: any, [b]: any) => a.localeCompare(b)).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b)).map(([name, value]) => ({ name, value }));
   }, [records]);
 
   const amountByProject = useMemo(() => {
-    const map = {};
+    const map: Record<string, number> = {};
     records.forEach(r => {
       const project = r.project || 'نامشخص';
       const num = parseInt(String(r.amount || '0').replace(/[^0-9]/g, ''), 10) || 0;
       map[project] = (map[project] || 0) + num;
     });
-    return Object.entries(map).sort(([, a]: any, [, b]: any) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).sort(([, a], [, b]) => b - a).slice(0, 10).map(([name, value]) => ({ name, value }));
   }, [records]);
 
   const recentRecords = useMemo(() => [...records].slice(-10).reverse(), [records]);
 
   const tagData = useMemo(() => {
     if (!tags || tags.length === 0) return [];
-    const map = {};
+    const map: Record<string, number> = {};
     tags.forEach(t => { map[t] = 0; });
     records.forEach(r => {
       if (r.tags && Array.isArray(r.tags)) {
         r.tags.forEach(t => { if (map[t] !== undefined) map[t]++; });
       }
     });
-    return Object.entries(map).sort(([, a]: any, [, b]: any) => b - a).map(([name, value]) => ({ name, value }));
+    return Object.entries(map).sort(([, a], [, b]) => b - a).map(([name, value]) => ({ name, value }));
   }, [records, tags]);
 
   const customFieldSummary = useMemo(() => {
@@ -158,7 +167,7 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
               <BarChart data={amountByProject} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={11} />
                 <YAxis />
-                <Tooltip formatter={(v) => v.toLocaleString('fa-IR')} />
+                <Tooltip formatter={(v: any) => (v != null ? Number(v).toLocaleString('fa-IR') : '')} />
                 <Bar dataKey="value" fill="#ff9f43" radius={[4, 4, 0, 0]}>
                   {amountByProject.map((_, i) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
                 </Bar>

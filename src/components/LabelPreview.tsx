@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
+import type { RecordItem, CustomField } from '../types';
 
 const PREVIEW_PAGE_SIZE = 12;
 
-export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] as any[], enabledCustomFieldKeys = [] as string[], exporting = false, exportProgress = 0 }) {
+export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] as any[], enabledCustomFieldKeys = [] as string[], exporting = false, exportProgress = 0 }: {
+  selectedRecords: RecordItem[];
+  onGoToRecords: () => void;
+  customFields?: CustomField[];
+  enabledCustomFieldKeys?: string[];
+  exporting?: boolean;
+  exportProgress?: number;
+}) {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(selectedRecords.length / PREVIEW_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -50,7 +58,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords, customFie
       </div>
 
       <div className="preview-grid" dir="rtl" id="preview-grid">
-        {pagedRecords.map((r, i) => (
+        {pagedRecords.map((r: RecordItem, i) => (
           <div key={r.code || i} className="preview-label" style={{ direction: 'rtl', minHeight: 200 }}>
             <span className="cut-marker">✂</span>
             <div>
@@ -67,7 +75,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords, customFie
                   {f.key === 'related' ? (
                     <div dir="ltr" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', justifyContent: 'flex-end' }}>
                       {Array.isArray(r.related) && r.related.length > 0
-                        ? r.related.map((code, ci) => (
+                        ? r.related.map((code: string, ci) => (
                             <span key={ci} style={{
                               fontSize: '0.75rem', padding: '0.1rem 0.4rem', borderRadius: 4,
                               background: '#7c3aed', color: '#fff', fontWeight: 600,
@@ -78,7 +86,7 @@ export default function LabelPreview({ selectedRecords, onGoToRecords, customFie
                     </div>
                   ) : (
                     <span style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || '—')}
+                      {f.key === 'amount' ? formatAmount(r[f.key] as string) : ((r[f.key] as string) || '—')}
                     </span>
                   )}
                 </div>

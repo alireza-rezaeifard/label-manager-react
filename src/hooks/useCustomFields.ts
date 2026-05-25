@@ -11,14 +11,14 @@ export function useCustomFields(
   setTags: (t: string[] | ((prev: string[]) => string[])) => void,
   saveTags: (t: string[]) => void,
   setEnabledCustomFieldKeys: (fn: (prev: string[]) => string[]) => void,
-  enabledCustomFieldKeys: string[],
+  _enabledCustomFieldKeys: string[],
   newFieldName: string,
   setNewFieldName: (n: string) => void,
   newFieldType: string,
   setNewFieldType: (t: string) => void,
-  setSelectedTagFilter: (t: string | null) => void,
+  setSelectedTagFilter: React.Dispatch<React.SetStateAction<string | null>>,
   addToast: (...args: any[]) => void,
-  invalidateCache: (pattern?: string) => void,
+  _invalidateCache: (pattern?: string) => void,
 ) {
   const handleToggleCustomField = useCallback((key: string) => {
     setEnabledCustomFieldKeys(prev => {

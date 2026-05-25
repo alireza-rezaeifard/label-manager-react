@@ -3,7 +3,7 @@ import { renderHook, act } from '@testing-library/react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 describe('useKeyboardShortcuts', () => {
-  let handlers;
+  let handlers: any;
 
   beforeEach(() => {
     handlers = {
@@ -80,7 +80,7 @@ describe('useKeyboardShortcuts', () => {
   });
 
   it('does not call handlers when handler is not defined', () => {
-    const emptyHandlers = {};
+    const emptyHandlers: any = {};
     renderHook(() => useKeyboardShortcuts(emptyHandlers));
     const event = new KeyboardEvent('keydown', { key: 'n', ctrlKey: true });
     expect(() => window.dispatchEvent(event)).not.toThrow();

@@ -1,29 +1,37 @@
 import { useRef, useState, useEffect, memo } from 'react';
+import type React from 'react';
 import { Grid } from 'react-window';
 import RecordCard from './RecordCard';
+import type { RecordItem, CustomField } from '../types';
 
 const MIN_CARD_WIDTH = 280;
 const MAX_CARD_WIDTH = 400;
 const GAP = 24;
 
 interface CellDataProps {
-  items: any[];
+  items: RecordItem[];
   columnCount: number;
   cardWidth: number;
-  recordToIndex: Map<any, number>;
+  recordToIndex: Map<RecordItem, number>;
   onToggle: (i: number) => void;
   onEdit: (i: number) => void;
   onView: (i: number) => void;
-  getRelatedLabels: (related: string[]) => any[];
+  getRelatedLabels: (related: string[]) => { code: string }[];
   selected: Set<number>;
-  onDragStart: (e: any, index: number) => void;
-  onDragOver: (e: any) => void;
-  onDrop: (e: any, index: number) => void;
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
   setDragIndex: (i: number | null) => void;
-  customFields: any[];
+  customFields: CustomField[];
 }
 
-const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, cardWidth, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex, customFields }: any) => {
+interface CellComponentProps extends CellDataProps {
+  style: React.CSSProperties;
+  rowIndex: number;
+  columnIndex: number;
+}
+
+const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, cardWidth: _cardWidth, recordToIndex, onToggle, onEdit, onView, getRelatedLabels, selected, onDragStart, onDragOver, onDrop, setDragIndex, customFields }: CellComponentProps) => {
   const index = rowIndex * columnCount + columnIndex;
   if (index >= items.length) return null;
 
@@ -53,6 +61,22 @@ const CellComponent = memo(({ style, rowIndex, columnIndex, items, columnCount, 
 
 CellComponent.displayName = 'VirtualCell';
 
+interface VirtualizedRecordGridProps {
+  records: RecordItem[];
+  recordToIndex: Map<RecordItem, number>;
+  selected: Set<number>;
+  onToggle: (i: number) => void;
+  onEdit: (i: number) => void;
+  onView: (i: number) => void;
+  getRelatedLabels: (related: string[]) => { code: string }[];
+  onDragStart: (e: React.DragEvent, index: number) => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDrop: (e: React.DragEvent, index: number) => void;
+  setDragIndex: (i: number | null) => void;
+  overscanCount?: number;
+  customFields?: CustomField[];
+}
+
 export default function VirtualizedRecordGrid({
   records,
   recordToIndex,
@@ -67,9 +91,9 @@ export default function VirtualizedRecordGrid({
   setDragIndex,
   overscanCount = 2,
   customFields = [],
-}) {
+}: VirtualizedRecordGridProps) {
   const [containerWidth, setContainerWidth] = useState(1100);
-  const [cardHeight, setCardHeight] = useState(380);
+  const [cardHeight, _setCardHeight] = useState(380);
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 

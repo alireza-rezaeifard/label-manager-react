@@ -76,7 +76,7 @@ function TableView({
               const isEditing = editCell?.idx === realIdx && editCell?.field === f.key;
               return (
                 <div key={f.key} className={`table-cell ${f.key === 'code' ? 'code-cell' : ''} ${f.key === 'amount' ? 'amount-cell' : ''}`}
-                  onDoubleClick={(e) => { e.stopPropagation(); handleCellDoubleClick(realIdx, f.key, r[f.key] || ''); }}>
+                  onDoubleClick={(e) => { e.stopPropagation(); handleCellDoubleClick(realIdx, f.key, (r[f.key] as string) || ''); }}>
                   {isEditing ? (
                     <input type="text" className="inline-edit-input" autoFocus
                       value={editValue}
@@ -86,7 +86,7 @@ function TableView({
                       onClick={e => e.stopPropagation()}
                     />
                   ) : (
-                    <span>{f.key === 'amount' ? formatAmount(r[f.key]) : (r[f.key] || '—')}</span>
+                    <span>{f.key === 'amount' ? formatAmount(r[f.key] as string) : ((r[f.key] as string) || '—')}</span>
                   )}
                 </div>
               );

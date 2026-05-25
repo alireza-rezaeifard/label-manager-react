@@ -11,8 +11,6 @@ function ToastItem({ toast, onRemove, index }: { toast: any; onRemove: (id: numb
     }
   }, [toast.exiting, toast.id, onRemove]);
 
-  const offset = index * 70;
-
   return (
     <div
       style={{
@@ -36,7 +34,10 @@ function ToastItem({ toast, onRemove, index }: { toast: any; onRemove: (id: numb
   );
 }
 
-export default function Toast({ toasts, onRemove }) {
+export default function Toast({ toasts, onRemove }: {
+  toasts: any[];
+  onRemove: (id: number) => void;
+}) {
   if (!toasts.length) return null;
 
   return (
@@ -46,7 +47,7 @@ export default function Toast({ toasts, onRemove }) {
       pointerEvents: 'none',
     }}>
       <div style={{ position: 'relative', width: 320, height: toasts.length * 70 }}>
-        {toasts.map((t, i) => (
+        {toasts.map((t: any, i) => (
           <ToastItem key={t.id} toast={t} onRemove={onRemove} index={i} />
         ))}
       </div>

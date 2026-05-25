@@ -23,7 +23,7 @@ export function invalidateCache(keyPattern?: string) {
     return;
   }
   for (const key of cache.keys()) {
-    if (key.includes(keyPattern)) {
+    if (key === keyPattern) {
       cache.delete(key);
       notify(key);
     }
@@ -79,6 +79,7 @@ export function useSWR<T>(
       }
     }
 
+    setIsLoading(true);
     setIsValidating(true);
     const promise = fetcher();
     pending.set(key, promise);
@@ -108,11 +109,17 @@ export function useSWR<T>(
 
   useEffect(() => {
     mountedRef.current = true;
-    if (key && revalidateOnMount) {
-      revalidate();
+    if (key) {
+      const entry = cache.get(key);
+      if (!entry || Date.now() - entry.timestamp >= staleMs) {
+        setIsLoading(true);
+      }
+      if (revalidateOnMount) {
+        revalidate();
+      }
     }
     return () => { mountedRef.current = false; };
-  }, [key, revalidate, revalidateOnMount]);
+  }, [key, revalidate, revalidateOnMount, staleMs]);
 
   useEffect(() => {
     if (!key) return;

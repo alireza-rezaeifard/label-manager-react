@@ -1,7 +1,14 @@
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
+import type { CustomField } from '../types';
 
-export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [] }) {
+export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [] }: {
+  record: any;
+  relatedRecords: any[];
+  onEdit: () => void;
+  onNavigateToRelated: (rel: any) => void;
+  customFields?: CustomField[];
+}) {
   return (
     <div className="form-card fade-in">
       <div>
@@ -40,7 +47,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
             <div style={{ gridColumn: '1 / -1', background: 'var(--bg-body)', padding: '1rem', borderRadius: 8 }}>
               <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>برچسب‌ها</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
-                {record.tags.map(tag => (
+                {record.tags.map((tag: string) => (
                   <span key={tag} style={{
                     padding: '0.3rem 0.8rem', background: 'rgba(40, 199, 111, 0.12)',
                     color: 'var(--success)', borderRadius: 12, fontSize: '0.8rem',
@@ -60,7 +67,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               برچسب‌های مرتبط ({relatedRecords.length})
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {relatedRecords.map(rel => (
+              {relatedRecords.map((rel: any) => (
                 <div
                   key={rel.code}
                   onClick={() => onNavigateToRelated(rel)}
