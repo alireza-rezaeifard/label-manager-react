@@ -3,6 +3,14 @@ export default function BackupModal({
   recordCount, onBackup,
   onRestore, setBackupFile,
   isViewer,
+}: {
+  show: boolean;
+  onClose: () => void;
+  recordCount: number;
+  onBackup: () => void;
+  onRestore: () => void;
+  setBackupFile: React.Dispatch<React.SetStateAction<File | null>>;
+  isViewer: boolean;
 }) {
   if (!show) return null;
 
@@ -30,7 +38,7 @@ export default function BackupModal({
               accept=".json"
               className="form-input"
               style={{ marginBottom: '1rem' }}
-              onChange={e => setBackupFile(e.target.files?.[0])}
+              onChange={e => setBackupFile(e.target.files?.[0] ?? null)}
             />
             <button className="btn btn-success w-100" onClick={onRestore}>
               <i className="ti ti-upload"></i> بازیابی

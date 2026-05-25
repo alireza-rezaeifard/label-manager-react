@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 const PRESETS_KEY = 'label-studio-filter-presets';
 
-interface FilterState {
+export interface FilterState {
   search: string;
   filterType: string;
   filterParty: string;

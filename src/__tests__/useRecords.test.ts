@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useRecords } from '../hooks/useRecords';
+import type { RecordItem } from '../types';
 
 const STORAGE_KEY = 'label-studio-records';
 
@@ -16,7 +17,7 @@ describe('useRecords', () => {
   });
 
   it('loads records from localStorage', () => {
-    const customRecords = [{ code: 'TEST-001', project: 'Test' }];
+    const customRecords: RecordItem[] = [{ code: 'TEST-001', project: 'Test', type: '', date: '', party: '', amount: '', related: [] }];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(customRecords));
     const { result } = renderHook(() => useRecords());
     expect(result.current.records).toEqual(customRecords);
@@ -27,7 +28,7 @@ describe('useRecords', () => {
     const initialLength = result.current.records.length;
 
     act(() => {
-      result.current.addRecord({ code: 'NEW-001', project: 'New' });
+      result.current.addRecord({ code: 'NEW-001', project: 'New' } as RecordItem);
     });
 
     expect(result.current.records).toHaveLength(initialLength + 1);
@@ -77,7 +78,7 @@ describe('useRecords', () => {
     const snapshot = [...result.current.records];
 
     act(() => {
-      result.current.addRecord({ code: 'UNDO-TEST' });
+      result.current.addRecord({ code: 'UNDO-TEST' } as RecordItem);
     });
     expect(result.current.records.length).toBe(snapshot.length + 1);
 
@@ -99,10 +100,10 @@ describe('useRecords', () => {
     const { result } = renderHook(() => useRecords());
 
     act(() => {
-      result.current.addRecord({ code: 'PERSIST-TEST' });
+      result.current.addRecord({ code: 'PERSIST-TEST' } as RecordItem);
     });
 
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
-    expect(saved.find(r => r.code === 'PERSIST-TEST')).toBeTruthy();
+    expect(saved.find((r: RecordItem) => r.code === 'PERSIST-TEST')).toBeTruthy();
   });
 });

@@ -1,7 +1,18 @@
 import { useState, useEffect } from 'react';
 import { api } from '../utils/api';
+import type { ToastType } from '../types';
 
-export default function ProfileTab({ authUser, serverMode, recordCount, onLogin, onBackup, onOpenBackupModal, addToast }) {
+interface Props {
+  authUser: { username?: string; role?: string } | null;
+  serverMode: boolean;
+  recordCount: number;
+  onLogin: () => void;
+  onBackup: () => void;
+  onOpenBackupModal: () => void;
+  addToast: (message: string, type?: ToastType['type'], duration?: number) => void;
+}
+
+export default function ProfileTab({ authUser, serverMode, recordCount, onLogin, onBackup, onOpenBackupModal, addToast }: Props) {
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(authUser?.username || 'کاربر محلی');
   const [serverStatus, setServerStatus] = useState('offline');
@@ -43,8 +54,8 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
     })();
   }, [serverMode]);
 
-  const sc = { connected: 'var(--success)', error: 'var(--danger)', offline: 'var(--text-color)', checking: 'var(--warning)' };
-  const st = { connected: 'Connected', error: 'Disconnected', offline: 'Offline', checking: 'Checking...' };
+  const sc: Record<string, string> = { connected: 'var(--success)', error: 'var(--danger)', offline: 'var(--text-color)', checking: 'var(--warning)' };
+  const st: Record<string, string> = { connected: 'Connected', error: 'Disconnected', offline: 'Offline', checking: 'Checking...' };
   const displayStatus = serverMode ? serverStatus : 'offline';
 
   return (

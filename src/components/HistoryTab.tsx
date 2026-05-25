@@ -1,4 +1,16 @@
-export default function HistoryTab({ printHistory, clearHistory }) {
+interface PrintEntry {
+  count: number;
+  date: string;
+  time: string;
+  codes: string[];
+}
+
+interface Props {
+  printHistory: PrintEntry[];
+  clearHistory: () => void;
+}
+
+export default function HistoryTab({ printHistory, clearHistory }: Props) {
   return (
     <div className="fade-in">
       <div className="d-flex justify-content-between align-items-center mb-4">

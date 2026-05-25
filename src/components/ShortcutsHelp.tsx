@@ -1,6 +1,9 @@
 import { SHORTCUTS } from '../hooks/useKeyboardShortcuts';
 
-export default function ShortcutsHelp({ show, onClose }) {
+export default function ShortcutsHelp({ show, onClose }: {
+  show: boolean;
+  onClose: () => void;
+}) {
   if (!show) return null;
 
   return (

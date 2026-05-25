@@ -1,11 +1,13 @@
+import type { RecordItem, CustomField } from '../types';
+
 const API_BASE = '/api';
 
-async function apiRequest(path, options = {}) {
+async function apiRequest(path: string, options: RequestInit = {}) {
   const token = localStorage.getItem('auth_token');
-  const headers = { 'Content-Type': 'application/json', ...(options as any).headers };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  let res;
+  let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, { ...options, headers });
   } catch (err) {
@@ -42,99 +44,99 @@ export function isAuthenticated() {
 }
 
 export const api = {
-  login: (username, password) =>
+  login: (username: string, password: string) =>
     apiRequest('/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
 
-  register: (username, password) =>
+  register: (username: string, password: string) =>
     apiRequest('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
 
-  getRecords: (params = {}) => {
+  getRecords: (params: Record<string, string> = {}) => {
     const qs = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, String(v)); });
     const q = qs.toString();
     return apiRequest(`/records${q ? '?' + q : ''}`);
   },
 
-  getAllRecords: (workspaceId) => {
+  getAllRecords: (workspaceId?: string | number) => {
     const qs = workspaceId ? `?workspace_id=${workspaceId}&limit=10000` : '?limit=10000';
-    return apiRequest(`/records${qs}`).then(r => r.records || r);
+    return apiRequest(`/records${qs}`).then((r: any) => r.records || r);
   },
 
-  createRecord: (record) =>
+  createRecord: (record: RecordItem) =>
     apiRequest('/records', { method: 'POST', body: JSON.stringify(record) }),
 
-  updateRecord: (id, record) =>
+  updateRecord: (id: string, record: Partial<RecordItem>) =>
     apiRequest(`/records/${id}`, { method: 'PUT', body: JSON.stringify(record) }),
 
-  deleteRecords: (ids) =>
+  deleteRecords: (ids: string[]) =>
     apiRequest('/records/batch', { method: 'DELETE', body: JSON.stringify({ ids }) }),
 
-  reorder: (ids) =>
+  reorder: (ids: string[]) =>
     apiRequest('/records/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
-  renumberRecords: (records) =>
+  renumberRecords: (records: RecordItem[]) =>
     apiRequest('/records/renumber', { method: 'POST', body: JSON.stringify({ records }) }),
 
-  backup: (workspaceId) =>
+  backup: (workspaceId?: string | number) =>
     apiRequest(`/records/backup${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
-  restore: (records, workspaceId) =>
+  restore: (records: RecordItem[], workspaceId?: string | number) =>
     apiRequest('/records/restore', { method: 'POST', body: JSON.stringify({ records, workspace_id: workspaceId }) }),
 
-  uploadImage: (base64) =>
+  uploadImage: (base64: string) =>
     apiRequest('/upload-image', { method: 'POST', body: JSON.stringify({ image: base64 }) }),
 
-  getActivity: (workspaceId) =>
+  getActivity: (workspaceId?: string | number) =>
     apiRequest(`/records/activity${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
   getWorkspaces: () =>
     apiRequest('/workspaces'),
 
-  createWorkspace: (name, description) =>
+  createWorkspace: (name: string, description: string) =>
     apiRequest('/workspaces', { method: 'POST', body: JSON.stringify({ name, description }) }),
 
-  inviteToWorkspace: (workspaceId, username) =>
+  inviteToWorkspace: (workspaceId: string | number, username: string) =>
     apiRequest('/workspaces/invite', { method: 'POST', body: JSON.stringify({ workspace_id: workspaceId, username }) }),
 
-  getWorkspaceMembers: (workspaceId) =>
+  getWorkspaceMembers: (workspaceId: string | number) =>
     apiRequest(`/workspaces/${workspaceId}/members`),
 
-  leaveWorkspace: (workspaceId) =>
+  leaveWorkspace: (workspaceId: string | number) =>
     apiRequest(`/workspaces/${workspaceId}/leave`, { method: 'DELETE' }),
 
-  changeMemberRole: (workspaceId, userId, role) =>
+  changeMemberRole: (workspaceId: string | number, userId: string | number, role: string) =>
     apiRequest(`/workspaces/${workspaceId}/members/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
 
-  removeMember: (workspaceId, userId) =>
+  removeMember: (workspaceId: string | number, userId: string | number) =>
     apiRequest(`/workspaces/${workspaceId}/members/${userId}`, { method: 'DELETE' }),
 
-  transferOwnership: (workspaceId, userId) =>
+  transferOwnership: (workspaceId: string | number, userId: string | number) =>
     apiRequest(`/workspaces/${workspaceId}/transfer-ownership`, { method: 'POST', body: JSON.stringify({ userId }) }),
 
-  deleteWorkspace: (workspaceId) =>
+  deleteWorkspace: (workspaceId: string | number) =>
     apiRequest(`/workspaces/${workspaceId}`, { method: 'DELETE' }),
 
-  checkDuplicateCode: (queryString) =>
+  checkDuplicateCode: (queryString: string) =>
     apiRequest(`/records/check-code${queryString}`),
 
   getMe: () =>
     apiRequest('/auth/me'),
 
-  changePassword: (currentPassword, newPassword) =>
+  changePassword: (currentPassword: string, newPassword: string) =>
     apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 
-  getCustomFields: (workspaceId) =>
+  getCustomFields: (workspaceId?: string | number) =>
     apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
-  createCustomField: (field) =>
+  createCustomField: (field: CustomField) =>
     apiRequest('/custom-fields', { method: 'POST', body: JSON.stringify(field) }),
 
-  batchSaveCustomFields: (fields, workspaceId) =>
+  batchSaveCustomFields: (fields: CustomField[], workspaceId?: string | number) =>
     apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
 
-  updateCustomField: (key, field, workspaceId) =>
+  updateCustomField: (key: string, field: Partial<CustomField>, workspaceId?: string | number) =>
     apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'PUT', body: JSON.stringify({ ...field, workspace_id: workspaceId }) }),
 
-  deleteCustomField: (key, workspaceId) =>
+  deleteCustomField: (key: string, workspaceId?: string | number) =>
     apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'DELETE' }),
 };

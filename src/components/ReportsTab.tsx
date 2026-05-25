@@ -1,8 +1,15 @@
-import { useMemo, useState } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { useMemo, useState, useCallback } from 'react';
+import Chart from 'react-apexcharts';
+import type { RecordItem } from '../types';
+
 const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
-export default function ReportsTab({ records, onFilter }) {
+interface Props {
+  records: RecordItem[];
+  onFilter?: (type: string, value: string) => void;
+}
+
+export default function ReportsTab({ records, onFilter }: Props) {
   const [reportType, setReportType] = useState('type');
 
   const typeData = useMemo(() => {
@@ -63,16 +70,23 @@ export default function ReportsTab({ records, onFilter }) {
     : amountByProject;
 
   const getReportName = () => {
-    const names = { type: 'نوع', project: 'پروژه', party: 'طرف حساب', monthly: 'ماهانه', amount: 'مبلغ به تفکیک پروژه' };
+    const names: Record<string, string> = { type: 'نوع', project: 'پروژه', party: 'طرف حساب', monthly: 'ماهانه', amount: 'مبلغ به تفکیک پروژه' };
     return names[reportType] || '';
   };
 
   const isPie = reportType !== 'monthly' && reportType !== 'amount';
 
-  const handleChartClick = (entry: any) => {
+  const handleChartClick = useCallback((entry: any) => {
     if (!onFilter || !entry || !entry.name) return;
     onFilter(reportType, entry.name);
-  };
+  }, [onFilter, reportType]);
+
+  const handleDataPointSelection = useCallback((e: any, chartContext: any, config: any) => {
+    const idx = config.dataPointIndex;
+    if (idx >= 0 && idx < currentData.length) {
+      handleChartClick(currentData[idx]);
+    }
+  }, [currentData, handleChartClick]);
 
   const totalCount = records.length;
   const totalAmount = records.reduce((sum, r) => {
@@ -89,6 +103,50 @@ export default function ReportsTab({ records, onFilter }) {
       </div>
     );
   }
+
+  const pieChartOptions = {
+    chart: {
+      type: 'pie' as const,
+      events: { dataPointSelection: handleDataPointSelection },
+    },
+    labels: currentData.map(d => d.name),
+    colors: COLORS,
+    legend: { position: 'bottom' as const, fontSize: '13px' },
+    dataLabels: { enabled: true, style: { fontSize: '11px' } },
+    tooltip: { enabled: true },
+    responsive: [{ breakpoint: 480, options: { chart: { width: 200 } } }],
+    plotOptions: {
+      pie: {
+        expandOnClick: true,
+        customScale: 1,
+      },
+    },
+  };
+
+  const barChartOptions = {
+    chart: {
+      type: 'bar' as const,
+      toolbar: { show: false },
+      events: { dataPointSelection: handleDataPointSelection },
+    },
+    colors: COLORS,
+    xaxis: {
+      categories: currentData.map(d => d.name),
+      labels: { rotate: -45, style: { fontSize: '12px' } },
+    },
+    plotOptions: {
+      bar: { borderRadius: 4, columnWidth: '70%', distributed: true },
+    },
+    dataLabels: { enabled: false },
+    tooltip: {
+      y: {
+        formatter: reportType === 'amount'
+          ? (v: number) => Number(v).toLocaleString('fa-IR')
+          : undefined,
+      },
+    },
+    legend: { show: false },
+  };
 
   return (
     <div className="fade-in">
@@ -143,38 +201,21 @@ export default function ReportsTab({ records, onFilter }) {
         )}
 
         <div style={{ width: '100%', height: 350 }}>
-          <ResponsiveContainer>
-            {isPie ? (
-              <PieChart>
-                <Pie data={currentData} cx="50%" cy="50%" outerRadius={120} fill="#8884d8" dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
-                  onClick={handleChartClick}
-                  style={{ cursor: 'pointer' }}>
-                  {currentData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            ) : (
-              <BarChart data={currentData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                onClick={(e: any) => {
-                  if (e?.activePayload?.[0]?.payload) {
-                    handleChartClick(e.activePayload[0].payload);
-                  }
-                }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={12} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#7367f0" radius={[4, 4, 0, 0]}>
-                  {currentData.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            )}
-          </ResponsiveContainer>
+          {isPie ? (
+            <Chart
+              options={pieChartOptions}
+              series={currentData.map(d => d.value)}
+              type="pie"
+              height={350}
+            />
+          ) : (
+            <Chart
+              options={barChartOptions}
+              series={[{ name: 'تعداد', data: currentData.map(d => d.value) }]}
+              type="bar"
+              height={350}
+            />
+          )}
         </div>
       </div>
     </div>

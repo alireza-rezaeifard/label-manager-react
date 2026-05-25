@@ -1,7 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import jsQR from 'jsqr';
 
-export default function QRScanner({ onScan, onClose }) {
+export default function QRScanner({ onScan, onClose }: {
+  onScan: (data: string) => void;
+  onClose: () => void;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [error, setError] = useState('');

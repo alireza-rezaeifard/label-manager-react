@@ -1,4 +1,6 @@
-export const toJalaliDate = (date) => {
+import type { RecordItem } from '../types';
+
+export const toJalaliDate = (date: string | number | Date | null | undefined) => {
   if (!date) return "";
   const d = new Date(date);
   const persianDate = d.toLocaleDateString('fa-IR', {
@@ -7,15 +9,15 @@ export const toJalaliDate = (date) => {
   return persianDate.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
 };
 
-export const formatAmount = (value) => {
+export const formatAmount = (value: unknown): string => {
   if (value === null || value === undefined || value === '') return '';
   const normalized = String(value).replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
   const num = normalized.replace(/[^0-9]/g, '');
-  if (!num) return value;
+  if (!num) return String(value);
   return Number(num).toLocaleString('en-US');
 };
 
-export const getTotalAmount = (records) => {
+export const getTotalAmount = (records: RecordItem[]) => {
   let total = 0;
   for (const r of records) {
     const normalized = String(r.amount || '').replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));

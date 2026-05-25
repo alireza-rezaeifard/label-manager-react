@@ -1,12 +1,23 @@
 import { useState, useRef, useEffect } from 'react';
 
-export default function MultiSelectDropdown({ options, selected, onChange }) {
+interface OptionItem {
+  code: string;
+  project: string;
+}
+
+interface MultiSelectDropdownProps {
+  options: OptionItem[];
+  selected: string[];
+  onChange: (selected: string[]) => void;
+}
+
+export default function MultiSelectDropdown({ options, selected, onChange }: MultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function handleClickOutside(event) {
+    function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
@@ -15,13 +26,13 @@ export default function MultiSelectDropdown({ options, selected, onChange }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt =>
+  const filteredOptions = options.filter((opt: OptionItem) =>
     opt.code.toLowerCase().includes(search.toLowerCase())
   );
 
-  const toggleOption = (code) => {
+  const toggleOption = (code: string) => {
     if (selected.includes(code)) {
-      onChange(selected.filter(s => s !== code));
+      onChange(selected.filter((s: string) => s !== code));
     } else {
       onChange([...selected, code]);
     }
@@ -85,7 +96,7 @@ export default function MultiSelectDropdown({ options, selected, onChange }) {
                 رکوردی یافت نشد
               </div>
             ) : (
-              filteredOptions.map(opt => (
+              filteredOptions.map((opt: OptionItem) => (
                 <div
                   key={opt.code}
                   onClick={() => toggleOption(opt.code)}
@@ -112,7 +123,7 @@ export default function MultiSelectDropdown({ options, selected, onChange }) {
 
       {selected.length > 0 && (
         <div className="selected-tags" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-          {selected.map(code => (
+          {selected.map((code: string) => (
             <span
               key={code}
               className="tag"

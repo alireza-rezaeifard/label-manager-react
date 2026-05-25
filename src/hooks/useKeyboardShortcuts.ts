@@ -20,10 +20,23 @@ const SHORTCUTS = [
 
 export { SHORTCUTS };
 
-export function useKeyboardShortcuts(handlers) {
+interface ShortcutHandlers {
+  onEscape?: () => void;
+  onNewRecord?: () => void;
+  onEdit?: () => void;
+  onDuplicate?: () => void;
+  onDelete?: () => void;
+  onSearch?: () => void;
+  onSave?: () => void;
+  onSelectAll?: () => void;
+  onUndo?: () => void;
+  onTabChange?: (tab: string) => void;
+}
+
+export function useKeyboardShortcuts(handlers: ShortcutHandlers) {
   const [showHelp, setShowHelp] = useState(false);
 
-  const handleKeyDown = useCallback((e) => {
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
     const ctrl = e.ctrlKey || e.metaKey;
     const key = e.key;
 
@@ -89,7 +102,7 @@ export function useKeyboardShortcuts(handlers) {
     if (ctrl && !isNaN(Number(key)) && Number(key) >= 1 && Number(key) <= 5) {
       e.preventDefault();
       const tabMap = { 1: 'records', 2: 'add', 3: 'import', 4: 'preview', 5: 'reports' };
-      if (handlers.onTabChange) handlers.onTabChange(tabMap[key]);
+      if (handlers.onTabChange) handlers.onTabChange(tabMap[Number(key) as 1 | 2 | 3 | 4 | 5]);
       return;
     }
   }, [handlers, showHelp]);

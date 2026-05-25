@@ -1,3 +1,25 @@
+import type { CustomField } from '../types';
+
+interface PrintSettingsModalProps {
+  show: boolean;
+  onClose: () => void;
+  printTemplate: string;
+  setPrintTemplate: (v: string) => void;
+  printCols: number;
+  setPrintCols: (v: number) => void;
+  printWidth: number;
+  setPrintWidth: (v: number) => void;
+  printHeight: number;
+  setPrintHeight: (v: number) => void;
+  printQr: boolean;
+  setPrintQr: (v: boolean) => void;
+  printBarcode: boolean;
+  setPrintBarcode: (v: boolean) => void;
+  customFields?: CustomField[];
+  enabledCustomFieldKeys: string[];
+  onToggleCustomField: (key: string) => void;
+}
+
 export default function PrintSettingsModal({
   show, onClose,
   printTemplate, setPrintTemplate,
@@ -6,10 +28,10 @@ export default function PrintSettingsModal({
   printHeight, setPrintHeight,
   printQr, setPrintQr,
   printBarcode, setPrintBarcode,
-  customFields = [] as any[],
+  customFields = [],
   enabledCustomFieldKeys,
   onToggleCustomField,
-}) {
+}: PrintSettingsModalProps) {
   if (!show) return null;
 
   return (

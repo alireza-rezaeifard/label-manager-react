@@ -8,13 +8,41 @@ const FIELD_TYPES = [
   { value: 'color', label: 'رنگ' },
 ];
 
-const FIELD_TYPE_BADGES = {
+const FIELD_TYPE_BADGES: Record<string, { label: string; color: string }> = {
   text: { label: 'متن', color: 'var(--primary)' },
   number: { label: 'عدد', color: 'var(--success)' },
   date: { label: 'تاریخ', color: 'var(--warning)' },
   dropdown: { label: 'لیست', color: 'var(--info)' },
   color: { label: 'رنگ', color: 'var(--danger)' },
 };
+
+interface CustomFieldSettings {
+  key: string;
+  label: string;
+  fa: string;
+  fieldType: string;
+  options?: string[];
+}
+
+interface Props {
+  customFields: CustomFieldSettings[];
+  onAddField: () => void;
+  onRemoveField: (key: string) => void;
+  onEditField: (key: string, updatedField: { label: string; fa: string; fieldType: string; options?: string[] }) => void;
+  newFieldName: string;
+  onNewFieldNameChange: (value: string) => void;
+  newFieldType: string;
+  onNewFieldTypeChange: (value: string) => void;
+  serverMode: boolean;
+  authUser: { username?: string } | null;
+  tags: string[];
+  onAddTag: (name: string) => void;
+  onRemoveTag: (name: string) => void;
+  useVirtualScroll: boolean;
+  onToggleVirtualScroll: () => void;
+  theme: string;
+  onThemeChange: (theme: string) => void;
+}
 
 export default function SettingsTab({
   customFields, onAddField, onRemoveField, onEditField, newFieldName, onNewFieldNameChange,
@@ -23,14 +51,14 @@ export default function SettingsTab({
   tags, onAddTag, onRemoveTag,
   useVirtualScroll, onToggleVirtualScroll,
   theme, onThemeChange,
-}) {
+}: Props) {
   const [newTag, setNewTag] = useState('');
-  const [editingKey, setEditingKey] = useState(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('text');
   const [editOptions, setEditOptions] = useState('');
 
-  const startEdit = (f) => {
+  const startEdit = (f: CustomFieldSettings) => {
     setEditingKey(f.key);
     setEditName(f.fa || f.label || '');
     setEditType(f.fieldType || 'text');
@@ -45,7 +73,7 @@ export default function SettingsTab({
   };
 
   const saveEdit = () => {
-    if (!editName.trim()) return;
+    if (!editName.trim() || editingKey == null) return;
     const options = editType === 'dropdown'
       ? editOptions.split(',').map(s => s.trim()).filter(Boolean)
       : undefined;
@@ -204,7 +232,7 @@ export default function SettingsTab({
                     }}>
                       {badge.label}
                     </span>
-                    {f.fieldType === 'dropdown' && f.options?.length > 0 && (
+                    {f.fieldType === 'dropdown' && f.options && f.options.length > 0 && (
                       <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
                         ({f.options.length} گزینه)
                       </span>

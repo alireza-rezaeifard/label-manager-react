@@ -3,20 +3,24 @@ import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { FIELDS, CSV_TEMPLATE } from '../data/fields';
 import { downloadTemplate } from '../utils/exporters';
+import type { ToastType } from '../types';
 
-export default function ImportCSV({ onImport, addToast }) {
+export default function ImportCSV({ onImport, addToast }: {
+  onImport: (records: any[]) => void;
+  addToast: (msg: string, type?: ToastType['type'], duration?: number) => void;
+}) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState('csv');
   const [importMsg, setImportMsg] = useState('');
 
-  const processRecords = (data) => {
-    const valid = data.filter(r => r.code && r.project);
+  const processRecords = (data: any[]) => {
+    const valid = data.filter((r: any) => r.code && r.project);
     if (!valid.length) {
       setImportMsg('❌ هیچ ردیف معتبری یافت نشد.');
       return;
     }
 
-    const importedRecords = valid.map(r => ({
+    const importedRecords = valid.map((r: any) => ({
       code: String(r.code || '').trim(),
       project: String(r.project || '').trim(),
       type: String(r.type || '').trim(),
@@ -31,7 +35,7 @@ export default function ImportCSV({ onImport, addToast }) {
     addToast(`${importedRecords.length} رکورد با موفقیت وارد شد.`, 'success');
   };
 
-  const handleCSV = (e) => {
+  const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 

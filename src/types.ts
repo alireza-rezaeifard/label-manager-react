@@ -1,43 +1,53 @@
-export interface Record {
-  [key: string]: any;
-  id?: number;
-  code: string;
-  project: string;
-  type?: string;
-  date?: string;
-  party?: string;
-  amount?: string;
-  related?: string[];
-  tags?: string[];
-  image?: string;
-  color?: string;
-  sort_order?: number;
-  user_id?: number;
-  workspace_id?: number;
-  created_at?: string;
-  updated_at?: string;
-  __lid?: number;
-}
-
 export interface FieldDef {
   key: string;
   label: string;
   fa: string;
   placeholder?: string;
   isRelated?: boolean;
-  isCustom?: boolean;
-  fieldType?: 'text' | 'number' | 'date' | 'dropdown' | 'color';
+}
+
+export interface RecordItem {
+  code: string;
+  project: string;
+  type: string;
+  date: string;
+  party: string;
+  amount: string;
+  related: string[];
+  tags?: string[];
+  image?: string;
+  color?: string;
+  id?: string;
+  [key: string]: unknown;
+}
+
+export interface CustomField {
+  key: string;
+  label: string;
+  fa: string;
+  type: string;
   options?: string[];
+  required?: boolean;
+}
+
+export interface Snapshot {
+  records: RecordItem[];
+  label: string;
+}
+
+export interface ActivityEntry {
+  id: string;
+  action: string;
+  timestamp: string;
+  user?: string;
+  details?: string;
 }
 
 export interface ToastType {
   id: number;
   message: string;
   type: 'success' | 'error' | 'info' | 'warning';
+  exiting?: boolean;
 }
 
-export interface TemplateDef {
-  name: string;
-  fields: string[];
-  icon?: string;
-}
+export type Record = RecordItem;

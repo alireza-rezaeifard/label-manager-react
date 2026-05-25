@@ -1,23 +1,37 @@
-import { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
+import { useSWR, invalidateCache } from './hooks/useSWR';
+import { usePrintExport } from './hooks/usePrintExport';
+import { useWorkspace } from './hooks/useWorkspace';
+import { useCustomFields } from './hooks/useCustomFields';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
-import * as exportUtils from './utils/exporters';
 import { formatAmount, parseCode, formatCode } from './utils/formatters';
+import { estimatePaperCount } from './utils/printHelpers';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import RecordCard from './components/RecordCard';
+import TransitionPage from './components/TransitionPage';
 import RecordForm from './components/RecordForm';
 import Toast from './components/Toast';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import LoadingScreen from './components/LoadingScreen';
-import { CardSkeleton, TableSkeleton } from './components/LoadingSkeleton';
+import LoadingSpinner from './components/LoadingSpinner';
+import ConfirmDialog from './components/ConfirmDialog';
+import {
+  DashboardSkeleton, ReportsSkeleton, SettingsSkeleton,
+  ProfileSkeleton, HistorySkeleton, ViewDetailSkeleton,
+  ImportSkeleton, PreviewSkeleton,
+} from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useDebounce } from './hooks/useDebounce';
+import type { RecordItem } from './types';
+import RecordsPage from './components/RecordsPage';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
 const ImportCSV = lazy(() => import('./components/ImportCSV'));
@@ -32,11 +46,7 @@ const SettingsTab = lazy(() => import('./components/SettingsTab'));
 const PrintSettingsModal = lazy(() => import('./components/PrintSettingsModal'));
 const BackupModal = lazy(() => import('./components/BackupModal'));
 const QRScanner = lazy(() => import('./components/QRScanner'));
-const VirtualizedRecordGrid = lazy(() => import('./components/VirtualizedRecordGrid'));
-const TableView = lazy(() => import('./components/TableView'));
-const DateRangePicker = lazy(() => import('./components/DateRangePicker'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
-const FilterPresets = lazy(() => import('./components/FilterPresets'));
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -45,19 +55,19 @@ const TAGS_KEY = 'label-studio-tags';
 function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
 }
-function saveHistory(h) {
+function saveHistory(h: any[]) {
   try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* localStorage may be full */ }
 }
 function loadCustomFields() {
   try { return JSON.parse(localStorage.getItem(CUSTOM_FIELDS_KEY) || '[]'); } catch { return []; }
 }
-function saveCustomFields(f) {
+function saveCustomFields(f: any[]) {
   try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch { /* localStorage may be full */ }
 }
 function loadTags() {
   try { return JSON.parse(localStorage.getItem(TAGS_KEY) || '[]'); } catch { return []; }
 }
-function saveTags(t) {
+function saveTags(t: string[]) {
   try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch { /* localStorage may be full */ }
 }
 
@@ -68,7 +78,7 @@ function loadRecordCustomFieldsCache() {
   try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CACHE_KEY) || '{}'); } catch { return {}; }
 }
 
-function saveRecordCustomFieldsCache(data) {
+function saveRecordCustomFieldsCache(data: Record<string, unknown>) {
   try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
 }
 
@@ -76,24 +86,38 @@ function loadRecordCustomFieldsCodeCache() {
   try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY) || '{}'); } catch { return {}; }
 }
 
-function saveRecordCustomFieldsCodeCache(data) {
+function saveRecordCustomFieldsCodeCache(data: Record<string, unknown>) {
   try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
 }
 
-function getTabFromHash() {
-  const hash = window.location.hash.replace('#', '');
-  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
-  return validTabs.includes(hash) ? hash : null;
-}
-
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard'];
+  const initialTab = validTabs.includes(pathTab) ? pathTab : 'records';
+
+  const [tab, setTabState] = useState(initialTab);
+  const viewCode = location.pathname.startsWith('/view/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : '';
+
+  useEffect(() => {
+    const p = location.pathname.replace('/', '').split('/')[0] || 'records';
+    const t = validTabs.includes(p) ? p : 'records';
+    setTabState(prev => prev !== t ? t : prev);
+  }, [location.pathname]);
+
+  const setTab = useCallback((t: string) => {
+    const target = '/' + t;
+    if (location.pathname !== target) navigate(target);
+    setTabState(t);
+  }, [navigate, location.pathname]);
   const [localMode, setLocalMode] = useState(() => localStorage.getItem('local_mode') === 'true');
   const [authUser, setAuthUser] = useState(() => localMode ? null : getAuthUser());
   const [serverMode, setServerMode] = useState(() => localMode ? false : !!getAuthUser());
 
   const {
     records, setRecords,
-    addRecord, updateRecord, deleteRecords, reorderRecords, replaceAllRecords,
+    addRecord, updateRecord, deleteRecords, reorderRecords,
     undo, undoStack, pushUndo,
     isDuplicateCode,
   } = useRecords();
@@ -105,12 +129,23 @@ export default function App() {
   const isRestoringRef = useRef(false);
 
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-  const [tab, setTab] = useState(() => getTabFromHash() || 'records');
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 150);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCompact, setSidebarCompact] = useState(() => {
+    try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
+  });
+
+  const toggleSidebarCompact = useCallback(() => {
+    setSidebarCompact(p => {
+      const next = !p;
+      try { localStorage.setItem('sidebar-compact', String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState('asc');
@@ -124,14 +159,14 @@ export default function App() {
   const [printTemplate, setPrintTemplate] = useState('classic');
   const [printQr, setPrintQr] = useState(false);
   const [printBarcode, setPrintBarcode] = useState(false);
-  const [dragIndex, setDragIndex] = useState(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   const [customFields, setCustomFields] = useState(loadCustomFields);
   const [enabledCustomFieldKeys, setEnabledCustomFieldKeys] = useState<string[]>(() => {
     const saved = localStorage.getItem('label-studio-enabled-cfields');
     if (saved) return JSON.parse(saved);
     const fields = loadCustomFields();
-    return fields.map(f => f.key);
+    return fields.map((f: any) => f.key);
   });
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
@@ -160,6 +195,7 @@ export default function App() {
   const [bulkEditColor, setBulkEditColor] = useState('');
   const [showBulkEdit, setShowBulkEdit] = useState(false);
   const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
@@ -170,15 +206,16 @@ export default function App() {
 
   const { toasts, addToast, removeToast } = useToast();
 
-  const [activityLog, setActivityLog] = useState<any[]>([]);
+  const { data: activityLog = [], revalidate: refreshActivity } = useSWR<any[]>(
+    serverMode && currentWorkspaceId ? `activity:${currentWorkspaceId}` : null,
+    () => api.getActivity(currentWorkspaceId!).then((data: any) => data || []),
+    { revalidateOnMount: true, refreshInterval: 15000 }
+  );
 
-  useEffect(() => {
-    if (serverMode && currentWorkspaceId) {
-      api.getActivity(currentWorkspaceId).then(data => setActivityLog(data)).catch(() => {});
-    } else {
-      setActivityLog([]);
-    }
-  }, [serverMode, currentWorkspaceId]);
+  const handleRefreshActivity = useCallback(() => {
+    invalidateCache(`activity:${currentWorkspaceId}`);
+    refreshActivity();
+  }, [refreshActivity, currentWorkspaceId]);
 
   const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
     try { return localStorage.getItem('use_virtual_scroll') === 'true'; } catch { return false; }
@@ -202,7 +239,7 @@ export default function App() {
     if (serverMode && currentWorkspaceId) {
       api.getCustomFields(currentWorkspaceId).then(serverFields => {
         if (serverFields && serverFields.length > 0) {
-          setCustomFields(prev => {
+          setCustomFields((prev: any[]) => {
             const merged = [...serverFields];
             for (const local of prev) {
               if (!merged.find(f => f.key === local.key)) {
@@ -217,47 +254,48 @@ export default function App() {
     }
   }, [serverMode, currentWorkspaceId]);
 
-  const refreshServerRecords = useCallback(async () => {
-    if (serverMode && currentWorkspaceId) {
-      try {
-        const data = await api.getAllRecords(currentWorkspaceId);
-        setServerRecords(prev => {
-          const customKeys = new Set<string>(customFields.map((f: any) => f.key));
-          return data.map(serverRecord => {
-            const existing = prev.find(r => r.id === serverRecord.id);
-            if (existing) {
-              const merged = { ...serverRecord };
-              for (const key of customKeys) {
-                if (key in existing) merged[key] = existing[key];
-              }
-              return merged;
-            }
-            const byCode = prev.find(r => r.code === serverRecord.code);
-          if (byCode) {
-            const merged = { ...serverRecord };
-            for (const key of customKeys) {
-              if (key in byCode) merged[key] = byCode[key];
-            }
-            return merged;
-          }
-          const cachedByCode = codeCache[serverRecord.code];
-          if (cachedByCode) {
-            const merged = { ...serverRecord };
-            for (const key of customKeys) {
-              if (key in cachedByCode) merged[key] = cachedByCode[key];
-            }
-            return merged;
-          }
-          return serverRecord;
-          });
-        });
-      } catch {}
-    }
+  // SWR fetcher: fetch records from server + merge custom fields
+  const fetchServerRecords = useCallback(async () => {
+    if (!serverMode || !currentWorkspaceId) return [];
+    const data = await api.getAllRecords(currentWorkspaceId);
+    const cache = loadRecordCustomFieldsCache();
+    const codeCache = loadRecordCustomFieldsCodeCache();
+    const customKeys = new Set<string>(customFields.map((f: any) => f.key));
+    return data.map((serverRecord: any) => {
+      const merged: any = { ...serverRecord };
+      for (const key of customKeys) {
+        const val = cache[serverRecord.id]?.[key] ?? codeCache[serverRecord.code]?.[key];
+        if (val !== undefined) merged[key] = val;
+      }
+      return merged;
+    });
   }, [serverMode, currentWorkspaceId, customFields]);
+
+  const { data: swrData, isLoading: swrLoading, revalidate } = useSWR(
+    serverMode && currentWorkspaceId ? `records:${currentWorkspaceId}` : null,
+    fetchServerRecords,
+  );
+
+  // Sync SWR data to serverRecords
+  useEffect(() => {
+    if (swrData) setServerRecords(swrData as any[]);
+  }, [swrData]);
+
+  const refreshServerRecords = useCallback(async () => {
+    if (!serverMode || !currentWorkspaceId) return;
+    invalidateCache(`records:${currentWorkspaceId}`);
+    await revalidate();
+  }, [revalidate, serverMode, currentWorkspaceId]);
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
   const currentRecords: any[] = serverMode ? serverRecords : records;
+
+  useEffect(() => {
+    if (!viewCode || currentRecords.length === 0) return;
+    const idx = currentRecords.findIndex(r => r.code === viewCode);
+    if (idx !== -1) setViewIndex(idx);
+  }, [viewCode, currentRecords]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -284,46 +322,20 @@ export default function App() {
           localStorage.setItem('current_workspace_id', String(wsList[0].id));
         }
       }).catch(() => {});
-
-      api.getAllRecords(currentWorkspaceId).then(data => {
-        const cache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
-        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
-      }).catch(() => {});
     }
   }, [serverMode, currentWorkspaceId]);
-
-  useEffect(() => {
-    const handler = () => {
-      const ht = getTabFromHash();
-      if (ht) setTab(ht);
-    };
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
-
-  const prevTabRef = useRef(tab);
-  useEffect(() => {
-    if (prevTabRef.current !== tab) {
-      prevTabRef.current = tab;
-      const valid = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports'];
-      if (valid.includes(tab)) {
-        window.location.hash = tab;
-      }
-    }
-  }, [tab]);
 
   const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
   const toggleSidebar = () => setSidebarOpen(p => !p);
   const resetForm = () => setEditIndex(null);
 
-  const handleTabChange = useCallback((t) => {
+  const handleTabChange = useCallback((t: string) => {
     setTab(t);
     setEditIndex(null);
     setTemplateData(null);
-  }, []);
+  }, [setTab]);
 
-  const toggleSelect = useCallback((i) => {
+  const toggleSelect = useCallback((i: number) => {
     setSelected(prev => {
       const next = new Set(prev);
       next.has(i) ? next.delete(i) : next.add(i);
@@ -340,7 +352,7 @@ export default function App() {
     }
   };
 
-  const sortByCode = useCallback((records: Record[]) => {
+  const sortByCode = useCallback((records: RecordItem[]) => {
     return [...records].sort((a, b) => {
       const pa = parseCode(a.code);
       const pb = parseCode(b.code);
@@ -359,11 +371,11 @@ export default function App() {
   const getSortedRecords = useCallback(() => {
     let result = currentRecords;
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       result = currentRecords.filter(r => {
         const formattedAmount = formatAmount(r.amount);
-        const customFieldMatch = customFields.some(f =>
+        const customFieldMatch = customFields.some((f: any) =>
           r[f.key] && formatAmount(r[f.key]).toLowerCase().includes(q)
         );
         return Object.values(r).some(v =>
@@ -414,15 +426,15 @@ export default function App() {
       result = sortByCode(result);
     }
     return result;
-  }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
+  }, [debouncedSearch, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
 
-  const handleSort = (field) => {
+  const handleSort = (field: string) => {
     if (sortBy === field) setSortOrder(p => p === 'asc' ? 'desc' : 'asc');
     else { setSortBy(field); setSortOrder('asc'); }
     setPage(1);
   };
 
-  const handleApplyPreset = useCallback((filters) => {
+  const handleApplyPreset = useCallback((filters: any) => {
     setSearch(filters.search || '');
     setFilterType(filters.filterType || '');
     setFilterParty(filters.filterParty || '');
@@ -448,16 +460,16 @@ export default function App() {
   );
 
   const enabledSet = new Set(enabledCustomFieldKeys);
-  const allExportFields = [...FIELDS, ...customFields.filter(f => enabledSet.has(f.key))];
+  const allExportFields = [...FIELDS, ...customFields.filter((f: any) => enabledSet.has(f.key))];
 
-  const serverOp = async (fn) => {
+  const serverOp = async (fn: () => Promise<any>) => {
     if (!serverMode) return true;
     setServerLoading(true);
     try { await fn(); setServerLoading(false); return true; }
     catch (err: any) { addToast(err.message, 'error'); setServerLoading(false); return false; }
   };
 
-  const handleSubmit = async (recordData) => {
+  const handleSubmit = async (recordData: any) => {
     if (editIndex !== null) {
       if (serverMode) {
         const record = currentRecords[editIndex];
@@ -465,8 +477,8 @@ export default function App() {
         setServerLoading(true);
         try {
           const updated = await api.updateRecord(record.id, recordData);
-          const cfields = {};
-          customFields.forEach(f => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
+          const cfields: Record<string, unknown> = {};
+          customFields.forEach((f: any) => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
           if (Object.keys(cfields).length > 0) {
             const cache = loadRecordCustomFieldsCache();
             cache[record.id] = cfields;
@@ -484,9 +496,9 @@ export default function App() {
           setServerLoading(false);
           setEditIndex(null);
           setTemplateData(null);
+          await refreshServerRecords();
           addToast('رکورد با موفقیت ویرایش شد', 'success');
           setTab('records');
-          refreshServerRecords();
         } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ویرایش: ' + err.message, 'error');
@@ -504,8 +516,8 @@ export default function App() {
         setServerLoading(true);
         try {
           const created = await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
-          const cfields = {};
-          customFields.forEach(f => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
+          const cfields: Record<string, unknown> = {};
+          customFields.forEach((f: any) => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
           if (Object.keys(cfields).length > 0) {
             const cache = loadRecordCustomFieldsCache();
             cache[created.id] = cfields;
@@ -518,10 +530,10 @@ export default function App() {
           setRefreshKey(k => k + 1);
           setTemplateData(null);
           setServerLoading(false);
+          await refreshServerRecords();
           addToast('رکورد با موفقیت اضافه شد', 'success');
           setTab('records');
           setPage(1);
-          refreshServerRecords();
         } catch (err: any) {
           setServerLoading(false);
           addToast('خطا در ایجاد: ' + err.message, 'error');
@@ -537,12 +549,18 @@ export default function App() {
     }
   };
 
-  const handleEdit = (i) => { setEditIndex(i); setTemplateData(null); setTab('add'); };
-  const handleView = (i) => { setViewIndex(i); setTab('view'); };
+  const handleEdit = (i: number) => { setEditIndex(i); setTemplateData(null); setTab('add'); };
+  const handleView = (i: number) => { setViewIndex(i); setTab('view'); };
+
+  const handleDeleteClick = () => {
+    if (selected.size === 0) return;
+    setShowDeleteConfirm(true);
+  };
 
   const handleDelete = async () => {
     const count = selected.size;
     if (count === 0) return;
+    setShowDeleteConfirm(false);
 
     if (serverMode) {
       const ids = [...selected].map(i => currentRecords[i]?.id).filter(Boolean);
@@ -568,7 +586,7 @@ export default function App() {
     }
   };
 
-  const handleImport = async (imported) => {
+  const handleImport = async (imported: any[]) => {
     let ok = true;
     if (serverMode) {
       ok = await serverOp(async () => {
@@ -583,12 +601,12 @@ export default function App() {
     if (ok) setTab('records');
   };
 
-  const handleReorder = (from, to) => {
+  const handleReorder = (from: number, to: number) => {
     if (serverMode) return;
     reorderRecords(from, to);
   };
 
-  const handleQRScan = (code) => {
+  const handleQRScan = (code: string) => {
     setShowScanner(false);
     const idx = currentRecords.findIndex(r => r.code === code);
     if (idx === -1) {
@@ -598,71 +616,37 @@ export default function App() {
     handleView(idx);
   };
 
-  const handlePrint = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
-    const entry = {
-      date: new Date().toLocaleDateString('fa-IR'),
-      time: new Date().toLocaleTimeString('fa-IR'),
-      count: sel.length, codes: sel.map(r => r.code),
-    };
-    const updated = [entry, ...printHistory].slice(0, 50);
-    setPrintHistory(updated); saveHistory(updated);
-  };
+  const {
+    handlePrint, handleExcel, handleCSVExport, handlePDF,
+    handleExportAllExcel, handleExportAllCSV, handleExportAllPrint,
+  } = usePrintExport({
+    currentRecords, sortedRecords, selected, allExportFields,
+    printCols, printWidth, printHeight, printTemplate, printQr, printBarcode,
+    printHistory, sortByCode, setPrintHistory, saveHistory, addToast,
+  });
 
-  const handleExcel = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.downloadExcel(sel, allExportFields);
-    addToast('فایل اکسل با موفقیت ساخته شد', 'success');
-  };
+  const {
+    handleToggleCustomField, handleAddCustomField,
+    handleRemoveCustomField, handleEditCustomField,
+    handleAddTag, handleRemoveTag,
+  } = useCustomFields(
+    serverMode, currentWorkspaceId, customFields, setCustomFields, saveCustomFields,
+    tags, setTags, saveTags, setEnabledCustomFieldKeys, enabledCustomFieldKeys,
+    newFieldName, setNewFieldName, newFieldType, setNewFieldType, setSelectedTagFilter, addToast, invalidateCache,
+  );
 
-  const handleCSVExport = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.downloadCSV(sel, allExportFields);
-    addToast('فایل CSV با موفقیت ساخته شد', 'success');
-  };
+  const {
+    handleLogin, handleLoginGoToServer, handleLogout,
+    handleWorkspaceSwitch, handleCreateWorkspace,
+    handleInviteMember, handleLeaveWorkspace, handleDeleteWorkspace,
+  } = useWorkspace({
+    serverMode, currentWorkspaceId, workspaces, setServerMode, setAuthUser,
+    setLocalMode, setWorkspaces, setCurrentWorkspaceId,
+    setServerLoading, setSelected, setTab, addToast, invalidateCache, fetchedRef,
+  });
 
-  const handlePDF = async () => {
-    const el = document.getElementById('preview-grid');
-    if (!el) return;
-    try { await exportUtils.downloadPDF(el); addToast('فایل PDF با موفقیت ساخته شد', 'success'); }
-    catch { addToast('خطا در ساخت PDF', 'error'); }
-  };
-
-  const handleExportAllExcel = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadExcel(sortByCode(currentRecords), allExportFields);
-    addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
-  };
-
-  const handleExportAllCSV = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadCSV(sortByCode(currentRecords), allExportFields);
-    addToast('فایل CSV همه رکوردها ساخته شد', 'success');
-  };
-
-  const handleExportAllPrint = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    exportUtils.printLabels(sortByCode(currentRecords), allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
-    addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد`, 'success');
-  };
-
-  const handleToggleCustomField = (key) => {
-    setEnabledCustomFieldKeys(prev => {
-      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
-      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
-      return next;
-    });
-  };
-
-  const handleDragStart = (e, idx) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
-  const handleDrop = (e, dropIdx) => {
+  const handleDragStart = (e: React.DragEvent, idx: number | null) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
+  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
     e.preventDefault();
     if (dragIndex !== null && dragIndex !== dropIdx) {
       handleReorder(dragIndex, dropIdx);
@@ -687,7 +671,7 @@ export default function App() {
     try {
       const text = await backupFile.text();
       const data = JSON.parse(text);
-      let restoredRecords, restoredCustomFields;
+      let restoredRecords: any, restoredCustomFields: any;
       const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order']);
       if (Array.isArray(data)) {
         restoredRecords = data;
@@ -722,7 +706,7 @@ export default function App() {
     }
   };
 
-  const executeRestore = async (restoredRecords, restoredCustomFields) => {
+  const executeRestore = async (restoredRecords: any[], restoredCustomFields: any[]) => {
     if (restoredCustomFields.length > 0) {
       setCustomFields(restoredCustomFields);
       saveCustomFields(restoredCustomFields);
@@ -733,11 +717,11 @@ export default function App() {
       isRestoringRef.current = true;
       try {
         if (restoredCustomFields.length > 0) {
-          await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId);
+          await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId!);
         }
-        await api.restore(restoredRecords, currentWorkspaceId);
-        const freshRecords = await api.getAllRecords(currentWorkspaceId);
-        const merged = freshRecords.map(sr => {
+        await api.restore(restoredRecords, currentWorkspaceId!);
+        const freshRecords = await api.getAllRecords(currentWorkspaceId!);
+        const merged = freshRecords.map((sr: any) => {
           const br = restoredRecords.find(r => r.code === sr.code);
           if (br) return { ...br, id: sr.id, created_at: sr.created_at, updated_at: sr.updated_at, workspace_id: sr.workspace_id };
           return sr;
@@ -775,117 +759,12 @@ export default function App() {
     }
   };
 
-  const handleLogin = (user) => {
-    if (user === null) {
-      setLocalMode(true);
-      localStorage.setItem('local_mode', 'true');
-      setServerMode(false);
-      setAuthUser(null);
-      setTab('records');
-    } else {
-      setLocalMode(false);
-      localStorage.setItem('local_mode', 'false');
-      fetchedRef.current = false;
-      setAuthUser(user);
-      setServerMode(true);
-      setTab('records');
-      setServerLoading(true);
-      api.getWorkspaces().then(wsList => {
-        setWorkspaces(wsList);
-        if (wsList.length > 0) {
-          const wsId = wsList[0].id;
-          setCurrentWorkspaceId(wsId);
-          localStorage.setItem('current_workspace_id', String(wsId));
-          api.getAllRecords(wsId).then(data => {
-            const cache = loadRecordCustomFieldsCache();
-            setServerRecords(data.map(r => ({ ...r, ...(cache[r.id] || {}) })));
-          }).catch(() => {}).finally(() => setServerLoading(false));
-        } else {
-          setServerLoading(false);
-        }
-      }).catch(() => setServerLoading(false));
-    }
-  };
-
-  const handleLoginGoToServer = () => {
-    fetchedRef.current = false;
-    setLocalMode(false);
-    localStorage.removeItem('local_mode');
-    setServerMode(false);
-    setAuthUser(null);
-    setTab('records');
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    fetchedRef.current = false;
-    setLocalMode(true);
-    localStorage.setItem('local_mode', 'true');
-    setServerMode(false);
-    setAuthUser(null);
-    setTab('records');
-    addToast('خروج با موفقیت انجام شد', 'success');
-  };
-
-  const handleAddCustomField = () => {
-    if (!newFieldName.trim()) return;
-    const key = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
-    if (customFields.some(f => f.key === key)) { addToast('این فیلد قبلا اضافه شده', 'error'); return; }
-    const field = { key, label: newFieldName.trim(), fa: newFieldName.trim(), placeholder: '', isCustom: true, fieldType: newFieldType, options: newFieldType === 'dropdown' ? [] : undefined };
-    const updated = [...customFields, field];
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.createCustomField({ ...field, workspace_id: currentWorkspaceId }).catch(() => {});
-    }
-    setNewFieldName('');
-    setNewFieldType('text');
-    addToast('فیلد جدید اضافه شد', 'success');
-  };
-
-  const handleRemoveCustomField = (key) => {
-    const updated = customFields.filter(f => f.key !== key);
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.deleteCustomField(key, currentWorkspaceId).catch(() => {});
-    }
-    addToast('فیلد حذف شد', 'success');
-  };
-
-  const handleEditCustomField = (key, updatedField) => {
-    const updated = customFields.map(f => f.key === key ? { ...f, ...updatedField, key } : f);
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.updateCustomField(key, { ...updatedField, key }, currentWorkspaceId)
-        .catch(() => addToast('خطا در بروزرسانی فیلد در سرور', 'error'));
-    }
-    addToast('فیلد ویرایش شد', 'success');
-  };
-
-  const handleAddTag = (tag) => {
-    if (!tag.trim()) return;
-    if (tags.includes(tag.trim())) { addToast('این برچسب قبلا اضافه شده', 'error'); return; }
-    const updated = [...tags, tag.trim()];
-    setTags(updated);
-    saveTags(updated);
-  };
-
-  const handleRemoveTag = (tag) => {
-    const updated = tags.filter(t => t !== tag);
-    setTags(updated);
-    saveTags(updated);
-    if (selectedTagFilter === tag) setSelectedTagFilter(null);
-  };
-
   const TEMPLATES_KEY = 'label-studio-record-templates';
-  const saveTemplates = (t) => { try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {} };
+  const saveTemplates = (t: any[]) => { try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {} };
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) { addToast('نام الگو را وارد کنید', 'error'); return; }
-    if (templates.some(t => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
+    if (templates.some((t: any) => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
     const sourceRecord = editIndex !== null ? currentRecords[editIndex] : (templateData || formDraftRef.current);
     if (!sourceRecord || !sourceRecord.code) { addToast('ابتدا یک رکورد را باز کنید یا فیلدها را پر کنید', 'error'); return; }
     const newTemplate = { name: templateName.trim(), fields: { ...sourceRecord } };
@@ -897,7 +776,7 @@ export default function App() {
     addToast(`الگوی "${newTemplate.name}" ذخیره شد`, 'success');
   };
 
-  const handleLoadTemplate = (tmpl) => {
+  const handleLoadTemplate = (tmpl: any) => {
     setShowTemplates(false);
     if (tmpl.fields && tmpl.fields.code) {
       if (editIndex !== null) {
@@ -912,8 +791,8 @@ export default function App() {
     }
   };
 
-  const handleDeleteTemplate = (name) => {
-    const updated = templates.filter(t => t.name !== name);
+  const handleDeleteTemplate = (name: string) => {
+    const updated = templates.filter((t: any) => t.name !== name);
     setTemplates(updated);
     saveTemplates(updated);
     addToast(`الگوی "${name}" حذف شد`, 'success');
@@ -921,7 +800,7 @@ export default function App() {
 
   useEffect(() => { try { localStorage.setItem('view_mode', viewMode); } catch {} }, [viewMode]);
 
-  const handleInlineEdit = (index, field, value) => {
+  const handleInlineEdit = (index: number, field: string, value: string) => {
     if (serverMode) {
       const record = currentRecords[index];
       if (!record) return;
@@ -933,9 +812,9 @@ export default function App() {
           return prev;
         });
         setRefreshKey(k => k + 1);
-        const merged = { ...record, [field]: value };
-        const cfields = {};
-        customFields.forEach(f => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
+        const merged: any = { ...record, [field]: value };
+        const cfields: Record<string, unknown> = {};
+        customFields.forEach((f: any) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
         if (Object.keys(cfields).length > 0) {
           const cache = loadRecordCustomFieldsCache();
           cache[record.id] = cfields;
@@ -956,79 +835,13 @@ export default function App() {
     addToast('فیلد با موفقیت ویرایش شد', 'success');
   };
 
-  const handleWorkspaceSwitch = (wsId) => {
-    setCurrentWorkspaceId(wsId);
-    localStorage.setItem('current_workspace_id', String(wsId));
-    setSelected(new Set());
-    if (serverMode) {
-      fetchedRef.current = false;
-      setServerLoading(true);
-      api.getAllRecords(wsId).then(data => {
-        const cache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
-        setServerRecords(data.map(r => ({ ...r, ...(codeCache[r.code] || {}), ...(cache[r.id] || {}) })));
-        setServerLoading(false);
-      }).catch(() => setServerLoading(false));
-    }
-  };
-
-  const handleCreateWorkspace = async (name, description) => {
-    try {
-      const ws = await api.createWorkspace(name, description);
-      setWorkspaces(prev => [...prev, ws]);
-      handleWorkspaceSwitch(ws.id);
-      addToast(`فضای کاری "${name}" ایجاد شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleInviteMember = async (wsId, username) => {
-    try {
-      await api.inviteToWorkspace(wsId, username);
-      addToast(`کاربر "${username}" دعوت شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleLeaveWorkspace = async (wsId) => {
-    try {
-      await api.leaveWorkspace(wsId);
-      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
-      const remaining = workspaces.filter(w => w.id !== wsId);
-      if (remaining.length > 0) {
-        handleWorkspaceSwitch(remaining[0].id);
-      }
-      addToast('خروج از فضای کاری با موفقیت انجام شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleDeleteWorkspace = async (wsId) => {
-    try {
-      await api.deleteWorkspace(wsId);
-      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
-      const remaining = workspaces.filter(w => w.id !== wsId);
-      if (remaining.length > 0) {
-        handleWorkspaceSwitch(remaining[0].id);
-      } else {
-        setCurrentWorkspaceId(null);
-        setServerRecords([]);
-      }
-      addToast('فضای کاری با موفقیت حذف شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
 
   const handleBulkEdit = () => {
     if (!bulkEditField && bulkEditValue === undefined && bulkEditTags.length === 0 && !bulkEditColor) {
       addToast('حداقل یک فیلد، برچسب یا رنگ را مشخص کنید', 'error'); return;
     }
     const selectedIndices = [...selected];
-    const buildUpdates = (record) => {
+    const buildUpdates = (record: any) => {
       const updates: any = {};
       if (bulkEditField && bulkEditValue !== undefined) {
         updates[bulkEditField] = bulkEditValue;
@@ -1060,8 +873,8 @@ export default function App() {
         selectedIndices.forEach(i => {
           const record = currentRecords[i];
           if (record) {
-            const cfields = {};
-            customFields.forEach(f => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
+            const cfields: Record<string, unknown> = {};
+            customFields.forEach((f: any) => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
             if (Object.keys(cfields).length > 0) {
               const updated = updatedMap.get(record.id) || record;
               cache[record.id] = cfields;
@@ -1171,14 +984,14 @@ export default function App() {
 
       if (serverMode) {
         if (updates.length > 0) {
-          await api.renumberRecords(updates);
+          await api.renumberRecords(updates as any);
         }
         setServerRecords(finalRecords);
-        pushUndo(snapshot);
+        pushUndo({ records: snapshot, label: 'renumber' });
       } else {
         try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {}
         setRecords(finalRecords);
-        pushUndo(snapshot);
+        pushUndo({ records: snapshot, label: 'renumber' });
         setRefreshKey(k => k + 1);
       }
 
@@ -1222,7 +1035,7 @@ export default function App() {
         addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
       }
     },
-    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDelete(); },
+    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDeleteClick(); },
     onSearch: () => {
       const input = document.querySelector<HTMLInputElement>('.search-box input');
       if (input) { input.focus(); input.select(); }
@@ -1236,6 +1049,7 @@ export default function App() {
     },
     onSelectAll: () => toggleAll(),
     onEscape: () => {
+      if (showDeleteConfirm) { setShowDeleteConfirm(false); return; }
       if (showPrintQueue) { setShowPrintQueue(false); return; }
       if (showPrintSettings) { setShowPrintSettings(false); return; }
       if (showBackupModal) { setShowBackupModal(false); return; }
@@ -1252,7 +1066,7 @@ export default function App() {
         addToast('عملیات لغو شد', 'success');
       }
     },
-    onTabChange: (t) => { setEditIndex(null); setTab(t); },
+    onTabChange: (t: string) => { setEditIndex(null); setTab(t); },
   };
 
   const { showHelp: showShortcutsHelp, setShowHelp: setShowShortcutsHelp } = useKeyboardShortcuts(keyboardHandlers);
@@ -1263,7 +1077,7 @@ export default function App() {
   const editRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
   const selectedRecords = sortByCode(currentRecords.filter((_, i) => selected.has(i)));
 
-  const findRelated = (codes) => {
+  const findRelated = (codes: string[]) => {
     if (!codes || !codes.length) return [];
     return currentRecords.filter(r => codes.includes(r.code));
   };
@@ -1276,7 +1090,7 @@ export default function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  if (serverMode && serverLoading && currentRecords.length === 0) {
+  if (serverMode && (serverLoading || (swrLoading && currentRecords.length === 0))) {
     return <LoadingScreen message="در حال بارگذاری..." />;
   }
 
@@ -1285,7 +1099,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}`}>
+      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}${sidebarCompact ? ' sidebar-compact' : ''}`}>
         <Sidebar
           tab={tab}
           onTabChange={handleTabChange}
@@ -1295,12 +1109,15 @@ export default function App() {
           isViewer={isViewer}
           serverMode={serverMode}
           activityLog={activityLog}
+          compact={sidebarCompact}
+          onToggleCompact={toggleSidebarCompact}
+          onRefreshActivity={handleRefreshActivity}
         />
 
         <main className="main-content">
           <Header
             search={search}
-            onSearchChange={(v) => { setSearch(v); setPage(1); }}
+            onSearchChange={(v: string) => { setSearch(v); setPage(1); }}
             theme={theme}
             onToggleTheme={toggleTheme}
             onToggleSidebar={toggleSidebar}
@@ -1342,9 +1159,9 @@ export default function App() {
                     <button className="btn btn-outline btn-sm" onClick={handlePDF}>
                       <i className="ti ti-file-type-pdf"></i> PDF
                     </button>
-                    <button className="btn btn-success btn-sm" onClick={handlePrint}>
-                      <i className="ti ti-printer"></i> چاپ
-                    </button>
+                    <button className="btn btn-success btn-sm" onClick={() => handlePrint('selected')}>
+                       <i className="ti ti-printer"></i> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, printCols)} برگ)
+                     </button>
                   </>
                 )}
                 {tab === 'view' && viewIndex !== null && (
@@ -1385,248 +1202,75 @@ export default function App() {
               </div>
             </div>
 
-            {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
+            <TransitionPage tab={tab}>
+              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
               <StatsCards records={currentRecords} selected={selected} filtered={sortedRecords} />
             )}
 
             {tab === 'records' && (
-              <div>
-                <div className="records-toolbar">
-                  <div className="d-flex gap-2 align-items-center flex-wrap">
-                    <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>مرتب‌سازی:</span>
-                    {['code', 'project', 'date', 'amount'].map(f => (
-                      <button key={f} className={`sort-btn ${sortBy === f ? 'active' : ''}`} onClick={() => handleSort(f)}>
-                        {FIELDS.find(x => x.key === f)?.fa || f}
-                        {sortBy === f && (
-                          <i className={`ti ${sortOrder === 'asc' ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: '0.75rem', marginRight: '0.25rem' }}></i>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="records-toolbar-actions">
-                    {customFields.length > 0 && (
-                      <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.75rem' }}>
-                        <span style={{ opacity: 0.5 }}>فیلدهای سفارشی:</span>
-                        {customFields.map(f => {
-                          const active = enabledCustomFieldKeys.includes(f.key);
-                          return (
-                            <span key={f.key} onClick={() => {
-                              setEnabledCustomFieldKeys(prev => {
-                                const next = prev.includes(f.key) ? prev.filter(k => k !== f.key) : [...prev, f.key];
-                                localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
-                                return next;
-                              });
-                            }} style={{
-                              padding: '0.2rem 0.5rem', borderRadius: 12, cursor: 'pointer',
-                              background: active ? 'var(--primary)' : 'var(--bg-body)',
-                              color: active ? 'white' : 'var(--text-color)',
-                              border: active ? 'none' : '1px solid var(--border-color)',
-                              transition: 'all 0.2s',
-                            }}>
-                              {f.fa}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <button className="btn btn-outline btn-sm" onClick={() => setViewMode(p => p === 'card' ? 'table' : 'card')}>
-                      <i className={`ti ${viewMode === 'card' ? 'ti-list' : 'ti-grid'}`}></i>
-                      {viewMode === 'card' ? 'نمایش جدول' : 'نمایش کارتی'}
-                    </button>
-                    <button className="btn btn-outline btn-sm" onClick={toggleAll}>
-                      <i className="ti ti-checkbox"></i>
-                      {selected.size === sortedRecords.length && sortedRecords.length > 0 ? 'لغو انتخاب همه' : 'انتخاب همه'}
-                    </button>
-                    {currentRecords.length > 0 && (
-                      <>
-                        <button className="btn btn-outline btn-sm" onClick={handleExportAllExcel} title="خروجی اکسل همه رکوردها">
-                          <i className="ti ti-file-excel"></i> خروجی اکسل
-                        </button>
-                        <button className="btn btn-outline btn-sm" onClick={handleExportAllCSV} title="خروجی CSV همه رکوردها">
-                          <i className="ti ti-file-text"></i> خروجی CSV
-                        </button>
-                        <button className="btn btn-outline btn-sm" onClick={handleExportAllPrint} title="چاپ همه رکوردها">
-                          <i className="ti ti-printer"></i> چاپ همه
-                        </button>
-                      </>
-                    )}
-                    {selected.size > 0 && (
-                      <>
-                        <button className="btn btn-outline btn-sm" onClick={handleExcel} title="خروجی اکسل رکوردهای انتخاب شده">
-                          <i className="ti ti-file-excel"></i> اکسل ({selected.size})
-                        </button>
-                        <button className="btn btn-outline btn-sm" onClick={handleCSVExport} title="خروجی CSV رکوردهای انتخاب شده">
-                          <i className="ti ti-file-text"></i> CSV ({selected.size})
-                        </button>
-                      </>
-                    )}
-                    {!isViewer && currentRecords.length > 0 && (
-                      <button className="btn btn-outline btn-sm" onClick={() => setShowRenumberConfirm(true)} title="بازنویسی کدها بر اساس پروژه، نوع و تاریخ">
-                        <i className="ti ti-sort-numeric"></i> بازنویسی کدها
-                      </button>
-                    )}
-                    {selected.size > 0 && !isViewer && (
-                      <>
-                        <button className="btn btn-outline btn-sm" onClick={() => setShowBulkEdit(true)}>
-                          <i className="ti ti-edit"></i> ویرایش دسته‌جمعی ({selected.size})
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={handleDelete}>
-                          <i className="ti ti-trash"></i> حذف ({selected.size})
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                <div className="records-filter">
-                  <select className="form-input" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(1); }}>
-                    <option value="">همه انواع</option>
-                    {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                  <select className="form-input" value={filterParty} onChange={e => { setFilterParty(e.target.value); setPage(1); }}>
-                    <option value="">همه طرف حساب‌ها</option>
-                    {allParties.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <Suspense fallback={null}>
-                    <DateRangePicker
-                      dateFrom={filterDateFrom}
-                      dateTo={filterDateTo}
-                      onDateFromChange={(d) => { setFilterDateFrom(d); setPage(1); }}
-                      onDateToChange={(d) => { setFilterDateTo(d); setPage(1); }}
-                    />
-                  </Suspense>
-                  <input type="number" className="form-input" placeholder="حداقل مبلغ"
-                    value={filterAmountMin} onChange={e => { setFilterAmountMin(e.target.value); setPage(1); }} />
-                  <input type="number" className="form-input" placeholder="حداکثر مبلغ"
-                    value={filterAmountMax} onChange={e => { setFilterAmountMax(e.target.value); setPage(1); }} />
-                  {(filterDateFrom || filterDateTo || filterAmountMin || filterAmountMax) && (
-                    <button className="btn btn-outline btn-sm" onClick={() => { setFilterDateFrom(''); setFilterDateTo(''); setFilterAmountMin(''); setFilterAmountMax(''); setPage(1); }}>
-                      <i className="ti ti-x"></i> پاک کردن فیلترها
-                    </button>
-                  )}
-                  {tags.length > 0 && (
-                    <div className="d-flex gap-1 flex-wrap align-items-center" style={{ fontSize: '0.85rem' }}>
-                      <span style={{ opacity: 0.6 }}>برچسب:</span>
-                      {tags.map(tag => (
-                        <button key={tag}
-                          className={`btn btn-sm ${selectedTagFilter === tag ? 'btn-primary' : 'btn-outline'}`}
-                          onClick={() => setSelectedTagFilter(tag === selectedTagFilter ? null : tag)}
-                          >
-                          {tag}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <Suspense fallback={null}>
-                    <FilterPresets
-                      currentFilters={{
-                        search,
-                        filterType,
-                        filterParty,
-                        filterDateFrom,
-                        filterDateTo,
-                        filterAmountMin,
-                        filterAmountMax,
-                        selectedTagFilter,
-                      }}
-                      onApply={handleApplyPreset}
-                      addToast={addToast}
-                    />
-                  </Suspense>
-                </div>
-
-                {sortedRecords.length === 0 ? (
-                  <div className="empty-state">
-                    <div className="empty-icon"><i className="ti ti-file-off"></i></div>
-                    <h3 style={{ marginBottom: '0.5rem' }}>هنوز رکوردی وجود ندارد</h3>
-                    <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>رکورد جدید اضافه کنید یا فایل CSV وارد نمایید</p>
-                    {!isViewer && (
-                      <button className="btn btn-primary" onClick={() => setTab('add')}>
-                        <i className="ti ti-plus"></i> افزودن رکورد
-                      </button>
-                    )}
-                  </div>
-                ) : viewMode === 'table' ? (
-                  <Suspense fallback={<TableSkeleton rows={8} />}>
-                    <TableView
-                      records={sortedRecords}
-                      recordToIndex={recordToIndex}
-                      selected={selected}
-                      onToggle={toggleSelect}
-                      onEdit={handleEdit}
-                      onView={handleView}
-                      onSort={handleSort}
-                      sortBy={sortBy}
-                      sortOrder={sortOrder}
-                      customFields={customFields}
-                    />
-                  </Suspense>
-                ) : serverLoading ? (
-                  <div className="card-grid">
-                    {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
-                  </div>
-                ) : useVirtualScroll ? (
-                  <Suspense fallback={<div className="card-grid">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}</div>}>
-                    <VirtualizedRecordGrid
-                      records={sortedRecords}
-                      recordToIndex={recordToIndex}
-                      selected={selected}
-                      onToggle={toggleSelect}
-                      onEdit={handleEdit}
-                      onView={handleView}
-                      getRelatedLabels={findRelated}
-                      onDragStart={handleDragStart}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={handleDrop}
-                      setDragIndex={setDragIndex}
-                      customFields={customFields}
-                    />
-                  </Suspense>
-                ) : (
-                  <>
-                    <div className="card-grid" key={refreshKey}>
-                      {pagedRecords.map((r) => {
-                        const realIdx = recordToIndex.get(r);
-                        if (realIdx === undefined) return null;
-                        return (
-                          <RecordCard
-                            key={serverMode ? r.id : `r-${realIdx}`}
-                            record={r}
-                            selected={selected.has(realIdx)}
-                            onToggle={() => toggleSelect(realIdx)}
-                            onEdit={() => handleEdit(realIdx)}
-                            onView={() => handleView(realIdx)}
-                            getRelatedLabels={findRelated}
-                            index={realIdx}
-                            onDragStart={(e) => handleDragStart(e, realIdx)}
-                            customFields={customFields}
-                            onDragOver={(e) => e.preventDefault()}
-                            onDragEnd={() => setDragIndex(null)}
-                            onDrop={(e) => handleDrop(e, realIdx)}
-                            onInlineEdit={handleInlineEdit}
-                          />
-                        );
-                      })}
-                    </div>
-                    <div className="pagination" style={totalPages <= 1 ? { justifyContent: 'center', opacity: 0.6 } : {}}>
-                      <button className="pagination-btn" disabled={safePage <= 1} onClick={() => setPage(p => Math.max(1, p - 1))}>قبلی</button>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                        <button key={p} className={`pagination-btn ${p === safePage ? 'active' : ''}`} onClick={() => setPage(p)}>{p}</button>
-                      ))}
-                      <button className="pagination-btn" disabled={safePage >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>بعدی</button>
-                      <span style={{ marginRight: '0.75rem', opacity: 0.6, fontSize: '0.85rem' }}>
-                        {sortedRecords.length > 0 ? `${(safePage - 1) * PAGE_SIZE + 1}-${Math.min(safePage * PAGE_SIZE, sortedRecords.length)} از ${sortedRecords.length}` : '۰ رکورد'}
-                      </span>
-                    </div>
-                  </>
-                )}
-                <div className="d-flex justify-content-center mt-4">
-                  <button className="btn btn-outline btn-sm" onClick={() => setUseVirtualScroll(p => !p)}>
-                    <i className={`ti ${useVirtualScroll ? 'ti-grid' : 'ti-list'}`}></i>
-                    {useVirtualScroll ? 'حالت صفحه‌بندی' : 'حالت مجازی (سریع)'}
-                  </button>
-                </div>
-              </div>
+              <RecordsPage
+                currentRecords={currentRecords}
+                sortedRecords={sortedRecords}
+                pagedRecords={pagedRecords}
+                selected={selected}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                refreshKey={refreshKey}
+                search={search}
+                filterType={filterType}
+                filterParty={filterParty}
+                filterDateFrom={filterDateFrom}
+                filterDateTo={filterDateTo}
+                filterAmountMin={filterAmountMin}
+                filterAmountMax={filterAmountMax}
+                selectedTagFilter={selectedTagFilter}
+                allTypes={allTypes}
+                allParties={allParties}
+                viewMode={viewMode}
+                useVirtualScroll={useVirtualScroll}
+                serverLoading={serverLoading}
+                safePage={safePage}
+                totalPages={totalPages}
+                customFields={customFields}
+                enabledCustomFieldKeys={enabledCustomFieldKeys}
+                tags={tags}
+                findRelated={findRelated}
+                recordToIndex={recordToIndex}
+                isViewer={isViewer}
+                serverMode={serverMode}
+                onSort={handleSort}
+                onToggleSelect={toggleSelect}
+                onToggleAll={toggleAll}
+                onEdit={handleEdit}
+                onView={handleView}
+                onDeleteClick={handleDeleteClick}
+                onExcel={handleExcel}
+                onCSVExport={handleCSVExport}
+                onExportAllExcel={handleExportAllExcel}
+                onExportAllCSV={handleExportAllCSV}
+                onExportAllPrint={handleExportAllPrint}
+                onDragStart={handleDragStart}
+                onDrop={handleDrop}
+                onSetDragIndex={(i: number | null) => setDragIndex(i)}
+                onInlineEdit={handleInlineEdit}
+                onApplyPreset={handleApplyPreset}
+                onTabChange={setTab}
+                onSetViewMode={setViewMode}
+                onSetUseVirtualScroll={setUseVirtualScroll}
+                onSetFilterType={setFilterType}
+                onSetFilterParty={setFilterParty}
+                onSetFilterDateFrom={setFilterDateFrom}
+                onSetFilterDateTo={setFilterDateTo}
+                onSetFilterAmountMin={setFilterAmountMin}
+                onSetFilterAmountMax={setFilterAmountMax}
+                onSetSelectedTagFilter={setSelectedTagFilter}
+                onSetPage={setPage}
+                onShowRenumberConfirm={setShowRenumberConfirm}
+                onShowBulkEdit={setShowBulkEdit}
+                onSetEnabledCustomFieldKeys={setEnabledCustomFieldKeys}
+                onClearSelection={() => setSelected(new Set())}
+                addToast={addToast}
+              />
             )}
 
             {tab === 'add' && (
@@ -1664,7 +1308,7 @@ export default function App() {
                   <div className="form-card mb-4">
                     <h4 style={{ marginBottom: '1rem' }}>الگوهای ذخیره شده</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {templates.map((tmpl, i) => (
+                      {templates.map((tmpl: any, i: number) => (
                         <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
                           <i className="ti ti-template" style={{ fontSize: '1.5rem', color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }}></i>
                           <div style={{ flex: 1 }}>
@@ -1689,7 +1333,8 @@ export default function App() {
                   customFields={customFields}
                   serverMode={serverMode}
                   allTags={tags}
-                  onFormChange={(data) => { formDraftRef.current = data; }}
+                  loading={serverLoading}
+                  onFormChange={(data: any) => { formDraftRef.current = data; }}
                 />
               </>
             )}
@@ -1697,87 +1342,98 @@ export default function App() {
         )}
 
             {tab === 'import' && (
-              <ImportCSV onImport={handleImport} addToast={addToast} />
+              <Suspense fallback={<ImportSkeleton />}>
+                <ImportCSV onImport={handleImport} addToast={addToast} />
+              </Suspense>
             )}
 
             {tab === 'view' && viewIndex !== null && (
-              <ViewDetail
-                record={currentRecords[viewIndex]}
-                relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
-                onEdit={() => handleEdit(viewIndex)}
-                customFields={customFields}
-                onNavigateToRelated={(rel) => {
-                  const idx = currentRecords.findIndex(r => r.code === rel.code);
-                  if (idx !== -1) setViewIndex(idx);
-                }}
-              />
+              <Suspense fallback={<ViewDetailSkeleton />}>
+                <ViewDetail
+                  record={currentRecords[viewIndex]}
+                  relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
+                  onEdit={() => handleEdit(viewIndex)}
+                  customFields={customFields}
+                  onNavigateToRelated={(rel: { code: string }) => {
+                    const idx = currentRecords.findIndex(r => r.code === rel.code);
+                    if (idx !== -1) setViewIndex(idx);
+                  }}
+                />
+              </Suspense>
             )}
 
             {tab === 'preview' && (
-              <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
+              <Suspense fallback={<PreviewSkeleton />}>
+                <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
+              </Suspense>
             )}
 
             {tab === 'history' && (
-              <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
+              <Suspense fallback={<HistorySkeleton />}>
+                <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
+              </Suspense>
             )}
 
             {tab === 'reports' && (
-              <ReportsTab records={currentRecords} onFilter={(type, value) => {
-                setSearch('');
-                setFilterType('');
-                setFilterParty('');
-                setFilterDateFrom('');
-                setFilterDateTo('');
-                setFilterAmountMin('');
-                setFilterAmountMax('');
-                setSelectedTagFilter(null);
-                if (type === 'type') setFilterType(value);
-                else if (type === 'party') setFilterParty(value);
-                else setSearch(value);
-                setPage(1);
-                setTab('records');
-              }} />
+              <Suspense fallback={<ReportsSkeleton />}>
+                <ReportsTab records={currentRecords}                 onFilter={(type: string, value: string) => {
+                  setSearch(''); setFilterType(''); setFilterParty('');
+                  setFilterDateFrom(''); setFilterDateTo('');
+                  setFilterAmountMin(''); setFilterAmountMax('');
+                  setSelectedTagFilter(null);
+                  if (type === 'type') setFilterType(value);
+                  else if (type === 'party') setFilterParty(value);
+                  else setSearch(value);
+                  setPage(1);
+                  setTab('records');
+                }} />
+              </Suspense>
             )}
 
             {tab === 'dashboard' && (
-              <Suspense fallback={<LoadingScreen message="در حال بارگذاری داشبورد..." />}>
+              <Suspense fallback={<DashboardSkeleton />}>
                 <DashboardTab records={currentRecords} customFields={customFields} tags={tags} activityLog={activityLog} onTabChange={setTab} />
               </Suspense>
             )}
 
             {tab === 'profile' && (
-              <ProfileTab
-                authUser={authUser}
-                serverMode={serverMode}
-                recordCount={currentRecords.length}
-                onLogin={handleLoginGoToServer}
-                onBackup={handleBackup}
-                onOpenBackupModal={() => setShowBackupModal(true)}
-                addToast={addToast}
-              />
+              <Suspense fallback={<ProfileSkeleton />}>
+                <ProfileTab
+                  authUser={authUser}
+                  serverMode={serverMode}
+                  recordCount={currentRecords.length}
+                  onLogin={handleLoginGoToServer}
+                  onBackup={handleBackup}
+                  onOpenBackupModal={() => setShowBackupModal(true)}
+                  addToast={addToast}
+                />
+              </Suspense>
             )}
 
             {tab === 'settings' && (
-              <SettingsTab
-                customFields={customFields}
-                onAddField={handleAddCustomField}
-                onRemoveField={handleRemoveCustomField}
-                onEditField={handleEditCustomField}
-                newFieldName={newFieldName}
-                onNewFieldNameChange={setNewFieldName}
-                newFieldType={newFieldType}
-                onNewFieldTypeChange={setNewFieldType}
-                serverMode={serverMode}
-                authUser={authUser}
-                tags={tags}
-                onAddTag={handleAddTag}
-                onRemoveTag={handleRemoveTag}
-                useVirtualScroll={useVirtualScroll}
-                onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
-                theme={theme}
-                onThemeChange={setTheme}
-              />
+              <Suspense fallback={<SettingsSkeleton />}>
+                <SettingsTab
+                  customFields={customFields}
+                  onAddField={handleAddCustomField}
+                  onRemoveField={handleRemoveCustomField}
+                  onEditField={handleEditCustomField}
+                  newFieldName={newFieldName}
+                  onNewFieldNameChange={setNewFieldName}
+                  newFieldType={newFieldType}
+                  onNewFieldTypeChange={setNewFieldType}
+                  serverMode={serverMode}
+                  authUser={authUser}
+                  tags={tags}
+                  onAddTag={handleAddTag}
+                  onRemoveTag={handleRemoveTag}
+                  useVirtualScroll={useVirtualScroll}
+                  onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
+                  theme={theme}
+                  onThemeChange={setTheme}
+                />
+              </Suspense>
             )}
+            </TransitionPage>
           </div>
         </main>
 
@@ -1852,6 +1508,19 @@ export default function App() {
           </div>
         )}
 
+        <ConfirmDialog
+          show={showDeleteConfirm}
+          title="حذف رکوردها"
+          message={`آیا از حذف ${selected.size} رکورد انتخاب شده اطمینان دارید؟ این عملیات قابل بازگشت نیست.`}
+          confirmLabel="حذف شود"
+          cancelLabel="انصراف"
+          variant="danger"
+          icon="ti-alert-triangle"
+          loading={serverLoading}
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+        />
+
         {showRenumberConfirm && (
           <div className="modal-overlay" onClick={() => setShowRenumberConfirm(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
@@ -1868,7 +1537,7 @@ export default function App() {
                   انصراف
                 </button>
                 <button className="btn btn-primary" onClick={handleRenumber} disabled={serverLoading}>
-                  {serverLoading ? 'در حال اجرا...' : 'تایید و بازنویسی'}
+                  {serverLoading ? <><LoadingSpinner size={18} /> در حال اجرا...</> : 'تایید و بازنویسی'}
                 </button>
               </div>
             </div>
@@ -1891,7 +1560,7 @@ export default function App() {
                   {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
                     <option key={f.key} value={f.key}>{f.fa}</option>
                   ))}
-                  {customFields.map(f => (
+                  {customFields.map((f: any) => (
                     <option key={f.key} value={f.key}>{f.fa}</option>
                   ))}
                 </select>
@@ -1927,7 +1596,7 @@ export default function App() {
                   افزودن برچسب
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {tags.map(tag => {
+                  {tags.map((tag: string) => {
                     const active = bulkEditTags.includes(tag);
                     return (
                       <span key={tag} onClick={() => {
@@ -1947,8 +1616,8 @@ export default function App() {
                 </div>
               </div>
 
-              <button className="btn btn-primary w-100" onClick={handleBulkEdit}>
-                <i className="ti ti-check"></i> اعمال به {selected.size} رکورد
+              <button className="btn btn-primary w-100" onClick={handleBulkEdit} disabled={serverLoading}>
+                {serverLoading ? <LoadingSpinner size={18} /> : <i className="ti ti-check"></i>} اعمال به {selected.size} رکورد
               </button>
             </div>
           </div>

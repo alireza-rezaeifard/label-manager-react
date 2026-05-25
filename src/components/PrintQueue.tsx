@@ -46,7 +46,7 @@ export default function PrintQueue({
     const job: PrintJob = {
       id: Date.now(),
       name: `چاپ ${selectedRecords.length} برچسب`,
-      recordIds: selectedRecords.map(r => r.id ?? 0),
+      recordIds: selectedRecords.map(r => Number(r.id) || 0),
       count: selectedRecords.length,
       status: 'pending',
       createdAt: new Date().toLocaleString('fa-IR'),
@@ -62,7 +62,7 @@ export default function PrintQueue({
     if (!job) return;
 
     try {
-      const jobRecords = records.filter(r => job.recordIds.includes(r.id ?? -1));
+      const jobRecords = records.filter(r => job.recordIds.includes(Number(r.id) || -1));
 
       if (jobRecords.length === 0) {
         throw new Error('هیچ رکوردی برای چاپ یافت نشد');
