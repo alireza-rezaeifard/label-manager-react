@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts';
+import Chart from 'react-apexcharts';
 import { formatAmount } from '../utils/formatters';
-import { RecordItem, CustomField } from '../types';
+import type { RecordItem, CustomField } from '../types';
 
 const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
@@ -11,6 +11,32 @@ interface Props {
   tags: string[];
   activityLog: Array<{ action: string; details?: string; date?: string; time?: string }>;
   onTabChange: (tab: string) => void;
+}
+
+function pieOptions(labels: string[]) {
+  return {
+    chart: { type: 'pie' as const },
+    labels,
+    colors: COLORS,
+    legend: { position: 'bottom' as const, fontSize: '13px' },
+    dataLabels: { enabled: false },
+    tooltip: { enabled: true },
+    responsive: [{ breakpoint: 480, options: { chart: { width: 200 } } }],
+  };
+}
+
+function barOptions(categories: string[], formatter?: (v: number) => string) {
+  return {
+    chart: { type: 'bar' as const, toolbar: { show: false } },
+    colors: COLORS,
+    xaxis: { categories, labels: { rotate: -45, style: { fontSize: '11px' } } },
+    plotOptions: { bar: { borderRadius: 4, columnWidth: '70%' } },
+    dataLabels: { enabled: false },
+    tooltip: {
+      y: { formatter: formatter ? (v: number) => formatter(v) : undefined },
+    },
+    legend: { show: false },
+  };
 }
 
 export default function DashboardTab({ records, customFields, tags, activityLog, onTabChange }: Props) {
@@ -115,82 +141,65 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس نوع</h4>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer>
-              <PieChart>
-                <Pie data={typeData} cx="50%" cy="50%" outerRadius={100} fill="#8884d8" dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}>
-                  {typeData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
+          <Chart
+            options={pieOptions(typeData.map(d => d.name))}
+            series={typeData.map(d => d.value)}
+            type="pie"
+            height={280}
+          />
         </div>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس پروژه (۱۰ تا برتر)</h4>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer>
-              <BarChart data={projectData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={11} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#7367f0" radius={[4, 4, 0, 0]}>
-                  {projectData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Chart
+            options={barOptions(projectData.map(d => d.name))}
+            series={[{ name: 'تعداد', data: projectData.map(d => d.value) }]}
+            type="bar"
+            height={280}
+          />
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس طرف حساب (۱۰ تا برتر)</h4>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer>
-              <BarChart data={partyData} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={11} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#28c76f" radius={[4, 4, 0, 0]}>
-                  {partyData.map((_, i) => <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Chart
+            options={barOptions(partyData.map(d => d.name))}
+            series={[{ name: 'تعداد', data: partyData.map(d => d.value) }]}
+            type="bar"
+            height={280}
+          />
         </div>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>مبلغ به تفکیک پروژه (۱۰ تا برتر)</h4>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer>
-              <BarChart data={amountByProject} margin={{ top: 10, right: 10, left: 0, bottom: 60 }}>
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} fontSize={11} />
-                <YAxis />
-                <Tooltip formatter={(v: any) => (v != null ? Number(v).toLocaleString('fa-IR') : '')} />
-                <Bar dataKey="value" fill="#ff9f43" radius={[4, 4, 0, 0]}>
-                  {amountByProject.map((_, i) => <Cell key={i} fill={COLORS[(i + 3) % COLORS.length]} />)}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          <Chart
+            options={barOptions(
+              amountByProject.map(d => d.name),
+              (v: number) => Number(v).toLocaleString('fa-IR')
+            )}
+            series={[{ name: 'مبلغ', data: amountByProject.map(d => d.value) }]}
+            type="bar"
+            height={280}
+          />
         </div>
       </div>
 
       {monthlyData.length > 0 && (
         <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>روند ماهانه</h4>
-          <div style={{ width: '100%', height: 300 }}>
-            <ResponsiveContainer>
-              <LineChart data={monthlyData} margin={{ top: 10, right: 30, left: 0, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" fontSize={11} />
-                <YAxis />
-                <Tooltip />
-                <Line type="monotone" dataKey="value" stroke="#7367f0" strokeWidth={2} dot={{ fill: '#7367f0', r: 4 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          <Chart
+            options={{
+              chart: { type: 'line', toolbar: { show: false } },
+              colors: ['#7367f0'],
+              xaxis: { categories: monthlyData.map(d => d.name), labels: { style: { fontSize: '11px' } } },
+              stroke: { curve: 'smooth', width: 2 },
+              markers: { size: 4, colors: ['#7367f0'] },
+              dataLabels: { enabled: false },
+              tooltip: { enabled: true },
+            }}
+            series={[{ name: 'تعداد', data: monthlyData.map(d => d.value) }]}
+            type="line"
+            height={300}
+          />
         </div>
       )}
 
@@ -198,17 +207,12 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
         {tagData.length > 0 && (
           <div className="form-card" style={{ padding: '1.5rem' }}>
             <h4 style={{ margin: '0 0 1rem' }}>توزیع برچسب‌ها (Tags)</h4>
-            <div style={{ width: '100%', height: 250 }}>
-              <ResponsiveContainer>
-                <PieChart>
-                  <Pie data={tagData} cx="50%" cy="50%" outerRadius={90} fill="#8884d8" dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}>
-                    {tagData.map((_, i) => <Cell key={i} fill={COLORS[(i + 4) % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            <Chart
+              options={pieOptions(tagData.map(d => d.name))}
+              series={tagData.map(d => d.value)}
+              type="pie"
+              height={250}
+            />
           </div>
         )}
 
