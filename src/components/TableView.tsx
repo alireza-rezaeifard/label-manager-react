@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
 import type { Record } from '../types';
@@ -17,7 +17,7 @@ function TableView({
   recordToIndex: Map<Record, number>;
   customFields?: any[];
 }) {
-  const displayFields = [...FIELDS.filter(f => f.key !== 'related'), ...customFields];
+  const displayFields = useMemo(() => [...FIELDS.filter(f => f.key !== 'related'), ...customFields], [customFields]);
   const [editCell, setEditCell] = useState<{ idx: number; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
 

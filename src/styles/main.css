@@ -1217,6 +1217,11 @@ body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes toastSlideIn {
+  from { transform: translateX(120%) scale(0.9); opacity: 0; }
+  to { transform: translateX(0) scale(1); opacity: 1; }
+}
+
 /* Utility */
 .d-flex { display: flex; }
 .d-none { display: none; }

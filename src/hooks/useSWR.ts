@@ -33,10 +33,11 @@ export function invalidateCache(keyPattern?: string) {
 export function useSWR<T>(
   key: string | null,
   fetcher: () => Promise<T>,
-  options?: { staleMs?: number; revalidateOnMount?: boolean }
+  options?: { staleMs?: number; revalidateOnMount?: boolean; refreshInterval?: number }
 ) {
   const staleMs = options?.staleMs ?? DEFAULT_STALE_MS;
   const revalidateOnMount = options?.revalidateOnMount ?? true;
+  const refreshInterval = options?.refreshInterval;
 
   const [data, setData] = useState<T | undefined>(() => {
     if (!key) return undefined;
@@ -129,6 +130,12 @@ export function useSWR<T>(
       if (subs.size === 0) subscribers.delete(key);
     };
   }, [key]);
+
+  useEffect(() => {
+    if (!key || !refreshInterval) return;
+    const id = setInterval(() => revalidate(), refreshInterval);
+    return () => clearInterval(id);
+  }, [key, refreshInterval, revalidate]);
 
   const mutate = useCallback(async (newData?: T | ((prev: T | undefined) => T), shouldRevalidate = false) => {
     if (!key) return;

@@ -4,7 +4,7 @@ import { formatAmount } from '../utils/formatters';
 
 const PREVIEW_PAGE_SIZE = 12;
 
-export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] as any[], enabledCustomFieldKeys = [] as string[] }) {
+export default function LabelPreview({ selectedRecords, onGoToRecords, customFields = [] as any[], enabledCustomFieldKeys = [] as string[], exporting = false, exportProgress = 0 }) {
   const [page, setPage] = useState(1);
   const totalPages = Math.max(1, Math.ceil(selectedRecords.length / PREVIEW_PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -30,6 +30,17 @@ export default function LabelPreview({ selectedRecords, onGoToRecords, customFie
 
   return (
     <div className="fade-in">
+      {exporting && (
+        <div style={{ marginBottom: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.85rem' }}>
+            <span>در حال آماده‌سازی...</span>
+            <span>{Math.round(exportProgress)}%</span>
+          </div>
+          <div style={{ width: '100%', height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+            <div style={{ width: `${exportProgress}%`, height: '100%', background: 'var(--primary)', borderRadius: 3, transition: 'width 0.3s ease' }} />
+          </div>
+        </div>
+      )}
       <div className="d-flex align-items-center gap-2 mb-4 p-3" style={{
         background: 'var(--card-bg)', borderRadius: 12,
         border: '1px solid var(--border-color)',

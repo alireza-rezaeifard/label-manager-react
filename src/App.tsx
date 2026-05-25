@@ -3,6 +3,9 @@ import { useLocation, useNavigate, Routes, Route, Navigate, useParams } from 're
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
 import { useSWR, invalidateCache } from './hooks/useSWR';
+import { usePrintExport } from './hooks/usePrintExport';
+import { useWorkspace } from './hooks/useWorkspace';
+import { useCustomFields } from './hooks/useCustomFields';
 import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
 import * as exportUtils from './utils/exporters';
 import { formatAmount, parseCode, formatCode } from './utils/formatters';
@@ -29,6 +32,7 @@ import {
 } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useWebSocket } from './hooks/useWebSocket';
+import { useDebounce } from './hooks/useDebounce';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
 const ImportCSV = lazy(() => import('./components/ImportCSV'));
@@ -136,6 +140,7 @@ export default function App() {
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 150);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCompact, setSidebarCompact] = useState(() => {
     try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
@@ -208,23 +213,16 @@ export default function App() {
 
   const { toasts, addToast, removeToast } = useToast();
 
-  const [activityLog, setActivityLog] = useState<any[]>([]);
+  const { data: activityLog = [], revalidate: refreshActivity } = useSWR<any[]>(
+    serverMode && currentWorkspaceId ? `activity:${currentWorkspaceId}` : null,
+    () => api.getActivity(currentWorkspaceId!).then((data: any) => data || []),
+    { revalidateOnMount: true, refreshInterval: 15000 }
+  );
 
-  useEffect(() => {
-    if (serverMode && currentWorkspaceId) {
-      api.getActivity(currentWorkspaceId).then(data => setActivityLog(data)).catch(() => {});
-    } else {
-      setActivityLog([]);
-    }
-  }, [serverMode, currentWorkspaceId]);
-
-  const handleRefreshActivity = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId) return;
-    try {
-      const data = await api.getActivity(currentWorkspaceId);
-      setActivityLog(data);
-    } catch {}
-  }, [serverMode, currentWorkspaceId]);
+  const handleRefreshActivity = useCallback(() => {
+    invalidateCache(`activity:${currentWorkspaceId}`);
+    refreshActivity();
+  }, [refreshActivity, currentWorkspaceId]);
 
   const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
     try { return localStorage.getItem('use_virtual_scroll') === 'true'; } catch { return false; }
@@ -379,8 +377,8 @@ export default function App() {
   const getSortedRecords = useCallback(() => {
     let result = currentRecords;
 
-    if (search.trim()) {
-      const q = search.toLowerCase();
+    if (debouncedSearch.trim()) {
+      const q = debouncedSearch.toLowerCase();
       result = currentRecords.filter(r => {
         const formattedAmount = formatAmount(r.amount);
         const customFieldMatch = customFields.some(f =>
@@ -434,7 +432,7 @@ export default function App() {
       result = sortByCode(result);
     }
     return result;
-  }, [search, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
+  }, [debouncedSearch, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
 
   const handleSort = (field) => {
     if (sortBy === field) setSortOrder(p => p === 'asc' ? 'desc' : 'asc');
@@ -624,73 +622,34 @@ export default function App() {
     handleView(idx);
   };
 
-  const handlePrint = (scope: 'selected' | 'filtered' = 'selected') => {
-    const source = scope === 'filtered' ? sortedRecords : currentRecords;
-    let sel = source.filter((_, i) => selected.has(i));
-    if (!sel.length && scope === 'selected') {
-      sel = source;
-    }
-    if (!sel.length) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.printLabels(sel, allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
-    const entry = {
-      date: new Date().toLocaleDateString('fa-IR'),
-      time: new Date().toLocaleTimeString('fa-IR'),
-      count: sel.length, codes: sel.map(r => r.code),
-    };
-    const updated = [entry, ...printHistory].slice(0, 50);
-    setPrintHistory(updated); saveHistory(updated);
-    addToast(`${sel.length} برچسب برای چاپ ارسال شد (حدود ${estimatePaperCount(sel.length, printCols)} برگ)`, 'success');
-  };
+  const {
+    handlePrint, handleExcel, handleCSVExport, handlePDF,
+    handleExportAllExcel, handleExportAllCSV, handleExportAllPrint,
+  } = usePrintExport({
+    currentRecords, sortedRecords, selected, allExportFields,
+    printCols, printWidth, printHeight, printTemplate, printQr, printBarcode,
+    printHistory, sortByCode, setPrintHistory, saveHistory, addToast,
+  });
 
-  const handleExcel = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.downloadExcel(sel, allExportFields);
-    addToast('فایل اکسل با موفقیت ساخته شد', 'success');
-  };
+  const {
+    handleToggleCustomField, handleAddCustomField,
+    handleRemoveCustomField, handleEditCustomField,
+    handleAddTag, handleRemoveTag,
+  } = useCustomFields(
+    serverMode, currentWorkspaceId, customFields, setCustomFields, saveCustomFields,
+    tags, setTags, saveTags, setEnabledCustomFieldKeys, enabledCustomFieldKeys,
+    newFieldName, setNewFieldName, newFieldType, setNewFieldType, setSelectedTagFilter, addToast, invalidateCache,
+  );
 
-  const handleCSVExport = () => {
-    let sel = currentRecords.filter((_, i) => selected.has(i));
-    if (!sel.length) { addToast('حداقل یک رکورد انتخاب کنید', 'error'); return; }
-    sel = sortByCode(sel);
-    exportUtils.downloadCSV(sel, allExportFields);
-    addToast('فایل CSV با موفقیت ساخته شد', 'success');
-  };
-
-  const handlePDF = async () => {
-    const el = document.getElementById('preview-grid');
-    if (!el) return;
-    try { await exportUtils.downloadPDF(el); addToast('فایل PDF با موفقیت ساخته شد', 'success'); }
-    catch { addToast('خطا در ساخت PDF', 'error'); }
-  };
-
-  const handleExportAllExcel = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadExcel(sortByCode(currentRecords), allExportFields);
-    addToast('فایل اکسل همه رکوردها ساخته شد', 'success');
-  };
-
-  const handleExportAllCSV = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای خروجی وجود ندارد', 'error'); return; }
-    exportUtils.downloadCSV(sortByCode(currentRecords), allExportFields);
-    addToast('فایل CSV همه رکوردها ساخته شد', 'success');
-  };
-
-  const handleExportAllPrint = () => {
-    if (currentRecords.length === 0) { addToast('هیچ رکوردی برای چاپ وجود ندارد', 'error'); return; }
-    exportUtils.printLabels(sortByCode(currentRecords), allExportFields, printCols, printWidth, printHeight, printTemplate, printQr, printBarcode);
-    addToast(`${currentRecords.length} رکورد برای چاپ ارسال شد (حدود ${estimatePaperCount(currentRecords.length, printCols)} برگ)`, 'success');
-  };
-
-  const handleToggleCustomField = (key) => {
-    setEnabledCustomFieldKeys(prev => {
-      const next = prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key];
-      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(next));
-      return next;
-    });
-  };
+  const {
+    handleLogin, handleLoginGoToServer, handleLogout,
+    handleWorkspaceSwitch, handleCreateWorkspace,
+    handleInviteMember, handleLeaveWorkspace, handleDeleteWorkspace,
+  } = useWorkspace({
+    serverMode, currentWorkspaceId, workspaces, setServerMode, setAuthUser,
+    setLocalMode, setWorkspaces, setCurrentWorkspaceId,
+    setServerLoading, setSelected, setTab, addToast, invalidateCache, fetchedRef,
+  });
 
   const handleDragStart = (e, idx) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
   const handleDrop = (e, dropIdx) => {
@@ -806,108 +765,6 @@ export default function App() {
     }
   };
 
-  const handleLogin = (user) => {
-    if (user === null) {
-      setLocalMode(true);
-      localStorage.setItem('local_mode', 'true');
-      setServerMode(false);
-      setAuthUser(null);
-      setTab('records');
-    } else {
-      setLocalMode(false);
-      localStorage.setItem('local_mode', 'false');
-      fetchedRef.current = false;
-      setAuthUser(user);
-      setServerMode(true);
-      setTab('records');
-      setServerLoading(true);
-      api.getWorkspaces().then(wsList => {
-        setWorkspaces(wsList);
-        if (wsList.length > 0) {
-          const wsId = wsList[0].id;
-          setCurrentWorkspaceId(wsId);
-          localStorage.setItem('current_workspace_id', String(wsId));
-          setServerLoading(false);
-        } else {
-          setServerLoading(false);
-        }
-      }).catch(() => setServerLoading(false));
-    }
-  };
-
-  const handleLoginGoToServer = () => {
-    fetchedRef.current = false;
-    setLocalMode(false);
-    localStorage.removeItem('local_mode');
-    setServerMode(false);
-    setAuthUser(null);
-    setTab('records');
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
-    fetchedRef.current = false;
-    setLocalMode(true);
-    localStorage.setItem('local_mode', 'true');
-    setServerMode(false);
-    setAuthUser(null);
-    setTab('records');
-    addToast('خروج با موفقیت انجام شد', 'success');
-  };
-
-  const handleAddCustomField = () => {
-    if (!newFieldName.trim()) return;
-    const key = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
-    if (customFields.some(f => f.key === key)) { addToast('این فیلد قبلا اضافه شده', 'error'); return; }
-    const field = { key, label: newFieldName.trim(), fa: newFieldName.trim(), placeholder: '', isCustom: true, fieldType: newFieldType, options: newFieldType === 'dropdown' ? [] : undefined };
-    const updated = [...customFields, field];
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.createCustomField({ ...field, workspace_id: currentWorkspaceId }).catch(() => {});
-    }
-    setNewFieldName('');
-    setNewFieldType('text');
-    addToast('فیلد جدید اضافه شد', 'success');
-  };
-
-  const handleRemoveCustomField = (key) => {
-    const updated = customFields.filter(f => f.key !== key);
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.deleteCustomField(key, currentWorkspaceId).catch(() => {});
-    }
-    addToast('فیلد حذف شد', 'success');
-  };
-
-  const handleEditCustomField = (key, updatedField) => {
-    const updated = customFields.map(f => f.key === key ? { ...f, ...updatedField, key } : f);
-    setCustomFields(updated);
-    saveCustomFields(updated);
-    if (serverMode) {
-      api.updateCustomField(key, { ...updatedField, key }, currentWorkspaceId)
-        .catch(() => addToast('خطا در بروزرسانی فیلد در سرور', 'error'));
-    }
-    addToast('فیلد ویرایش شد', 'success');
-  };
-
-  const handleAddTag = (tag) => {
-    if (!tag.trim()) return;
-    if (tags.includes(tag.trim())) { addToast('این برچسب قبلا اضافه شده', 'error'); return; }
-    const updated = [...tags, tag.trim()];
-    setTags(updated);
-    saveTags(updated);
-  };
-
-  const handleRemoveTag = (tag) => {
-    const updated = tags.filter(t => t !== tag);
-    setTags(updated);
-    saveTags(updated);
-    if (selectedTagFilter === tag) setSelectedTagFilter(null);
-  };
-
   const TEMPLATES_KEY = 'label-studio-record-templates';
   const saveTemplates = (t) => { try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {} };
 
@@ -984,69 +841,6 @@ export default function App() {
     addToast('فیلد با موفقیت ویرایش شد', 'success');
   };
 
-  const handleWorkspaceSwitch = (wsId) => {
-    setCurrentWorkspaceId(wsId);
-    localStorage.setItem('current_workspace_id', String(wsId));
-    setSelected(new Set());
-    if (serverMode) {
-      fetchedRef.current = false;
-      setServerLoading(true);
-      invalidateCache(`records:${currentWorkspaceId}`);
-      setCurrentWorkspaceId(wsId);
-      setServerLoading(false);
-    }
-  };
-
-  const handleCreateWorkspace = async (name, description) => {
-    try {
-      const ws = await api.createWorkspace(name, description);
-      setWorkspaces(prev => [...prev, ws]);
-      handleWorkspaceSwitch(ws.id);
-      addToast(`فضای کاری "${name}" ایجاد شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleInviteMember = async (wsId, username) => {
-    try {
-      await api.inviteToWorkspace(wsId, username);
-      addToast(`کاربر "${username}" دعوت شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleLeaveWorkspace = async (wsId) => {
-    try {
-      await api.leaveWorkspace(wsId);
-      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
-      const remaining = workspaces.filter(w => w.id !== wsId);
-      if (remaining.length > 0) {
-        handleWorkspaceSwitch(remaining[0].id);
-      }
-      addToast('خروج از فضای کاری با موفقیت انجام شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
-
-  const handleDeleteWorkspace = async (wsId) => {
-    try {
-      await api.deleteWorkspace(wsId);
-      setWorkspaces(prev => prev.filter(w => w.id !== wsId));
-      const remaining = workspaces.filter(w => w.id !== wsId);
-      if (remaining.length > 0) {
-        handleWorkspaceSwitch(remaining[0].id);
-      } else {
-        setCurrentWorkspaceId(null);
-        setServerRecords([]);
-      }
-      addToast('فضای کاری با موفقیت حذف شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
-    }
-  };
 
   const handleBulkEdit = () => {
     if (!bulkEditField && bulkEditValue === undefined && bulkEditTags.length === 0 && !bulkEditColor) {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 const SECTIONS = [
   {
@@ -55,8 +55,6 @@ function saveCollapsed(s) {
 
 export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onResetForm, isViewer, serverMode, activityLog, compact, onToggleCompact, onRefreshActivity }) {
   const [collapsedSections, setCollapsedSections] = useState(loadCollapsed);
-  const [activityRefreshing, setActivityRefreshing] = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const toggleSection = (key) => {
     setCollapsedSections(prev => {
@@ -65,16 +63,6 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
       return next;
     });
   };
-
-  useEffect(() => {
-    if (!serverMode || !onRefreshActivity) return;
-    const id = setInterval(() => {
-      setActivityRefreshing(true);
-      onRefreshActivity().finally(() => setActivityRefreshing(false));
-    }, 15000);
-    intervalRef.current = id;
-    return () => { clearInterval(id); intervalRef.current = null; };
-  }, [serverMode, onRefreshActivity]);
 
   const handleClick = (t) => {
     onTabChange(t);
@@ -132,7 +120,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             <div className="nav-section-title">
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <span>فعالیت‌ها</span>
-                <span className={`live-indicator ${activityRefreshing ? 'refreshing' : ''}`} title="بروزرسانی خودکار هر ۱۵ ثانیه"></span>
+                <span className="live-indicator" title="بروزرسانی خودکار هر ۱۵ ثانیه"></span>
               </div>
             </div>
             <div className="activity-feed">

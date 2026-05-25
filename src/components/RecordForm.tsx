@@ -69,6 +69,26 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     setFormErrors(p => ({ ...p, [key]: "" }));
   };
 
+  const validateField = (key: string, currentForm: any) => {
+    if (key === 'code' && !currentForm.code.trim()) {
+      return "فیلد ضروری است";
+    }
+    if (key === 'code' && currentForm.code.trim() && isDuplicateCode(currentForm.code.trim(), editIndex)) {
+      return "این کد تکراری است";
+    }
+    if (key === 'project' && !currentForm.project.trim()) {
+      return "فیلد ضروری است";
+    }
+    return "";
+  };
+
+  const handleBlur = (key: string) => {
+    const error = validateField(key, form);
+    if (error) {
+      setFormErrors(p => ({ ...p, [key]: error }));
+    }
+  };
+
   const validate = () => {
     const errors: Record<string, string> = {};
     if (!form.code.trim()) errors.code = "فیلد ضروری است";
@@ -141,6 +161,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                       value={form.date || ""}
                       onChange={e => setField("date", e.target.value)}
+                      onBlur={() => handleBlur(f.key)}
                       onClick={() => setShowDatePicker(true)}
                       placeholder="1403/02/15" style={{ direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem', cursor: 'pointer' }} />
                     <i className="ti ti-calendar"
@@ -160,6 +181,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
               ) : f.isCustom && f.fieldType === 'number' ? (
                 <input type="number" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               ) : f.isCustom && f.fieldType === 'date' ? (
                 <div style={{ position: 'relative' }} ref={datePickerRef}>
@@ -167,6 +189,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                       value={form[f.key] || ""}
                       onChange={e => setField(f.key, e.target.value)}
+                      onBlur={() => handleBlur(f.key)}
                       onClick={() => setShowDatePicker(true)}
                       placeholder="1403/02/15" style={{ direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem', cursor: 'pointer' }} />
                     <i className="ti ti-calendar"
@@ -210,10 +233,12 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     const digitsOnly = normalized.replace(/[^0-9]/g, '');
                     setField('amount', digitsOnly ? Number(digitsOnly).toLocaleString('en-US') : '');
                   }}
+                  onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               ) : (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={form[f.key]} onChange={e => setField(f.key, e.target.value)}
+                  onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
               )}
               {formErrors[f.key] && (
