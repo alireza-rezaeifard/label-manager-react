@@ -25,6 +25,41 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState('');
 
+  function buildColumnMap(firstRow: Record<string, any>): Record<string, string> {
+    const map: Record<string, string> = {};
+    const lookup: Record<string, string> = {};
+
+    for (const f of FIELDS) {
+      lookup[f.key.toLowerCase()] = f.key;
+      if (f.fa) lookup[f.fa.trim()] = f.key;
+      if (f.label) lookup[f.label.trim().toLowerCase()] = f.key;
+    }
+    for (const f of customFields) {
+      lookup[f.key.toLowerCase()] = f.key;
+      if (f.fa) lookup[f.fa.trim()] = f.key;
+      if (f.label) lookup[f.label.trim().toLowerCase()] = f.key;
+    }
+
+    for (const col of Object.keys(firstRow)) {
+      const trimmed = col.trim();
+      const lowered = trimmed.toLowerCase();
+      map[col] = lookup[trimmed] || lookup[lowered] || trimmed;
+    }
+    return map;
+  }
+
+  function remapKeys(data: any[], colMap: Record<string, string>): any[] {
+    return data.map(row => {
+      const mapped: Record<string, any> = {};
+      for (const [orig, canonical] of Object.entries(colMap)) {
+        if (orig in row) {
+          mapped[canonical] = row[orig];
+        }
+      }
+      return mapped;
+    });
+  }
+
   function validateRows(data: any[]): ImportRow[] {
     const codesInFile = new Set<string>();
     const existingCodes = new Set(existingRecords.map(r => r.code));
@@ -81,6 +116,16 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   function parseFile(file: File) {
     setFileName(file.name);
 
+    const onData = (raw: any[]) => {
+      if (raw.length === 0) {
+        addToast('فایل خالی است', 'error');
+        return;
+      }
+      const colMap = buildColumnMap(raw[0]);
+      const mapped = remapKeys(raw, colMap);
+      setRows(validateRows(mapped));
+    };
+
     if (importMode === 'excel') {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -89,7 +134,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          setRows(validateRows(json));
+          onData(json);
         } catch {
           addToast('خطا در خواندن فایل اکسل', 'error');
         }
@@ -100,9 +145,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: (res) => {
-          setRows(validateRows(res.data));
-        },
+        complete: (res) => onData(res.data),
         error: () => addToast('خطا در پردازش فایل', 'error'),
       });
     }
