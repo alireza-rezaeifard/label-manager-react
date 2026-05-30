@@ -197,6 +197,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
       }
       return record;
     });
+    console.log('ImportCSV — sample record:', JSON.stringify(validRows[0], null, 2));
     await onImport(validRows);
     setImporting(false);
     setRows(null);
