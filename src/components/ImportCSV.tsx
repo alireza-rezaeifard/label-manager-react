@@ -60,6 +60,8 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
     });
   }
 
+  const FIELD_KEYS = new Set(FIELDS.map(f => f.key));
+
   function validateRows(data: any[]): ImportRow[] {
     const codesInFile = new Set<string>();
     const existingCodes = new Set(existingRecords.map(r => r.code));
@@ -101,6 +103,11 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
       };
       for (const key of customFieldKeys) {
         data[key] = String(r[key] || '').trim();
+      }
+      for (const key of Object.keys(r)) {
+        if (!FIELD_KEYS.has(key) && !(key in data)) {
+          data[key] = String(r[key] || '').trim();
+        }
       }
 
       return {
@@ -173,7 +180,6 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   const handleImport = async () => {
     if (!rows) return;
     setImporting(true);
-    const customFieldKeys = customFields.map(f => f.key);
     const validRows = rows.filter(r => r.valid).map(r => {
       const record: Record<string, any> = {
         code: r.data.code,
@@ -184,8 +190,10 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
         amount: r.data.amount,
         related: r.data.related ? r.data.related.split(',').map(s => s.trim()).filter(Boolean) : [],
       };
-      for (const key of customFieldKeys) {
-        if (r.data[key]) record[key] = r.data[key];
+      for (const key of Object.keys(r.data)) {
+        if (!FIELD_KEYS.has(key) && r.data[key]) {
+          record[key] = r.data[key];
+        }
       }
       return record;
     });
