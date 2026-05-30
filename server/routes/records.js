@@ -24,6 +24,17 @@ function parseRecord(r) {
   };
 }
 
+function saveRecordVersion(userId, record, workspaceId, summary) {
+  const snapshot = { ...record };
+  if (typeof snapshot.related === 'object') snapshot.related = JSON.stringify(snapshot.related);
+  if (typeof snapshot.tags === 'object') snapshot.tags = JSON.stringify(snapshot.tags);
+  const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+  db.prepare(
+    `INSERT INTO record_versions (record_id, workspace_id, user_id, user_name, snapshot, change_summary)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(record.id, workspaceId, userId, user?.username || '', JSON.stringify(snapshot), summary);
+}
+
 router.get('/', asyncHandler((req, res) => {
   const {
     page = 1,
@@ -162,6 +173,7 @@ router.post('/', asyncHandler((req, res) => {
   );
 
   const record = db.prepare('SELECT * FROM records WHERE id = ?').get(result.lastInsertRowid);
+  saveRecordVersion(req.user.id, record, wsId, `ایجاد رکورد ${code}`);
   logActivity(req.user.id, 'create', `Created record ${code}`, record.id, wsId);
   broadcastToWorkspace(wsId, 'record:created', parseRecord(record));
   res.status(201).json(parseRecord(record));
@@ -187,6 +199,8 @@ router.put('/:id', asyncHandler((req, res) => {
     const dup = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND workspace_id = ?').get(code, id, existing.workspace_id);
     if (dup) throw new AppError(`Code "${code}" already exists in this workspace`, 409, 'DUPLICATE_CODE');
   }
+
+  saveRecordVersion(req.user.id, existing, existing.workspace_id, 'ویرایش رکورد');
 
   db.prepare(
     `UPDATE records SET
@@ -354,6 +368,56 @@ router.post('/restore', asyncHandler((req, res) => {
   logActivity(req.user.id, 'restore', `Restored ${records.length} records`, null, wsId);
   broadcastToWorkspace(wsId, 'records:restored', { workspace_id: wsId });
   res.json({ ok: true, count: records.length });
+}));
+
+router.get('/:id/versions', asyncHandler((req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT id FROM records WHERE id = ?').get(id);
+  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
+
+  const versions = db.prepare(
+    `SELECT id, record_id, user_name, change_summary, created_at
+     FROM record_versions WHERE record_id = ? ORDER BY created_at DESC LIMIT 50`
+  ).all(id);
+
+  res.json(versions);
+}));
+
+router.post('/:id/versions/:versionId/restore', asyncHandler((req, res) => {
+  const { id, versionId } = req.params;
+  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
+
+  const version = db.prepare('SELECT * FROM record_versions WHERE id = ? AND record_id = ?').get(versionId, id);
+  if (!version) throw new AppError('Version not found', 404, 'NOT_FOUND');
+
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  ).get(existing.workspace_id, req.user.id);
+
+  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Editing records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
+
+  const snapshot = JSON.parse(version.snapshot);
+
+  db.prepare(
+    `UPDATE records SET
+      code=?, project=?, type=?, date=?, party=?, amount=?,
+      related=?, tags=?, image=?, color=?, updated_at=datetime('now')
+     WHERE id=?`
+  ).run(
+    snapshot.code, snapshot.project, snapshot.type, snapshot.date,
+    snapshot.party, snapshot.amount, snapshot.related, snapshot.tags,
+    snapshot.image, snapshot.color, id
+  );
+
+  const restored = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  saveRecordVersion(req.user.id, restored, existing.workspace_id, 'بازگردانی نسخه');
+  logActivity(req.user.id, 'restore_version', `Restored version ${versionId} of record ${restored.code}`, id);
+  broadcastToWorkspace(existing.workspace_id, 'record:updated', parseRecord(restored));
+  res.json(parseRecord(restored));
 }));
 
 router.get('/activity', asyncHandler((req, res) => {

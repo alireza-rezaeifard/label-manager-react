@@ -47,6 +47,7 @@ const PrintSettingsModal = lazy(() => import('./components/PrintSettingsModal'))
 const BackupModal = lazy(() => import('./components/BackupModal'));
 const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
+const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -197,6 +198,7 @@ export default function App() {
   const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [versionHistoryRecord, setVersionHistoryRecord] = useState<{ id: string; code: string } | null>(null);
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(() => {
@@ -615,6 +617,26 @@ export default function App() {
     }
     handleView(idx);
   };
+
+  const handleShowVersionHistory = useCallback((id: string, code: string) => {
+    setVersionHistoryRecord({ id, code });
+  }, []);
+
+  const handleRestoreVersion = useCallback(async (versionId: number) => {
+    if (!versionHistoryRecord) return;
+    try {
+      if (serverMode) {
+        await api.restoreRecordVersion(versionHistoryRecord.id, versionId);
+        await refreshServerRecords();
+        addToast('نسخه با موفقیت بازگردانی شد', 'success');
+      } else {
+        addToast('بازگردانی نسخه فقط در حالت سرور پشتیبانی می‌شود', 'error');
+      }
+    } catch (err: any) {
+      addToast('خطا در بازگردانی نسخه: ' + err.message, 'error');
+    }
+    setVersionHistoryRecord(null);
+  }, [versionHistoryRecord, serverMode]);
 
   const {
     handlePrint, handleExcel, handleCSVExport, handlePDF,
@@ -1343,7 +1365,7 @@ export default function App() {
 
             {tab === 'import' && (
               <Suspense fallback={<ImportSkeleton />}>
-                <ImportCSV onImport={handleImport} addToast={addToast} />
+                <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} />
               </Suspense>
             )}
 
@@ -1358,6 +1380,10 @@ export default function App() {
                     const idx = currentRecords.findIndex(r => r.code === rel.code);
                     if (idx !== -1) setViewIndex(idx);
                   }}
+                  onShowHistory={serverMode ? () => {
+                    const r = currentRecords[viewIndex];
+                    handleShowVersionHistory(r.id, r.code);
+                  } : undefined}
                 />
               </Suspense>
             )}
@@ -1637,6 +1663,18 @@ export default function App() {
               selectedRecords={selectedRecords}
               addToast={addToast}
               onClose={() => setShowPrintQueue(false)}
+            />
+          </Suspense>
+        )}
+
+        {versionHistoryRecord && (
+          <Suspense fallback={null}>
+            <RecordHistoryModal
+              recordId={versionHistoryRecord.id}
+              recordCode={versionHistoryRecord.code}
+              onClose={() => setVersionHistoryRecord(null)}
+              onRestore={handleRestoreVersion}
+              addToast={addToast}
             />
           </Suspense>
         )}

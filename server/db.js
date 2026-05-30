@@ -1,5 +1,4 @@
-import initSqlJs from 'sql.js';
-import fs from 'fs';
+import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import bcrypt from 'bcryptjs';
@@ -7,115 +6,11 @@ import bcrypt from 'bcryptjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-class Statement {
-  constructor(db, sql, saveFn) {
-    this.db = db;
-    this.sql = sql;
-    this.saveFn = saveFn;
-  }
-
-  _bind(stmt, params) {
-    if (params.length > 0) stmt.bind(params.map(p => p === undefined ? null : p));
-  }
-
-  all(...params) {
-    const stmt = this.db.prepare(this.sql);
-    this._bind(stmt, params);
-    const rows = [];
-    while (stmt.step()) rows.push(stmt.getAsObject());
-    stmt.free();
-    return rows;
-  }
-
-  get(...params) {
-    const stmt = this.db.prepare(this.sql);
-    this._bind(stmt, params);
-    const row = stmt.step() ? stmt.getAsObject() : undefined;
-    stmt.free();
-    return row;
-  }
-
-  run(...params) {
-    const stmt = this.db.prepare(this.sql);
-    this._bind(stmt, params);
-    try {
-      stmt.step();
-    } finally {
-      stmt.free();
-    }
-
-    const changes = this.db.getRowsModified();
-    const rs = this.db.exec("SELECT last_insert_rowid() as id");
-    this.saveFn?.();
-
-    if (changes === 0) return { changes: 0, lastInsertRowid: undefined };
-
-    const lastInsertRowid = rs?.[0]?.values?.[0]?.[0];
-    return { changes, lastInsertRowid: lastInsertRowid != null ? Number(lastInsertRowid) : undefined };
-  }
-}
-
-class Database {
-  constructor(dbf, path, saveFn) {
-    this.dbf = dbf;
-    this.path = path;
-    this.saveFn = saveFn;
-  }
-
-  pragma(value) {
-    this.dbf.run(`PRAGMA ${value}`);
-  }
-
-  exec(sql) {
-    this.dbf.exec(sql);
-  }
-
-  prepare(sql) {
-    return new Statement(this.dbf, sql, this.saveFn);
-  }
-
-  getRowsModified() {
-    return this.dbf.getRowsModified();
-  }
-
-  transaction(fn) {
-    return (...args) => {
-      this.dbf.exec('BEGIN');
-      try {
-        const result = fn(...args);
-        this.dbf.exec('COMMIT');
-        return result;
-      } catch (e) {
-        this.dbf.exec('ROLLBACK');
-        throw e;
-      }
-    };
-  }
-}
-
 const dbPath = process.env.DB_PATH || join(__dirname, 'data.db');
+const db = new Database(dbPath);
 
-const SQL = await initSqlJs();
-let dbf;
-if (fs.existsSync(dbPath)) {
-  const buffer = fs.readFileSync(dbPath);
-  dbf = new SQL.Database(buffer);
-} else {
-  dbf = new SQL.Database();
-}
-
-function save() {
-  const data = dbf.export();
-  fs.writeFileSync(dbPath, Buffer.from(data));
-}
-
-const db = new Database(dbf, dbPath, save);
-
-const origExec = db.exec.bind(db);
-db.exec = (sql) => { origExec(sql); save(); };
-
-const origPragma = db.pragma.bind(db);
-db.pragma = (v) => { origPragma(v); save(); };
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -188,6 +83,19 @@ db.exec(`
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS record_versions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    record_id INTEGER NOT NULL,
+    workspace_id INTEGER DEFAULT 1,
+    user_id INTEGER,
+    user_name TEXT DEFAULT '',
+    snapshot TEXT NOT NULL,
+    change_summary TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
   CREATE TABLE IF NOT EXISTS custom_fields (

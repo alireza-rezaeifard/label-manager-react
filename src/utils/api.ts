@@ -119,6 +119,12 @@ export const api = {
   checkDuplicateCode: (queryString: string) =>
     apiRequest(`/records/check-code${queryString}`),
 
+  getRecordVersions: (recordId: string | number) =>
+    apiRequest(`/records/${recordId}/versions`),
+
+  restoreRecordVersion: (recordId: string | number, versionId: string | number) =>
+    apiRequest(`/records/${recordId}/versions/${versionId}/restore`, { method: 'POST' }),
+
   getMe: () =>
     apiRequest('/auth/me'),
 

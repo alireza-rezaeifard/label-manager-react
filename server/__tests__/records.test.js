@@ -156,6 +156,246 @@ describe('Duplicate code detection', () => {
   });
 });
 
+describe('Auth extended', () => {
+  it('should get current user profile', async () => {
+    const res = await request(app)
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('username');
+    expect(res.body.username).toBe('admin');
+  });
+
+  it('should reject getting profile without auth', async () => {
+    const res = await request(app).get('/api/auth/me');
+    expect(res.status).toBe(401);
+  });
+
+  it('should change password', async () => {
+    const res = await request(app)
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'admin123', newPassword: 'newadmin456' });
+    expect(res.status).toBe(200);
+
+    // change back
+    await request(app)
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'newadmin456', newPassword: 'admin123' });
+  });
+
+  it('should reject password change with wrong current password', async () => {
+    const res = await request(app)
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'wrong', newPassword: 'testpass123' });
+    expect(res.status).toBe(401);
+  });
+
+  it('should reject password change with weak new password', async () => {
+    const res = await request(app)
+      .post('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'admin123', newPassword: 'abc' });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('Version History', () => {
+  let recordId;
+
+  it('should create a record for version testing', async () => {
+    const res = await request(app)
+      .post('/api/records')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ code: 'VER001', project: 'Version Test' });
+    expect(res.status).toBe(201);
+    recordId = res.body.id;
+  });
+
+  it('should list versions for a record', async () => {
+    const res = await request(app)
+      .get(`/api/records/${recordId}/versions`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+    expect(res.body[0]).toHaveProperty('change_summary');
+    expect(res.body[0]).toHaveProperty('created_at');
+  });
+
+  it('should restore a version', async () => {
+    const versions = await request(app)
+      .get(`/api/records/${recordId}/versions`)
+      .set('Authorization', `Bearer ${token}`);
+    const versionId = versions.body[0].id;
+
+    const res = await request(app)
+      .post(`/api/records/${recordId}/versions/${versionId}/restore`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.code).toBe('VER001');
+  });
+
+  it('should reject restoring non-existent version', async () => {
+    const res = await request(app)
+      .post(`/api/records/${recordId}/versions/99999/restore`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('Workspaces', () => {
+  let workspaceId;
+
+  it('should list workspaces', async () => {
+    const res = await request(app)
+      .get('/api/workspaces')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should create a workspace', async () => {
+    const res = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Test Workspace', description: 'A test workspace' });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe('Test Workspace');
+    expect(res.body.member_role).toBe('owner');
+    workspaceId = res.body.id;
+  });
+
+  it('should reject workspace creation without name', async () => {
+    const res = await request(app)
+      .post('/api/workspaces')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ description: 'No name' });
+    expect(res.status).toBe(400);
+  });
+
+  it('should get workspace members', async () => {
+    const res = await request(app)
+      .get(`/api/workspaces/${workspaceId}/members`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.some((m) => m.username === 'admin')).toBe(true);
+  });
+
+  it('should invite a user to workspace', async () => {
+    const registerRes = await request(app)
+      .post('/api/auth/register')
+      .send({ username: `invitee_${Date.now()}`, password: 'testpass123' });
+    const inviteeUsername = registerRes.body.user.username;
+
+    const res = await request(app)
+      .post('/api/workspaces/invite')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ workspace_id: workspaceId, username: inviteeUsername });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('should reject inviting non-existent user', async () => {
+    const res = await request(app)
+      .post('/api/workspaces/invite')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ workspace_id: workspaceId, username: 'nonexistent_user_xyz' });
+    expect(res.status).toBe(404);
+  });
+
+  it('should reject workspace access without auth', async () => {
+    const res = await request(app).get('/api/workspaces');
+    expect(res.status).toBe(401);
+  });
+
+  it('should delete workspace', async () => {
+    const res = await request(app)
+      .delete(`/api/workspaces/${workspaceId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+});
+
+describe('Custom Fields', () => {
+  it('should list custom fields', async () => {
+    const res = await request(app)
+      .get('/api/custom-fields')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('should create a custom field', async () => {
+    const res = await request(app)
+      .post('/api/custom-fields')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ key: 'test_field', label: 'Test Field', fieldType: 'text', placeholder: 'Enter value' });
+    expect(res.status).toBe(201);
+    expect(res.body.key).toBe('test_field');
+    expect(res.body.label).toBe('Test Field');
+  });
+
+  it('should reject creating duplicate custom field', async () => {
+    const res = await request(app)
+      .post('/api/custom-fields')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ key: 'test_field', label: 'Duplicate', fieldType: 'text' });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('DUPLICATE_KEY');
+  });
+
+  it('should reject custom field without key', async () => {
+    const res = await request(app)
+      .post('/api/custom-fields')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'No Key', fieldType: 'text' });
+    expect(res.status).toBe(400);
+  });
+
+  it('should update a custom field', async () => {
+    const res = await request(app)
+      .put('/api/custom-fields/test_field')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ label: 'Updated Field', placeholder: 'Updated' });
+    expect(res.status).toBe(200);
+    expect(res.body.label).toBe('Updated Field');
+  });
+
+  it('should delete a custom field', async () => {
+    const res = await request(app)
+      .delete('/api/custom-fields/test_field')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  it('should save batch of custom fields', async () => {
+    const res = await request(app)
+      .post('/api/custom-fields/batch')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        fields: [
+          { key: 'batch1', label: 'Batch 1', fieldType: 'text' },
+          { key: 'batch2', label: 'Batch 2', fieldType: 'number' },
+        ],
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.count).toBe(2);
+  });
+
+  it('should reject custom field access without auth', async () => {
+    const res = await request(app).get('/api/custom-fields');
+    expect(res.status).toBe(401);
+  });
+});
+
 describe('Rate limiting', () => {
   it('should rate-limit excessive requests to auth endpoints', async () => {
     const requests = [];
