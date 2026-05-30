@@ -13,10 +13,11 @@ interface ImportRow {
   valid: boolean;
 }
 
-export default function ImportCSV({ onImport, addToast, existingRecords = [] }: {
+export default function ImportCSV({ onImport, addToast, existingRecords = [], customFields = [] }: {
   onImport: (records: any[]) => void;
   addToast: (msg: string, type?: ToastType['type'], duration?: number) => void;
   existingRecords: RecordItem[];
+  customFields?: { key: string; fa?: string; label?: string }[];
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importMode, setImportMode] = useState('csv');
@@ -27,6 +28,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
   function validateRows(data: any[]): ImportRow[] {
     const codesInFile = new Set<string>();
     const existingCodes = new Set(existingRecords.map(r => r.code));
+    const customFieldKeys = customFields.map(f => f.key);
 
     return data.map((r, i) => {
       const errors: string[] = [];
@@ -53,17 +55,22 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
         warnings.push('مبلغ معتبر نیست');
       }
 
+      const data: Record<string, string> = {
+        code,
+        project,
+        type: String(r.type || '').trim(),
+        date: String(r.date || '').trim(),
+        party: String(r.party || '').trim(),
+        amount,
+        related: String(r.related || '').trim(),
+      };
+      for (const key of customFieldKeys) {
+        data[key] = String(r[key] || '').trim();
+      }
+
       return {
         index: i + 1,
-        data: {
-          code,
-          project,
-          type: String(r.type || '').trim(),
-          date: String(r.date || '').trim(),
-          party: String(r.party || '').trim(),
-          amount,
-          related: String(r.related || '').trim(),
-        },
+        data,
         errors,
         warnings,
         valid: errors.length === 0,
@@ -123,15 +130,22 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
   const handleImport = async () => {
     if (!rows) return;
     setImporting(true);
-    const validRows = rows.filter(r => r.valid).map(r => ({
-      code: r.data.code,
-      project: r.data.project,
-      type: r.data.type,
-      date: r.data.date,
-      party: r.data.party,
-      amount: r.data.amount,
-      related: r.data.related ? r.data.related.split(',').map(s => s.trim()).filter(Boolean) : [],
-    }));
+    const customFieldKeys = customFields.map(f => f.key);
+    const validRows = rows.filter(r => r.valid).map(r => {
+      const record: Record<string, any> = {
+        code: r.data.code,
+        project: r.data.project,
+        type: r.data.type,
+        date: r.data.date,
+        party: r.data.party,
+        amount: r.data.amount,
+        related: r.data.related ? r.data.related.split(',').map(s => s.trim()).filter(Boolean) : [],
+      };
+      for (const key of customFieldKeys) {
+        if (r.data[key]) record[key] = r.data[key];
+      }
+      return record;
+    });
     await onImport(validRows);
     setImporting(false);
     setRows(null);
@@ -194,6 +208,9 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
                 {FIELDS.map(f => (
                   <th key={f.key}>{f.fa}</th>
                 ))}
+                {customFields.map(f => (
+                  <th key={f.key}>{f.fa || f.label || f.key}</th>
+                ))}
                 <th className="status-col">وضعیت</th>
               </tr>
             </thead>
@@ -208,6 +225,13 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
                   <tr key={idx} className={rowClass}>
                     <td className="row-num">{row.index}</td>
                     {FIELDS.map(f => (
+                      <td key={f.key}>
+                        <span className="cell-value" title={row.data[f.key]}>
+                          {row.data[f.key] || <span className="empty-cell">—</span>}
+                        </span>
+                      </td>
+                    ))}
+                    {customFields.map(f => (
                       <td key={f.key}>
                         <span className="cell-value" title={row.data[f.key]}>
                           {row.data[f.key] || <span className="empty-cell">—</span>}
@@ -292,7 +316,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [] }: 
           <i className="ti ti-upload"></i>
         </div>
         <h4 style={{ marginBottom: '0.5rem' }}>فایل {importMode === 'csv' ? 'CSV' : 'Excel'} را آپلود کنید</h4>
-        <p style={{ opacity: 0.7, margin: 0 }}>ستون‌ها: {FIELDS.map(f => f.key).join(', ')}</p>
+        <p style={{ opacity: 0.7, margin: 0 }}>ستون‌ها: {[...FIELDS.map(f => f.key), ...customFields.map(f => f.key)].join(', ')}</p>
         <input ref={fileRef} type="file" accept={importMode === 'csv' ? '.csv' : '.xlsx,.xls'} onChange={handleFileChange} className="d-none" />
       </div>
     </div>

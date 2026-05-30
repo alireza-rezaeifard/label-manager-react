@@ -1365,7 +1365,7 @@ export default function App() {
 
             {tab === 'import' && (
               <Suspense fallback={<ImportSkeleton />}>
-                <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} />
+                <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} customFields={customFields} />
               </Suspense>
             )}
 
