@@ -284,10 +284,13 @@ export default function App() {
   }, [swrData]);
 
   const refreshServerRecords = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId) return;
+    if (!serverMode || !currentWorkspaceId || isRestoringRef.current) return;
     invalidateCache(`records:${currentWorkspaceId}`);
     await revalidate();
   }, [revalidate, serverMode, currentWorkspaceId]);
+
+  const refreshServerRecordsRef = useRef(refreshServerRecords);
+  refreshServerRecordsRef.current = refreshServerRecords;
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
@@ -680,7 +683,20 @@ export default function App() {
   const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
 
   const handleBackup = () => {
-    const blob = new Blob([JSON.stringify({ records: sortByCode(currentRecords), customFields }, null, 2)], { type: 'application/json' });
+    const cache = loadRecordCustomFieldsCache();
+    const codeCache = loadRecordCustomFieldsCodeCache();
+    const recordsWithCustomFields = sortByCode(currentRecords).map(r => {
+      if (!serverMode) return r;
+      const merged = { ...r };
+      for (const f of customFields) {
+        if (merged[f.key] === undefined) {
+          const val = cache[r.id]?.[f.key] ?? codeCache[r.code]?.[f.key];
+          if (val !== undefined) merged[f.key] = val;
+        }
+      }
+      return merged;
+    });
+    const blob = new Blob([JSON.stringify({ records: recordsWithCustomFields, customFields }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -713,7 +729,7 @@ export default function App() {
           }
         }
         if (customKeys.size > 0) {
-          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, field_type: 'text' }));
+          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, fieldType: 'text' }));
         }
       }
 
@@ -773,6 +789,9 @@ export default function App() {
         addToast('خطا در بازیابی: ' + err.message, 'error');
       } finally {
         isRestoringRef.current = false;
+        setTimeout(() => {
+          refreshServerRecordsRef.current();
+        }, 100);
       }
     } else {
       setRecords(restoredRecords);
