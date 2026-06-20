@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ConnectionStatus } from '../hooks/useWebSocket';
 
 interface HeaderProps {
   search: string;
@@ -9,10 +10,19 @@ interface HeaderProps {
   onSettingsClick: () => void;
   onProfileClick: () => void;
   onShortcutsHelp: () => void;
+  connectionStatus?: ConnectionStatus;
 }
 
-export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp }: HeaderProps) {
+const STATUS_CONFIG: Record<ConnectionStatus, { color: string; label: string; icon: string }> = {
+  connected: { color: '#28c76f', label: 'متصل', icon: 'ti-wifi' },
+  connecting: { color: '#ff9f43', label: 'در حال اتصال...', icon: 'ti-loader' },
+  disconnected: { color: '#ea5455', label: 'قطع شده', icon: 'ti-wifi-off' },
+  reconnecting: { color: '#ff9f43', label: 'در حال اتصال مجدد...', icon: 'ti-refresh' },
+};
+
+export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp, connectionStatus }: HeaderProps) {
   const [notifications] = useState([]);
+  const statusInfo = connectionStatus ? STATUS_CONFIG[connectionStatus] : null;
 
   return (
     <header className="header">
@@ -32,6 +42,16 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
       </div>
 
       <div className="header-right">
+        {statusInfo && (
+          <div className="connection-status" title={statusInfo.label} style={{
+            display: 'flex', alignItems: 'center', gap: '0.35rem',
+            padding: '0.25rem 0.6rem', borderRadius: 12, fontSize: '0.75rem',
+            background: `${statusInfo.color}18`, color: statusInfo.color,
+          }}>
+            <i className={`ti ${statusInfo.icon}`} style={{ fontSize: '0.85rem' }}></i>
+            <span>{statusInfo.label}</span>
+          </div>
+        )}
         <button className="header-icon-btn" onClick={onShortcutsHelp} title="میانبرهای صفحه کلید (Ctrl+/)">
           <i className="ti ti-keyboard"></i>
         </button>

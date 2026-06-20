@@ -2,13 +2,15 @@ import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
 import type { CustomField } from '../types';
 
-export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [], onShowHistory }: {
+export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [], onShowHistory, onLock, onUnlock }: {
   record: any;
   relatedRecords: any[];
   onEdit: () => void;
   onNavigateToRelated: (rel: any) => void;
   customFields?: CustomField[];
   onShowHistory?: () => void;
+  onLock?: () => void;
+  onUnlock?: () => void;
 }) {
   return (
     <div className="form-card fade-in">
@@ -34,6 +36,19 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               <button className="btn btn-outline" onClick={onShowHistory}>
                 <i className="ti ti-history"></i> تاریخچه
               </button>
+            )}
+            {record.locked_by ? (
+              onUnlock && (
+                <button className="btn btn-outline" onClick={onUnlock} title={`قفل شده توسط ${record.locked_by}`}>
+                  <i className="ti ti-lock-open"></i> باز کردن قفل
+                </button>
+              )
+            ) : (
+              onLock && (
+                <button className="btn btn-outline" onClick={onLock}>
+                  <i className="ti ti-lock"></i> قفل کردن
+                </button>
+              )
             )}
             <button className="btn btn-outline" onClick={onEdit}>
               <i className="ti ti-edit"></i> ویرایش

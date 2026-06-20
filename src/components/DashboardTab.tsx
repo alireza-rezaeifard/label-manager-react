@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Chart from 'react-apexcharts';
 import { formatAmount } from '../utils/formatters';
 import type { RecordItem, CustomField } from '../types';
@@ -9,9 +9,40 @@ interface Props {
   records: RecordItem[];
   customFields: CustomField[];
   tags: string[];
-  activityLog: Array<{ action: string; details?: string; date?: string; time?: string }>;
+  activityLog: Array<{ action: string; details?: string; date?: string; time?: string; created_at?: string; user_id?: number; record_id?: number | null }>;
   onTabChange: (tab: string) => void;
 }
+
+function relativeTime(dateStr?: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return dateStr;
+  const now = Date.now();
+  const diff = now - d.getTime();
+  if (diff < 0) return 'اکنون';
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'اکنون';
+  if (mins < 60) return `${mins} دقیقه پیش`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} ساعت پیش`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days} روز پیش`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 4) return `${weeks} هفته پیش`;
+  return d.toLocaleDateString('fa-IR');
+}
+
+const ACTION_CONFIG: Record<string, { icon: string; color: string; bg: string; label: string }> = {
+  create: { icon: 'ti-plus', color: '#28c76f', bg: 'rgba(40,199,111,0.1)', label: 'ایجاد' },
+  update: { icon: 'ti-edit', color: '#7367f0', bg: 'rgba(115,103,240,0.1)', label: 'ویرایش' },
+  delete: { icon: 'ti-trash', color: '#ea5455', bg: 'rgba(234,84,85,0.1)', label: 'حذف' },
+  trash: { icon: 'ti-trash', color: '#ff9f43', bg: 'rgba(255,159,67,0.1)', label: 'انتقال به سطل زباله' },
+  restore: { icon: 'ti-rotate', color: '#00cfe8', bg: 'rgba(0,207,232,0.1)', label: 'بازیابی' },
+  restore_version: { icon: 'ti-history', color: '#6d62e0', bg: 'rgba(109,98,224,0.1)', label: 'بازگردانی نسخه' },
+  permanent_delete: { icon: 'ti-alert-triangle', color: '#ea5455', bg: 'rgba(234,84,85,0.15)', label: 'حذف دائمی' },
+  reorder: { icon: 'ti-sort', color: '#00cfe8', bg: 'rgba(0,207,232,0.1)', label: 'تغییر ترتیب' },
+  renumber: { icon: 'ti-number', color: '#20a862', bg: 'rgba(32,168,98,0.1)', label: 'تغییر کدگذاری' },
+};
 
 function pieOptions(labels: string[]) {
   return {
@@ -40,6 +71,8 @@ function barOptions(categories: string[], formatter?: (v: number) => string) {
 }
 
 export default function DashboardTab({ records, customFields, tags, activityLog, onTabChange }: Props) {
+  const [showAllActivity, setShowAllActivity] = useState(false);
+
   const totalAmount = useMemo(() => {
     let total = 0;
     for (const r of records) {
@@ -51,6 +84,17 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
 
   const uniqueProjects = useMemo(() => new Set(records.map(r => r.project).filter(Boolean)).size, [records]);
   const uniqueTypes = useMemo(() => new Set(records.map(r => r.type).filter(Boolean)).size, [records]);
+
+  const recordsThisWeek = useMemo(() => {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    return records.filter(r => {
+      const created = String(r['created_at'] || r.date || '');
+      if (!created) return false;
+      const d = new Date(created.includes('T') ? created : created + 'T00:00:00Z');
+      return !isNaN(d.getTime()) && d >= weekAgo;
+    }).length;
+  }, [records]);
 
   const typeData = useMemo(() => {
     const map: Record<string, number> = {};
@@ -113,6 +157,16 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
 
   const actLog = activityLog || [];
 
+  const cssBarData = useMemo(() => {
+    if (typeData.length === 0) return [];
+    const maxVal = Math.max(...typeData.map(d => d.value));
+    return typeData.map((d, i) => ({
+      ...d,
+      percent: maxVal > 0 ? (d.value / maxVal) * 100 : 0,
+      color: COLORS[i % COLORS.length],
+    }));
+  }, [typeData]);
+
   return (
     <div className="fade-in">
       <div className="stats-grid">
@@ -122,9 +176,9 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           <div className="stat-label">مجموع رکوردها</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon success"><i className="ti ti-currency-dollar"></i></div>
-          <div className="stat-value">{totalAmount.toLocaleString('fa-IR', { useGrouping: true })}</div>
-          <div className="stat-label">مجموع مبالغ</div>
+          <div className="stat-icon success"><i className="ti ti-calendar-event"></i></div>
+          <div className="stat-value">{recordsThisWeek.toLocaleString('fa-IR')}</div>
+          <div className="stat-label">رکوردهای این هفته</div>
         </div>
         <div className="stat-card">
           <div className="stat-icon info"><i className="ti ti-building"></i></div>
@@ -138,15 +192,47 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
         </div>
       </div>
 
+      <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h4 style={{ margin: 0 }}>مجموع مبالغ</h4>
+          <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>
+            {formatAmount(totalAmount)}
+          </span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+          {typeData.slice(0, 6).map((d, i) => (
+            <div key={d.name} style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.5rem 0.75rem', background: 'var(--bg-body)', borderRadius: 8,
+            }}>
+              <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[i % COLORS.length], flexShrink: 0 }}></span>
+              <span style={{ fontSize: '0.85rem', flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, direction: 'ltr' }}>{d.value.toLocaleString('fa-IR')}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس نوع</h4>
-          <Chart
-            options={pieOptions(typeData.map(d => d.name))}
-            series={typeData.map(d => d.value)}
-            type="pie"
-            height={280}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {cssBarData.map(d => (
+              <div key={d.name}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.2rem' }}>
+                  <span>{d.name}</span>
+                  <span style={{ fontWeight: 600, direction: 'ltr' }}>{d.value.toLocaleString('fa-IR')}</span>
+                </div>
+                <div style={{ height: 24, background: 'var(--bg-body)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{
+                    width: `${d.percent}%`, height: '100%', background: d.color,
+                    borderRadius: 6, transition: 'width 0.6s ease', minWidth: d.value > 0 ? 24 : 0,
+                  }}></div>
+                </div>
+              </div>
+            ))}
+            {cssBarData.length === 0 && <p style={{ opacity: 0.5, textAlign: 'center', padding: '2rem' }}>داده‌ای موجود نیست</p>}
+          </div>
         </div>
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس پروژه (۱۰ تا برتر)</h4>
@@ -279,20 +365,69 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
 
       {actLog.length > 0 && (
         <div className="form-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>فعالیت‌های اخیر</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {actLog.slice(0, 15).map((a, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.5rem 0.75rem', background: 'var(--bg-body)', borderRadius: 8, fontSize: '0.85rem',
-              }}>
-                <i className={`ti ${a.action === 'create' ? 'ti-plus' : a.action === 'update' ? 'ti-edit' : a.action === 'delete' ? 'ti-trash' : 'ti-info-circle'}`}
-                  style={{ color: a.action === 'delete' ? 'var(--danger)' : 'var(--primary)', fontSize: '1rem' }}></i>
-                <span>{a.details || a.action}</span>
-                <span style={{ opacity: 0.5, marginRight: 'auto', fontSize: '0.75rem' }}>{a.date || a.time || ''}</span>
-              </div>
-            ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h4 style={{ margin: 0 }}>
+              <i className="ti ti-history" style={{ marginLeft: '0.5rem', opacity: 0.6 }}></i>
+              فعالیت‌های اخیر
+              <span style={{ fontSize: '0.8rem', fontWeight: 400, opacity: 0.5, marginRight: '0.5rem' }}>
+                ({actLog.length.toLocaleString('fa-IR')})
+              </span>
+            </h4>
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            {(showAllActivity ? actLog : actLog.slice(0, 20)).map((a, i) => {
+              const cfg = ACTION_CONFIG[a.action] || { icon: 'ti-info-circle', color: 'var(--primary)', bg: 'rgba(115,103,240,0.08)', label: a.action };
+              return (
+                <div key={a.record_id || i} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.6rem 0.75rem', background: cfg.bg, borderRadius: 8,
+                  fontSize: '0.85rem', transition: 'background 0.2s',
+                }}>
+                  <div style={{
+                    width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: `${cfg.color}20`, flexShrink: 0,
+                  }}>
+                    <i className={`ti ${cfg.icon}`} style={{ color: cfg.color, fontSize: '1rem' }}></i>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{
+                        padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600,
+                        background: `${cfg.color}20`, color: cfg.color,
+                      }}>{cfg.label}</span>
+                      {a.user_id ? (
+                        <span style={{ fontWeight: 500 }}>کاربر #{a.user_id}</span>
+                      ) : null}
+                    </div>
+                    {a.details && (
+                      <div style={{ opacity: 0.7, fontSize: '0.8rem', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {a.details}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{
+                    opacity: 0.45, fontSize: '0.75rem', whiteSpace: 'nowrap', direction: 'ltr',
+                  }}>
+                    {relativeTime(a.created_at || a.date || a.time || '')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          {actLog.length > 20 && (
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setShowAllActivity(p => !p)}
+              >
+                {showAllActivity ? (
+                  <><i className="ti ti-chevron-up"></i> نمایش کمتر</>
+                ) : (
+                  <><i className="ti ti-chevron-down"></i> نمایش بیشتر ({actLog.length - 20} مورد)</>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

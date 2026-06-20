@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, startTransition } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
@@ -110,7 +110,9 @@ export default function App() {
   const setTab = useCallback((t: string) => {
     const target = '/' + t;
     if (location.pathname !== target) navigate(target);
-    setTabState(t);
+    startTransition(() => {
+      setTabState(t);
+    });
   }, [navigate, location.pathname]);
   const [localMode, setLocalMode] = useState(() => localStorage.getItem('local_mode') === 'true');
   const [authUser, setAuthUser] = useState(() => localMode ? null : getAuthUser());
@@ -292,7 +294,7 @@ export default function App() {
   const refreshServerRecordsRef = useRef(refreshServerRecords);
   refreshServerRecordsRef.current = refreshServerRecords;
 
-  useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
+  const { connectionStatus } = useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
   const currentRecords: any[] = serverMode ? serverRecords : records;
 
@@ -335,10 +337,38 @@ export default function App() {
   const resetForm = () => setEditIndex(null);
 
   const handleTabChange = useCallback((t: string) => {
-    setTab(t);
-    setEditIndex(null);
-    setTemplateData(null);
+    startTransition(() => {
+      setTab(t);
+      setEditIndex(null);
+      setTemplateData(null);
+    });
   }, [setTab]);
+
+  const handleLockRecord = useCallback(async () => {
+    if (viewIndex === null) return;
+    const record = currentRecords[viewIndex];
+    if (!record?.id) return;
+    try {
+      const result = await api.lockRecord(record.id);
+      setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, locked_by: result.locked_by, locked_at: result.locked_at } : r));
+      addToast('رکورد قفل شد', 'success');
+    } catch (err: any) {
+      addToast('خطا در قفل کردن: ' + err.message, 'error');
+    }
+  }, [viewIndex, currentRecords, addToast]);
+
+  const handleUnlockRecord = useCallback(async () => {
+    if (viewIndex === null) return;
+    const record = currentRecords[viewIndex];
+    if (!record?.id) return;
+    try {
+      await api.unlockRecord(record.id);
+      setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, locked_by: undefined, locked_at: undefined } : r));
+      addToast('قفل رکورد باز شد', 'success');
+    } catch (err: any) {
+      addToast('خطا در باز کردن قفل: ' + err.message, 'error');
+    }
+  }, [viewIndex, currentRecords, addToast]);
 
   const toggleSelect = useCallback((i: number) => {
     setSelected(prev => {
@@ -479,6 +509,10 @@ export default function App() {
       if (serverMode) {
         const record = currentRecords[editIndex];
         if (!record) { addToast('رکورد یافت نشد', 'error'); return; }
+        if (record.locked_by) {
+          addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
+          return;
+        }
         setServerLoading(true);
         try {
           const updated = await api.updateRecord(record.id, recordData);
@@ -606,10 +640,24 @@ export default function App() {
     if (ok) setTab('records');
   };
 
-  const handleReorder = (from: number, to: number) => {
-    if (serverMode) return;
-    reorderRecords(from, to);
-  };
+  const handleReorder = useCallback(async (from: number, to: number) => {
+    if (serverMode) {
+      const reordered = [...currentRecords];
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(to, 0, moved);
+      const ids = reordered.map((r: any) => r.id).filter(Boolean);
+      setServerRecords(reordered);
+      try {
+        await api.reorder(ids as any);
+        await refreshServerRecords();
+      } catch (err: any) {
+        setServerRecords(currentRecords);
+        addToast('خطا در مرتب‌سازی: ' + err.message, 'error');
+      }
+    } else {
+      reorderRecords(from, to);
+    }
+  }, [serverMode, currentRecords, reorderRecords, refreshServerRecords, addToast]);
 
   const handleQRScan = (code: string) => {
     setShowScanner(false);
@@ -839,12 +887,34 @@ export default function App() {
     addToast(`الگوی "${name}" حذف شد`, 'success');
   };
 
+  const handleToggleFavorite = useCallback(async (index: number) => {
+    const record = currentRecords[index];
+    if (!record) return;
+    if (serverMode) {
+      try {
+        const updated = await api.toggleFavorite(record.id);
+        setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, is_favorite: updated.is_favorite } : r));
+        addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
+      } catch (err: any) {
+        addToast('خطا: ' + err.message, 'error');
+      }
+    } else {
+      const updated = { ...record, is_favorite: !record.is_favorite };
+      updateRecord(index, updated);
+      addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
+    }
+  }, [currentRecords, serverMode, updateRecord, addToast]);
+
   useEffect(() => { try { localStorage.setItem('view_mode', viewMode); } catch {} }, [viewMode]);
 
   const handleInlineEdit = (index: number, field: string, value: string) => {
     if (serverMode) {
       const record = currentRecords[index];
       if (!record) return;
+      if (record.locked_by) {
+        addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
+        return;
+      }
       setServerLoading(true);
       api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
         setServerRecords(prev => {
@@ -1165,6 +1235,7 @@ export default function App() {
             onSettingsClick={() => setTab('settings')}
             onProfileClick={() => setTab('profile')}
             onShortcutsHelp={() => setShowShortcutsHelp(true)}
+            connectionStatus={serverMode ? connectionStatus : undefined}
           />
 
           <div className="content-area">
@@ -1294,6 +1365,7 @@ export default function App() {
                 onDrop={handleDrop}
                 onSetDragIndex={(i: number | null) => setDragIndex(i)}
                 onInlineEdit={handleInlineEdit}
+                onToggleFavorite={handleToggleFavorite}
                 onApplyPreset={handleApplyPreset}
                 onTabChange={setTab}
                 onSetViewMode={setViewMode}
@@ -1403,6 +1475,8 @@ export default function App() {
                     const r = currentRecords[viewIndex];
                     handleShowVersionHistory(r.id, r.code);
                   } : undefined}
+                  onLock={serverMode ? handleLockRecord : undefined}
+                  onUnlock={serverMode ? handleUnlockRecord : undefined}
                 />
               </Suspense>
             )}
@@ -1483,6 +1557,23 @@ export default function App() {
         </main>
 
         <Toast toasts={toasts} onRemove={removeToast} />
+
+        {!serverMode && undoStack.length > 0 && (
+          <div className="undo-redo-bar" style={{
+            position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.5rem 1rem', borderRadius: 12,
+            background: 'var(--card-bg)', border: '1px solid var(--border-color)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.15)', zIndex: 1000,
+            fontSize: '0.85rem',
+          }}>
+            <button className="btn btn-outline btn-sm" onClick={() => { undo(); addToast('عملیات لغو شد', 'success'); }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <i className="ti ti-undo"></i> لغو
+            </button>
+            <span style={{ opacity: 0.5 }}>{undoStack.length} عملیات قابل بازگشت</span>
+          </div>
+        )}
 
         <ShortcutsHelp show={showShortcutsHelp} onClose={() => setShowShortcutsHelp(false)} />
 

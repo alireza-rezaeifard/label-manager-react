@@ -4,11 +4,13 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import pino from 'pino';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import swaggerUi from 'swagger-ui-express';
 import { authMiddleware } from './middleware/auth.js';
+import { apiKeyAuth } from './middleware/apiKeyAuth.js';
 import { errorHandler, notFoundHandler } from './errors.js';
 import { runMigrations } from './migrate.js';
 import { initWebSocket } from './ws.js';
@@ -16,6 +18,9 @@ import authRoutes from './routes/auth.js';
 import recordRoutes from './routes/records.js';
 import workspaceRoutes from './routes/workspaces.js';
 import customFieldRoutes from './routes/custom-fields.js';
+import apiKeyRoutes from './routes/api-keys.js';
+import webhookRoutes from './routes/webhooks.js';
+import notificationRoutes from './routes/notifications.js';
 import swaggerSpec from './swagger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -24,6 +29,31 @@ const __dirname = dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
+
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+  transport: process.env.NODE_ENV !== 'production' ? { target: 'pino/file', options: { destination: 1 } } : undefined,
+});
+
+const requestLogger = (req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    const logData = {
+      method: req.method,
+      url: req.originalUrl,
+      status: res.statusCode,
+      duration: `${duration}ms`,
+      user: req.user?.username || 'anonymous',
+    };
+    if (res.statusCode >= 400) {
+      logger.warn(logData, 'Request completed with error');
+    } else {
+      logger.info(logData, 'Request completed');
+    }
+  });
+  next();
+};
 
 const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',')
@@ -45,6 +75,7 @@ app.use(helmet({
 }));
 
 app.use(express.json({ limit: '10mb' }));
+app.use(requestLogger);
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -62,40 +93,65 @@ const authLimiter = rateLimit({
 
 app.use('/api/auth/login', authLimiter);
 app.use('/api/auth/register', authLimiter);
+app.use('/api/v1/auth/login', authLimiter);
+app.use('/api/v1/auth/register', authLimiter);
 
 const uploadsDir = join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-app.use('/uploads', authMiddleware, express.static(uploadsDir));
+app.use('/uploads', apiKeyAuth, authMiddleware, express.static(uploadsDir));
 
-app.post('/api/upload-image', authMiddleware, (req, res) => {
-  const { image } = req.body;
-  if (!image) return res.status(400).json({ error: 'No image data', code: 'MISSING_IMAGE' });
+const ALLOWED_MIME_TYPES = {
+  'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg',
+  'image/gif': 'gif', 'image/webp': 'webp', 'image/svg+xml': 'svg',
+  'application/pdf': 'pdf', 'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-excel': 'xls',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+  'text/plain': 'txt', 'text/csv': 'csv',
+};
+
+function handleFileUpload(req, res) {
+  const { file } = req.body;
+  if (!file) return res.status(400).json({ error: 'No file data', code: 'MISSING_FILE' });
 
   const maxSize = 5 * 1024 * 1024;
-  if (Buffer.byteLength(image, 'utf8') > maxSize) {
-    return res.status(400).json({ error: 'Image too large (max 5MB)', code: 'IMAGE_TOO_LARGE' });
+  if (Buffer.byteLength(file, 'utf8') > maxSize) {
+    return res.status(400).json({ error: 'File too large (max 5MB)', code: 'FILE_TOO_LARGE' });
   }
 
-  const matches = image.match(/^data:image\/(png|jpg|jpeg|gif|webp);base64,(.+)$/);
-  if (!matches) return res.status(400).json({ error: 'Invalid image format. Allowed: png, jpg, jpeg, gif, webp', code: 'INVALID_IMAGE' });
+  const dataUriMatch = file.match(/^data:([^;]+);base64,(.+)$/);
+  if (!dataUriMatch) return res.status(400).json({ error: 'Invalid file data URI format', code: 'INVALID_FILE' });
 
-  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-  const data = Buffer.from(matches[2], 'base64');
+  const mime = dataUriMatch[1];
+  const ext = ALLOWED_MIME_TYPES[mime];
+  if (!ext) return res.status(400).json({ error: `Unsupported file type: ${mime}`, code: 'UNSUPPORTED_TYPE' });
+
+  const data = Buffer.from(dataUriMatch[2], 'base64');
   const filename = `${Date.now()}_${req.user.id}.${ext}`;
   const filepath = join(uploadsDir, filename);
 
   fs.writeFileSync(filepath, data);
   res.json({ url: `/uploads/${filename}` });
-});
+}
+
+app.post('/api/upload-file', apiKeyAuth, authMiddleware, handleFileUpload);
+app.post('/api/upload-image', apiKeyAuth, authMiddleware, handleFileUpload);
 
 app.get('/api/health', (req, res) => {
+  const memUsage = process.memoryUsage();
   res.json({
     status: 'ok',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
-    version: '2.0.0',
+    version: '2.1.0',
+    memory: {
+      rss: Math.round(memUsage.rss / 1024 / 1024) + 'MB',
+      heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
+      heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024) + 'MB',
+    },
+    nodeEnv: process.env.NODE_ENV || 'development',
   });
 });
 
@@ -120,11 +176,11 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(apiDoc, {
 
 function importApiPaths() {
   return {
-    '/upload-image': {
+    '/upload-file': {
       post: {
         tags: ['Other'],
-        summary: 'Upload image',
-        description: 'Upload a base64-encoded image file',
+        summary: 'Upload file',
+        description: 'Upload a base64-encoded file (images, pdf, doc, xls, txt, csv)',
         security: [{ BearerAuth: [] }],
         requestBody: {
           required: true,
@@ -132,17 +188,17 @@ function importApiPaths() {
             'application/json': {
               schema: {
                 type: 'object',
-                required: ['image'],
+                required: ['file'],
                 properties: {
-                  image: { type: 'string', description: 'Base64-encoded image data URI' },
+                  file: { type: 'string', description: 'Base64-encoded file data URI' },
                 },
               },
             },
           },
         },
         responses: {
-          200: { description: 'Image uploaded', content: { 'application/json': { schema: { type: 'object', properties: { url: { type: 'string' } } } } } },
-          400: { description: 'Invalid image data', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          200: { description: 'File uploaded', content: { 'application/json': { schema: { type: 'object', properties: { url: { type: 'string' } } } } } },
+          400: { description: 'Invalid file data', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
         },
       },
     },
@@ -516,6 +572,33 @@ function recordApiPaths() {
         },
       },
     },
+    '/records/import-url': {
+      post: {
+        tags: ['Records'],
+        summary: 'Import records from a CSV file URL',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['url'],
+                properties: {
+                  url: { type: 'string', format: 'uri', description: 'URL of the CSV file to import' },
+                  workspace_id: { type: 'integer' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Parsed records', content: { 'application/json': { schema: { type: 'object', properties: { records: { type: 'array', items: { $ref: '#/components/schemas/Record' } }, total: { type: 'integer' } } } } } },
+          400: { description: 'Invalid URL or fetch failed', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+          403: { description: 'Insufficient permissions', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } },
+        },
+      },
+    },
     '/records/activity': {
       get: {
         tags: ['Records'],
@@ -827,6 +910,19 @@ app.use('/api/auth', authRoutes);
 app.use('/api/records', recordRoutes);
 app.use('/api/workspaces', workspaceRoutes);
 app.use('/api/custom-fields', customFieldRoutes);
+app.use('/api/api-keys', apiKeyRoutes);
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/records', recordRoutes);
+app.use('/api/v1/workspaces', workspaceRoutes);
+app.use('/api/v1/custom-fields', customFieldRoutes);
+app.use('/api/v1/api-keys', apiKeyRoutes);
+
+app.get('/api/version', (req, res) => {
+  res.json({ version: '2.1.0', apiVersions: ['v1'] });
+});
 
 const distPath = join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
@@ -849,6 +945,21 @@ if (process.env.NODE_ENV !== 'test') {
   server.listen(PORT, () => {
     console.log(`Label Studio API running on http://localhost:${PORT}`);
   });
+
+  const gracefulShutdown = (signal) => {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    server.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
+    setTimeout(() => {
+      console.error('Forced shutdown after timeout');
+      process.exit(1);
+    }, 10000);
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 }
 
 export default app;

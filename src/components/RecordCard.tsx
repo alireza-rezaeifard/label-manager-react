@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from 'react';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
+import SearchHighlight from '../utils/SearchHighlight';
 import type { RecordItem, CustomField } from '../types';
 
 interface CheckboxProps {
@@ -22,6 +23,7 @@ interface RecordCardProps {
   onToggle: () => void;
   onEdit: () => void;
   onView: () => void;
+  onToggleFavorite?: () => void;
   getRelatedLabels?: (related: string[]) => { code: string }[];
   index: number;
   onDragStart?: (e: React.DragEvent) => void;
@@ -30,9 +32,10 @@ interface RecordCardProps {
   onDrop?: (e: React.DragEvent) => void;
   onInlineEdit?: (index: number, field: string, value: string) => void;
   customFields?: CustomField[];
+  searchQuery?: string;
 }
 
-function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [] }: RecordCardProps) {
+function RecordCard({ record, selected, onToggle, onEdit, onView, onToggleFavorite, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [], searchQuery = '' }: RecordCardProps) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -61,9 +64,26 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
         <div className="d-flex align-items-center gap-2">
           <Checkbox checked={selected} onChange={onToggle} />
           <span className={`code-badge ${selected ? '' : 'bg-light text-muted'}`} style={record.color && !selected ? { borderLeft: `3px solid ${record.color}` } : {}}>
-            {record.code || '—'}
+            {record.code ? <SearchHighlight text={record.code} query={searchQuery} /> : '—'}
           </span>
+          {record.locked_by && (
+            <i className="ti ti-lock" style={{ fontSize: '0.85rem', color: 'var(--warning)' }} title={`قفل شده توسط ${record.locked_by}`}></i>
+          )}
         </div>
+        {onToggleFavorite && (
+          <button
+            className="btn btn-sm"
+            onClick={(e: React.MouseEvent) => { e.stopPropagation(); onToggleFavorite(); }}
+            title={record.is_favorite ? 'حذف از علاقه‌مندی‌ها' : 'افزودن به علاقه‌مندی‌ها'}
+            style={{ background: 'none', border: 'none', padding: '0.25rem', cursor: 'pointer' }}
+          >
+            <i className={`ti ${record.is_favorite ? 'ti-star' : 'ti-star'}`} style={{
+              fontSize: '1.1rem',
+              color: record.is_favorite ? '#ff9f43' : 'var(--text-color)',
+              opacity: record.is_favorite ? 1 : 0.3,
+            }}></i>
+          </button>
+        )}
       </div>
       <div className="label-card-body">
         <div className="label-fields-grid">
@@ -79,7 +99,7 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
                   onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 />
               ) : (
-                <span className="label-field-value">{f.key === 'amount' ? formatAmount((record as any)[f.key]) : ((record as any)[f.key] || '—')}</span>
+                <span className="label-field-value">{f.key === 'amount' ? formatAmount((record as any)[f.key]) : (f.key === 'project' || f.key === 'party' ? <SearchHighlight text={((record as any)[f.key] || '—')} query={searchQuery} /> : ((record as any)[f.key] || '—'))}</span>
               )}
             </div>
           ))}

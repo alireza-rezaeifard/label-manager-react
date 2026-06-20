@@ -86,6 +86,15 @@ export const api = {
   uploadImage: (base64: string) =>
     apiRequest('/upload-image', { method: 'POST', body: JSON.stringify({ image: base64 }) }),
 
+  getCustomFields: (workspaceId?: string | number) =>
+    apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`).catch(() => []),
+
+  getMe: () =>
+    apiRequest('/auth/me'),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+
   getActivity: (workspaceId?: string | number) =>
     apiRequest(`/records/activity${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
@@ -125,24 +134,24 @@ export const api = {
   restoreRecordVersion: (recordId: string | number, versionId: string | number) =>
     apiRequest(`/records/${recordId}/versions/${versionId}/restore`, { method: 'POST' }),
 
-  getMe: () =>
-    apiRequest('/auth/me'),
+  toggleFavorite: (recordId: string | number) =>
+    apiRequest(`/records/${recordId}/favorite`, { method: 'POST' }),
 
-  changePassword: (currentPassword: string, newPassword: string) =>
-    apiRequest('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  lockRecord: (recordId: string | number) =>
+    apiRequest(`/records/${recordId}/lock`, { method: 'POST' }),
 
-  getCustomFields: (workspaceId?: string | number) =>
-    apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
+  unlockRecord: (recordId: string | number) =>
+    apiRequest(`/records/${recordId}/unlock`, { method: 'POST' }),
 
-  createCustomField: (field: CustomField) =>
-    apiRequest('/custom-fields', { method: 'POST', body: JSON.stringify(field) }),
+  importFromUrl: (url: string, workspaceId?: string | number) =>
+    apiRequest('/records/import-url', { method: 'POST', body: JSON.stringify({ url, workspace_id: workspaceId }) }),
 
-  batchSaveCustomFields: (fields: CustomField[], workspaceId?: string | number) =>
-    apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
+  getTrash: (workspaceId?: string | number) =>
+    apiRequest(`/records/trash${workspaceId ? `?workspace_id=${workspaceId}` : ''}`),
 
-  updateCustomField: (key: string, field: Partial<CustomField>, workspaceId?: string | number) =>
-    apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'PUT', body: JSON.stringify({ ...field, workspace_id: workspaceId }) }),
+  restoreFromTrash: (ids: string[]) =>
+    apiRequest('/records/trash/restore', { method: 'POST', body: JSON.stringify({ ids }) }),
 
-  deleteCustomField: (key: string, workspaceId?: string | number) =>
-    apiRequest(`/custom-fields/${encodeURIComponent(key)}${workspaceId ? `?workspace_id=${workspaceId}` : ''}`, { method: 'DELETE' }),
+  permanentDelete: (ids: string[]) =>
+    apiRequest('/records/trash/permanent', { method: 'DELETE', body: JSON.stringify({ ids }) }),
 };

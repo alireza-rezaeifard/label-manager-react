@@ -56,6 +56,7 @@ interface RecordsPageProps {
   onDrop: (e: React.DragEvent, dropIdx: number) => void;
   onSetDragIndex: (i: number | null) => void;
   onInlineEdit: (index: number, field: string, value: string) => void;
+  onToggleFavorite?: (index: number) => void;
   onApplyPreset: (filters: FilterState) => void;
   onTabChange: (t: string) => void;
   onSetViewMode: React.Dispatch<React.SetStateAction<string>>;
@@ -120,6 +121,7 @@ export default function RecordsPage({
   onDrop,
   onSetDragIndex,
   onInlineEdit,
+  onToggleFavorite,
   onApplyPreset,
   onTabChange,
   onSetFilterType,
@@ -275,13 +277,20 @@ export default function RecordsPage({
 
       {sortedRecords.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-icon"><i className="ti ti-file-off"></i></div>
-          <h3 style={{ marginBottom: '0.5rem' }}>هنوز رکوردی وجود ندارد</h3>
-          <p style={{ opacity: 0.7, marginBottom: '1.5rem' }}>رکورد جدید اضافه کنید یا فایل CSV وارد نمایید</p>
+          <div className="empty-icon" style={{ width: 140, height: 140, fontSize: '4rem', borderRadius: '50%', background: 'var(--hover-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 2rem', color: 'var(--text-color)', opacity: 0.3 }}>
+            <i className="ti ti-file-off"></i>
+          </div>
+          <h3 style={{ marginBottom: '0.75rem', fontSize: '1.5rem' }}>هنوز رکوردی وجود ندارد</h3>
+          <p style={{ opacity: 0.6, marginBottom: '2rem', maxWidth: 400, margin: '0 auto 2rem', lineHeight: 1.8 }}>برای شروع کار، رکورد جدید اضافه کنید یا یک فایل CSV یا Excel وارد نمایید. همچنین می‌توانید از قالب‌های آماده استفاده کنید.</p>
           {!isViewer && (
-            <button className="btn btn-primary" onClick={() => onTabChange('add')}>
-              <i className="ti ti-plus"></i> افزودن رکورد
-            </button>
+            <div className="d-flex gap-2 align-items-center" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button className="btn btn-primary" onClick={() => onTabChange('add')}>
+                <i className="ti ti-plus"></i> افزودن رکورد
+              </button>
+              <button className="btn btn-outline" onClick={() => onTabChange('import')}>
+                <i className="ti ti-upload"></i> وارد کردن فایل
+              </button>
+            </div>
           )}
         </div>
       ) : viewMode === 'table' ? (
@@ -338,10 +347,12 @@ export default function RecordsPage({
                   index={realIdx}
                   onDragStart={(e: React.DragEvent) => onDragStart(e, realIdx)}
                   customFields={customFields}
+                  searchQuery={search}
 onDragOver={(e: React.DragEvent) => e.preventDefault()}
                   onDragEnd={() => onSetDragIndex(null)}
                   onDrop={(e: React.DragEvent) => onDrop(e, realIdx)}
                   onInlineEdit={onInlineEdit}
+                  onToggleFavorite={onToggleFavorite ? () => onToggleFavorite(realIdx) : undefined}
                 />
               );
             })}

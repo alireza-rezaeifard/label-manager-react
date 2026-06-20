@@ -1,0 +1,202 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e7]: 
+      - generic [ref=e8]: Label Studio
+    - navigation [ref=e9]:
+      - generic [ref=e10]:
+        - generic [ref=e11] [cursor=pointer]:
+          - generic [ref=e12]: اصلی
+          - generic [ref=e13]: 
+        - generic [ref=e14]:
+          - generic "داشبورد" [ref=e15] [cursor=pointer]:
+            - generic [ref=e16]: 
+            - generic [ref=e17]: داشبورد
+          - generic "سوابق" [ref=e18] [cursor=pointer]:
+            - generic [ref=e19]: 
+            - generic [ref=e20]: سوابق
+      - generic [ref=e21]:
+        - generic [ref=e22] [cursor=pointer]:
+          - generic [ref=e23]: عملیات
+          - generic [ref=e24]: 
+        - generic [ref=e25]:
+          - generic "افزودن رکورد" [ref=e26] [cursor=pointer]:
+            - generic [ref=e27]: 
+            - generic [ref=e28]: افزودن رکورد
+          - generic "ورود CSV" [ref=e29] [cursor=pointer]:
+            - generic [ref=e30]: 
+            - generic [ref=e31]: ورود CSV
+      - generic [ref=e32]:
+        - generic [ref=e33] [cursor=pointer]:
+          - generic [ref=e34]: ابزارها
+          - generic [ref=e35]: 
+        - generic [ref=e36]:
+          - generic "پیش‌نمایش برچسب" [ref=e37] [cursor=pointer]:
+            - generic [ref=e38]: 
+            - generic [ref=e39]: پیش‌نمایش برچسب
+          - generic "گزارش‌ها" [ref=e40] [cursor=pointer]:
+            - generic [ref=e41]: 
+            - generic [ref=e42]: گزارش‌ها
+          - generic "تاریخچه چاپ" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]: 
+            - generic [ref=e45]: تاریخچه چاپ
+      - generic [ref=e46]:
+        - generic [ref=e47] [cursor=pointer]:
+          - generic [ref=e48]: حساب
+          - generic [ref=e49]: 
+        - generic [ref=e50]:
+          - generic "پروفایل" [ref=e51] [cursor=pointer]:
+            - generic [ref=e52]: 
+            - generic [ref=e53]: پروفایل
+          - generic "تنظیمات" [ref=e54] [cursor=pointer]:
+            - generic [ref=e55]: 
+            - generic [ref=e56]: تنظیمات
+    - generic [ref=e57]:
+      - generic [ref=e59]:
+        - generic [ref=e60]: فعالیت‌ها
+        - generic "بروزرسانی خودکار هر ۱۵ ثانیه" [ref=e61]
+      - generic [ref=e62]:
+        - 'generic "create: Created record PROJ021-PAY-1405-001" [ref=e63]':
+          - generic [ref=e64]: 
+          - generic [ref=e65]:
+            - generic [ref=e66]: create
+            - generic [ref=e67]: Created record PROJ021-PAY-1405-001
+        - 'generic "create: Created record CONTRACT022" [ref=e68]':
+          - generic [ref=e69]: 
+          - generic [ref=e70]:
+            - generic [ref=e71]: create
+            - generic [ref=e72]: Created record CONTRACT022
+        - 'generic "create: Created record CONTRACT021" [ref=e73]':
+          - generic [ref=e74]: 
+          - generic [ref=e75]:
+            - generic [ref=e76]: create
+            - generic [ref=e77]: Created record CONTRACT021
+        - 'generic "restore: Restored 58 records" [ref=e78]':
+          - generic [ref=e79]: 
+          - generic [ref=e80]:
+            - generic [ref=e81]: restore
+            - generic [ref=e82]: Restored 58 records
+        - 'generic "restore: Restored 58 records" [ref=e83]':
+          - generic [ref=e84]: 
+          - generic [ref=e85]:
+            - generic [ref=e86]: restore
+            - generic [ref=e87]: Restored 58 records
+        - 'generic "restore: Restored 58 records" [ref=e88]':
+          - generic [ref=e89]: 
+          - generic [ref=e90]:
+            - generic [ref=e91]: restore
+            - generic [ref=e92]: Restored 58 records
+        - 'generic "restore: Restored 58 records" [ref=e93]':
+          - generic [ref=e94]: 
+          - generic [ref=e95]:
+            - generic [ref=e96]: restore
+            - generic [ref=e97]: Restored 58 records
+        - 'generic "create: Created record CONTRACT-000" [ref=e98]':
+          - generic [ref=e99]: 
+          - generic [ref=e100]:
+            - generic [ref=e101]: create
+            - generic [ref=e102]: Created record CONTRACT-000
+    - generic [ref=e103]:
+      - button "" [ref=e104] [cursor=pointer]:
+        - generic [ref=e105]: 
+      - generic [ref=e106]: Version 2.0.0
+  - main [ref=e107]:
+    - generic [ref=e108]:
+      - generic [ref=e109]:
+        - button "" [ref=e110] [cursor=pointer]:
+          - generic [ref=e111]: 
+        - generic [ref=e112]:
+          - generic [ref=e113]: 
+          - textbox "جستجو..." [ref=e114]
+      - generic [ref=e115]:
+        - generic "متصل" [ref=e116]:
+          - generic [ref=e117]: 
+          - generic [ref=e118]: متصل
+        - button "" [ref=e119] [cursor=pointer]:
+          - generic [ref=e120]: 
+        - button "" [ref=e121] [cursor=pointer]:
+          - generic [ref=e122]: 
+        - button "" [ref=e123] [cursor=pointer]:
+          - generic [ref=e124]: 
+        - button "" [ref=e125] [cursor=pointer]:
+          - generic [ref=e126]: 
+        - generic [ref=e127] [cursor=pointer]:
+          - generic [ref=e128]: A
+          - generic [ref=e129]: Admin
+          - generic [ref=e130]: 
+    - generic [ref=e131]:
+      - generic [ref=e132]:
+        - generic [ref=e133]:
+          - heading "پروفایل" [level=1] [ref=e134]
+          - paragraph [ref=e135]: ابزار مدیریت اسناد و چاپ برچسب
+        - generic [ref=e136]:
+          - button " Personal Workspace مالک " [ref=e138] [cursor=pointer]:
+            - generic [ref=e139]: 
+            - generic [ref=e140]: Personal Workspace
+            - generic [ref=e141]: مالک
+            - generic [ref=e142]: 
+          - button " صف چاپ" [ref=e143] [cursor=pointer]:
+            - generic [ref=e144]: 
+            - text: صف چاپ
+          - button " اسکن QR" [ref=e145] [cursor=pointer]:
+            - generic [ref=e146]: 
+            - text: اسکن QR
+          - button " پشتیبان" [ref=e147] [cursor=pointer]:
+            - generic [ref=e148]: 
+            - text: پشتیبان
+          - button " خروج" [ref=e149] [cursor=pointer]:
+            - generic [ref=e150]: 
+            - text: خروج
+      - generic [ref=e152]:
+        - generic [ref=e153]:
+          - generic [ref=e154]:
+            - generic [ref=e155]: A
+            - generic [ref=e156]:
+              - heading "admin" [level=3] [ref=e157]
+              - paragraph [ref=e158]: Logged in as admin
+          - generic [ref=e159]:
+            - generic [ref=e162]: "Server: Connected"
+            - generic [ref=e164]: 61 records
+            - button " Edit" [ref=e165] [cursor=pointer]:
+              - generic [ref=e166]: 
+              - text: Edit
+        - generic [ref=e167]:
+          - heading "Notifications" [level=4] [ref=e168]:
+            - generic [ref=e169]: 
+            - text: Notifications
+          - generic [ref=e170]:
+            - generic [ref=e171]: 
+            - text: No notifications
+        - generic [ref=e172]:
+          - heading "Backup & Restore" [level=4] [ref=e173]:
+            - generic [ref=e174]: 
+            - text: Backup & Restore
+          - generic [ref=e175]:
+            - button " Download Backup" [ref=e176] [cursor=pointer]:
+              - generic [ref=e177]: 
+              - text: Download Backup
+            - button " Restore Backup" [ref=e178] [cursor=pointer]:
+              - generic [ref=e179]: 
+              - text: Restore Backup
+        - generic [ref=e180]:
+          - heading "Account Settings" [level=4] [ref=e181]:
+            - generic [ref=e182]: 
+            - text: Account Settings
+          - generic [ref=e183]:
+            - generic [ref=e184]:
+              - generic [ref=e185]: Username
+              - generic [ref=e186]: admin
+            - generic [ref=e187]:
+              - generic [ref=e188]: Role
+              - generic [ref=e189]: admin
+            - group [ref=e190]:
+              - generic "تغییر رمز عبور" [ref=e191] [cursor=pointer]:
+                - generic [ref=e192]: 
+                - text: تغییر رمز عبور
+              - text: 
+            - separator [ref=e193]
+            - generic [ref=e194]:
+              - generic [ref=e195]: Login to server
+              - button " Go to login page" [ref=e196] [cursor=pointer]:
+                - generic [ref=e197]: 
+                - text: Go to login page

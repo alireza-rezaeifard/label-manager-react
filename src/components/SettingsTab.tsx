@@ -57,6 +57,11 @@ export default function SettingsTab({
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('text');
   const [editOptions, setEditOptions] = useState('');
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editTagValue, setEditTagValue] = useState('');
+  const [mergeMode, setMergeMode] = useState(false);
+  const [mergeSource, setMergeSource] = useState<string | null>(null);
+  const [mergeTarget, setMergeTarget] = useState('');
 
   const startEdit = (f: CustomFieldSettings) => {
     setEditingKey(f.key);
@@ -79,6 +84,35 @@ export default function SettingsTab({
       : undefined;
     onEditField(editingKey, { label: editName.trim(), fa: editName.trim(), fieldType: editType, options });
     cancelEdit();
+  };
+
+  const startTagEdit = (tag: string) => {
+    setEditingTag(tag);
+    setEditTagValue(tag);
+  };
+
+  const saveTagEdit = () => {
+    if (!editingTag || !editTagValue.trim()) return;
+    if (editTagValue.trim() !== editingTag) {
+      onAddTag(editTagValue.trim());
+      onRemoveTag(editingTag);
+    }
+    setEditingTag(null);
+    setEditTagValue('');
+  };
+
+  const handleMerge = () => {
+    if (!mergeSource || !mergeTarget.trim()) return;
+    if (mergeTarget === mergeSource) return;
+    if (tags.includes(mergeTarget.trim()) && mergeTarget.trim() !== mergeSource) {
+      onRemoveTag(mergeSource);
+    } else {
+      onAddTag(mergeTarget.trim());
+      onRemoveTag(mergeSource);
+    }
+    setMergeMode(false);
+    setMergeSource(null);
+    setMergeTarget('');
   };
 
   return (
@@ -138,18 +172,37 @@ export default function SettingsTab({
             {tags.map(tag => (
               <span key={tag} style={{
                 display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.4rem 0.8rem', background: 'var(--primary)',
-                color: 'white', borderRadius: 20, fontSize: '0.85rem',
-              }}>
-                {tag}
-                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '0.9rem' }}
-                  onClick={() => onRemoveTag(tag)}></i>
+                padding: '0.4rem 0.8rem', background: mergeSource === tag ? 'var(--danger)' : 'var(--primary)',
+                color: 'white', borderRadius: 20, fontSize: '0.85rem', cursor: mergeMode ? 'pointer' : 'default',
+              }}
+                onClick={() => {
+                  if (mergeMode) {
+                    if (!mergeSource) setMergeSource(tag);
+                    else if (tag !== mergeSource) { setMergeTarget(tag); }
+                  }
+                }}
+              >
+                {editingTag === tag ? (
+                  <input type="text" value={editTagValue} onChange={e => setEditTagValue(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') saveTagEdit(); if (e.key === 'Escape') setEditingTag(null); }}
+                    onBlur={saveTagEdit}
+                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.85rem', width: Math.max(60, editTagValue.length * 9), outline: 'none', padding: 0 }}
+                    autoFocus />
+                ) : tag}
+                {!mergeMode && (
+                  <i className="ti ti-pencil" style={{ cursor: 'pointer', fontSize: '0.8rem', opacity: 0.8 }}
+                    onClick={(e) => { e.stopPropagation(); startTagEdit(tag); }}></i>
+                )}
+                {!mergeMode && (
+                  <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '0.9rem' }}
+                    onClick={() => onRemoveTag(tag)}></i>
+                )}
               </span>
             ))}
           </div>
         )}
 
-        <div className="d-flex gap-2">
+        <div className="d-flex gap-2" style={{ flexWrap: 'wrap', marginBottom: mergeMode ? '1rem' : 0 }}>
           <input
             type="text"
             className="form-input"
@@ -163,6 +216,35 @@ export default function SettingsTab({
             <i className="ti ti-plus"></i> افزودن
           </button>
         </div>
+
+        {tags.length >= 2 && (
+          <div className="d-flex gap-2" style={{ marginTop: '1rem' }}>
+            <button className={`btn ${mergeMode ? 'btn-danger' : 'btn-outline'} btn-sm`}
+              onClick={() => { setMergeMode(!mergeMode); setMergeSource(null); setMergeTarget(''); }}>
+              <i className="ti ti-arrows-cross"></i> ادغام
+            </button>
+          </div>
+        )}
+
+        {mergeMode && (
+          <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--hover-bg)', borderRadius: 8 }}>
+            <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '0.75rem' }}>
+              {mergeSource ? `برچسب "${mergeSource}" به کجا ادغام شود؟` : 'برچسب مبدأ را انتخاب کنید (روی برچسب کلیک کنید)'}
+            </p>
+            {mergeSource && (
+              <div className="d-flex gap-2">
+                <input type="text" className="form-input" value={mergeTarget}
+                  onChange={e => setMergeTarget(e.target.value)}
+                  placeholder="نام برچسب مقصد..."
+                  style={{ marginBottom: 0, flex: 1 }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
+                <button className="btn btn-primary btn-sm" onClick={handleMerge}>
+                  <i className="ti ti-check"></i> تأیید
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="form-card">

@@ -18,6 +18,11 @@ export interface RecordItem {
   image?: string;
   color?: string;
   id?: string;
+  is_favorite?: boolean;
+  notes?: string;
+  deleted_at?: string;
+  locked_by?: string;
+  locked_at?: string;
   [key: string]: unknown;
 }
 
