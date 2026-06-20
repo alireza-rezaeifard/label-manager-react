@@ -47,6 +47,7 @@ const PrintSettingsModal = lazy(() => import('./components/PrintSettingsModal'))
 const BackupModal = lazy(() => import('./components/BackupModal'));
 const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
+const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 
 const HISTORY_KEY = 'label-studio-print-history';
 const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
@@ -197,6 +198,7 @@ export default function App() {
   const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [versionHistoryRecord, setVersionHistoryRecord] = useState<{ id: string; code: string } | null>(null);
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(() => {
@@ -282,10 +284,13 @@ export default function App() {
   }, [swrData]);
 
   const refreshServerRecords = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId) return;
+    if (!serverMode || !currentWorkspaceId || isRestoringRef.current) return;
     invalidateCache(`records:${currentWorkspaceId}`);
     await revalidate();
   }, [revalidate, serverMode, currentWorkspaceId]);
+
+  const refreshServerRecordsRef = useRef(refreshServerRecords);
+  refreshServerRecordsRef.current = refreshServerRecords;
 
   useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
@@ -616,6 +621,26 @@ export default function App() {
     handleView(idx);
   };
 
+  const handleShowVersionHistory = useCallback((id: string, code: string) => {
+    setVersionHistoryRecord({ id, code });
+  }, []);
+
+  const handleRestoreVersion = useCallback(async (versionId: number) => {
+    if (!versionHistoryRecord) return;
+    try {
+      if (serverMode) {
+        await api.restoreRecordVersion(versionHistoryRecord.id, versionId);
+        await refreshServerRecords();
+        addToast('نسخه با موفقیت بازگردانی شد', 'success');
+      } else {
+        addToast('بازگردانی نسخه فقط در حالت سرور پشتیبانی می‌شود', 'error');
+      }
+    } catch (err: any) {
+      addToast('خطا در بازگردانی نسخه: ' + err.message, 'error');
+    }
+    setVersionHistoryRecord(null);
+  }, [versionHistoryRecord, serverMode]);
+
   const {
     handlePrint, handleExcel, handleCSVExport, handlePDF,
     handleExportAllExcel, handleExportAllCSV, handleExportAllPrint,
@@ -658,7 +683,20 @@ export default function App() {
   const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
 
   const handleBackup = () => {
-    const blob = new Blob([JSON.stringify({ records: sortByCode(currentRecords), customFields }, null, 2)], { type: 'application/json' });
+    const cache = loadRecordCustomFieldsCache();
+    const codeCache = loadRecordCustomFieldsCodeCache();
+    const recordsWithCustomFields = sortByCode(currentRecords).map(r => {
+      if (!serverMode) return r;
+      const merged = { ...r };
+      for (const f of customFields) {
+        if (merged[f.key] === undefined) {
+          const val = cache[r.id]?.[f.key] ?? codeCache[r.code]?.[f.key];
+          if (val !== undefined) merged[f.key] = val;
+        }
+      }
+      return merged;
+    });
+    const blob = new Blob([JSON.stringify({ records: recordsWithCustomFields, customFields }, null, 2)], { type: 'application/json' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
@@ -691,7 +729,7 @@ export default function App() {
           }
         }
         if (customKeys.size > 0) {
-          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, field_type: 'text' }));
+          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, fieldType: 'text' }));
         }
       }
 
@@ -751,6 +789,9 @@ export default function App() {
         addToast('خطا در بازیابی: ' + err.message, 'error');
       } finally {
         isRestoringRef.current = false;
+        setTimeout(() => {
+          refreshServerRecordsRef.current();
+        }, 100);
       }
     } else {
       setRecords(restoredRecords);
@@ -1343,7 +1384,7 @@ export default function App() {
 
             {tab === 'import' && (
               <Suspense fallback={<ImportSkeleton />}>
-                <ImportCSV onImport={handleImport} addToast={addToast} />
+                <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} customFields={customFields} />
               </Suspense>
             )}
 
@@ -1358,6 +1399,10 @@ export default function App() {
                     const idx = currentRecords.findIndex(r => r.code === rel.code);
                     if (idx !== -1) setViewIndex(idx);
                   }}
+                  onShowHistory={serverMode ? () => {
+                    const r = currentRecords[viewIndex];
+                    handleShowVersionHistory(r.id, r.code);
+                  } : undefined}
                 />
               </Suspense>
             )}
@@ -1637,6 +1682,18 @@ export default function App() {
               selectedRecords={selectedRecords}
               addToast={addToast}
               onClose={() => setShowPrintQueue(false)}
+            />
+          </Suspense>
+        )}
+
+        {versionHistoryRecord && (
+          <Suspense fallback={null}>
+            <RecordHistoryModal
+              recordId={versionHistoryRecord.id}
+              recordCode={versionHistoryRecord.code}
+              onClose={() => setVersionHistoryRecord(null)}
+              onRestore={handleRestoreVersion}
+              addToast={addToast}
             />
           </Suspense>
         )}

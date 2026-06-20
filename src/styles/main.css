@@ -121,7 +121,6 @@ body {
 .sidebar-narrow .sidebar-brand-text,
 .sidebar-narrow .nav-label,
 .sidebar-narrow .nav-section-title span,
-.sidebar-narrow .section-arrow,
 .sidebar-narrow .sidebar-activity,
 .sidebar-narrow .sidebar-version {
   opacity: 0;
@@ -132,11 +131,24 @@ body {
 .sidebar-narrow:hover .sidebar-brand-text,
 .sidebar-narrow:hover .nav-label,
 .sidebar-narrow:hover .nav-section-title span,
-.sidebar-narrow:hover .section-arrow,
 .sidebar-narrow:hover .sidebar-activity,
 .sidebar-narrow:hover .sidebar-version {
   opacity: 1;
   pointer-events: auto;
+}
+
+.sidebar-narrow .nav-section-title {
+  justify-content: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  margin: 0.25rem 0.75rem;
+}
+
+.sidebar-narrow:hover .nav-section-title {
+  justify-content: flex-start;
+  padding: 0.85rem 1.5rem 0.85rem 2rem;
+  border-bottom: none;
+  margin: 0;
 }
 
 .sidebar-narrow .nav-item {
@@ -1636,6 +1648,215 @@ body {
 .table-responsive-wrapper {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Import Preview Table */
+.import-preview-table-wrapper {
+  background: var(--card-bg);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  overflow-x: auto;
+  max-height: 480px;
+  overflow-y: auto;
+  margin-top: 1rem;
+}
+
+.import-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 800px;
+}
+
+.import-preview-table th {
+  padding: 0.75rem 1rem;
+  background: var(--hover-bg);
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+  color: var(--text-color);
+  text-align: right;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.import-preview-table th.row-num {
+  width: 48px;
+  text-align: center;
+}
+
+.import-preview-table th.status-col {
+  width: 80px;
+  text-align: center;
+}
+
+.import-preview-table td {
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.import-preview-table td.row-num {
+  text-align: center;
+  opacity: 0.5;
+  font-size: 0.8rem;
+}
+
+.import-preview-table td.status-col {
+  text-align: center;
+}
+
+.cell-value {
+  display: inline-block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-cell {
+  opacity: 0.3;
+}
+
+.import-row-valid {
+  background: rgba(40, 199, 111, 0.03);
+}
+
+.import-row-warning {
+  background: rgba(255, 159, 67, 0.04);
+}
+
+.import-row-error {
+  background: rgba(234, 84, 85, 0.04);
+}
+
+.import-row-error td {
+  border-bottom-color: rgba(234, 84, 85, 0.15);
+}
+
+.import-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.badge-ok {
+  background: rgba(40, 199, 111, 0.12);
+  color: var(--success);
+}
+
+.badge-warning {
+  background: rgba(255, 159, 67, 0.12);
+  color: var(--warning);
+}
+
+.badge-error {
+  background: rgba(234, 84, 85, 0.12);
+  color: var(--danger);
+}
+
+.import-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  margin-top: 1rem;
+}
+
+.import-summary.all-valid {
+  background: rgba(40, 199, 111, 0.08);
+  color: var(--success);
+  border: 1px solid rgba(40, 199, 111, 0.2);
+}
+
+.import-summary.has-errors {
+  background: rgba(234, 84, 85, 0.08);
+  color: var(--danger);
+  border: 1px solid rgba(234, 84, 85, 0.2);
+}
+
+.import-summary i {
+  font-size: 1.25rem;
+}
+
+.import-errors-list {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(234, 84, 85, 0.05);
+  border: 1px solid rgba(234, 84, 85, 0.15);
+  border-radius: 12px;
+}
+
+.import-errors-list h5 {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger);
+  font-size: 0.95rem;
+}
+
+.import-error-item {
+  padding: 0.4rem 0;
+  font-size: 0.85rem;
+  color: var(--text-color);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.import-error-item strong {
+  color: var(--danger);
+  white-space: nowrap;
+}
+
+/* Version History Modal */
+.version-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.version-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--border-color);
+  position: relative;
+}
+
+.version-item:last-child {
+  border-bottom: none;
+}
+
+.version-timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  flex-shrink: 0;
+  margin-top: 6px;
+  position: relative;
+}
+
+.version-item::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 24px;
+  bottom: 0;
+  width: 2px;
+  background: var(--border-color);
+}
+
+.version-item:last-child::before {
+  display: none;
 }
 
 @media (max-width: 768px) {

@@ -2,12 +2,13 @@ import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
 import type { CustomField } from '../types';
 
-export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [] }: {
+export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [], onShowHistory }: {
   record: any;
   relatedRecords: any[];
   onEdit: () => void;
   onNavigateToRelated: (rel: any) => void;
   customFields?: CustomField[];
+  onShowHistory?: () => void;
 }) {
   return (
     <div className="form-card fade-in">
@@ -28,9 +29,16 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               <span style={{ opacity: 0.6 }}>{record.type || '—'} - {record.project}</span>
             </div>
           </div>
-          <button className="btn btn-outline" onClick={onEdit}>
-            <i className="ti ti-edit"></i> ویرایش
-          </button>
+          <div className="d-flex gap-2">
+            {onShowHistory && (
+              <button className="btn btn-outline" onClick={onShowHistory}>
+                <i className="ti ti-history"></i> تاریخچه
+              </button>
+            )}
+            <button className="btn btn-outline" onClick={onEdit}>
+              <i className="ti ti-edit"></i> ویرایش
+            </button>
+          </div>
         </div>
 
         <div style={{
