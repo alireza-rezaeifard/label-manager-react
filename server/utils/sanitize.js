@@ -4,10 +4,9 @@ const ENTITY_MAP = {
   '>': '&gt;',
   '"': '&quot;',
   "'": '&#x27;',
-  '/': '&#x2F;',
 };
 
-const ENTITY_RE = /[&<>"'/]/g;
+const ENTITY_RE = /[&<>"']/g;
 
 export function sanitize(str) {
   if (typeof str !== 'string') return str;

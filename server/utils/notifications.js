@@ -18,6 +18,7 @@ export function notifyWorkspace(workspaceId, event, record, excludeUserId) {
     SELECT np.email, u.username
     FROM notification_preferences np
     JOIN workspace_members wm ON wm.user_id = np.user_id
+    JOIN users u ON u.id = np.user_id
     WHERE wm.workspace_id = ? AND np.user_id != ? AND np.${flag} = 1 AND np.email != ''
   `).all(workspaceId, excludeUserId);
 
