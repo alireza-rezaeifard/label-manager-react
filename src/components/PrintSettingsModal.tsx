@@ -1,4 +1,5 @@
 import type { CustomField } from '../types';
+import SearchableSelect from './SearchableSelect';
 
 interface PrintSettingsModalProps {
   show: boolean;
@@ -43,19 +44,27 @@ export default function PrintSettingsModal({
         </div>
         <div className="form-group">
           <label className="form-label">قالب برچسب</label>
-          <select className="form-input" value={printTemplate} onChange={e => setPrintTemplate(e.target.value)}>
-            <option value="classic">کلاسیک</option>
-            <option value="compact">فشرده</option>
-            <option value="detailed">جزئیات کامل</option>
-          </select>
+          <SearchableSelect
+            value={{ classic: 'کلاسیک', compact: 'فشرده', detailed: 'جزئیات کامل' }[printTemplate] || printTemplate}
+            options={['کلاسیک', 'فشرده', 'جزئیات کامل']}
+            onChange={(label) => {
+              const map: Record<string, string> = { 'کلاسیک': 'classic', 'فشرده': 'compact', 'جزئیات کامل': 'detailed' };
+              setPrintTemplate(map[label] || label);
+            }}
+            dir="rtl"
+          />
         </div>
         <div className="form-group">
           <label className="form-label">تعداد برچسب در هر ردیف</label>
-          <select className="form-input" value={printCols} onChange={e => setPrintCols(Number(e.target.value))}>
-            <option value={2}>۲ عدد</option>
-            <option value={3}>۳ عدد</option>
-            <option value={4}>۴ عدد</option>
-          </select>
+          <SearchableSelect
+            value={`${printCols} عدد`}
+            options={['۲ عدد', '۳ عدد', '۴ عدد']}
+            onChange={(label) => {
+              const num = parseInt(label);
+              if (num) setPrintCols(num);
+            }}
+            dir="rtl"
+          />
         </div>
         <div className="form-group">
           <label className="form-label">عرض برچسب (px)</label>

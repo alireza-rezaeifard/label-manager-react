@@ -1889,3 +1889,30 @@ mark {
     font-size: 0.75rem;
   }
 }
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.searchable-select input:focus {
+  outline: none;
+}
+
+[data-theme="dark"] .searchable-select input {
+  background: #1e1e2e;
+  border-color: #4a4a5a;
+  color: var(--text-color);
+}
+
+.records-filter .searchable-select {
+  font-size: 0.85rem;
+  width: auto;
+  min-width: 140px;
+  flex: 0 1 auto;
+}
+
+.records-filter .searchable-select > div {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}

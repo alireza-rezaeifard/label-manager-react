@@ -11,6 +11,7 @@ import { formatAmount, parseCode, formatCode } from './utils/formatters';
 import { estimatePaperCount } from './utils/printHelpers';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
 
+import SearchableSelect from './components/SearchableSelect';
 import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
@@ -1691,15 +1692,23 @@ export default function App() {
 
               <div className="form-group">
                 <label className="form-label">فیلد</label>
-                <select className="form-input" value={bulkEditField} onChange={e => setBulkEditField(e.target.value)}>
-                  <option value="">انتخاب کنید...</option>
-                  {FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => (
-                    <option key={f.key} value={f.key}>{f.fa}</option>
-                  ))}
-                  {customFields.map((f: any) => (
-                    <option key={f.key} value={f.key}>{f.fa}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={(() => {
+                    const std = FIELDS.find(f => f.key === bulkEditField);
+                    const cus = customFields.find((f: any) => f.key === bulkEditField);
+                    return std?.fa || cus?.fa || bulkEditField;
+                  })()}
+                  options={[
+                    ...FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => f.fa),
+                    ...customFields.map((f: any) => f.fa),
+                  ]}
+                  onChange={(label) => {
+                    const std = FIELDS.find(f => f.fa === label);
+                    const cus = customFields.find((f: any) => f.fa === label);
+                    setBulkEditField(std?.key || cus?.key || '');
+                  }}
+                  dir="rtl"
+                />
               </div>
               <div className="form-group">
                 <label className="form-label">مقدار جدید</label>

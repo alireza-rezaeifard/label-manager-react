@@ -7,6 +7,7 @@ import { FIELDS } from "../data/fields";
 import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
+import SearchableSelect from "./SearchableSelect";
 import LoadingSpinner from "./LoadingSpinner";
 import type { RecordItem } from "../types";
 
@@ -258,14 +259,13 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
                 </div>
               ) : f.isCustom && f.fieldType === 'dropdown' ? (
-                <select className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
-                  value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
-                  style={{ direction: 'ltr', textAlign: 'left' }}>
-                  <option value="">انتخاب کنید...</option>
-                  {(f.options || []).map((opt: string, i: number) => (
-                    <option key={i} value={opt}>{opt}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  value={form[f.key] as string || ''}
+                  options={f.options || []}
+                  onChange={(val) => setField(f.key, val)}
+                  placeholder="انتخاب کنید..."
+                  dir="ltr"
+                />
               ) : f.key === "amount" ? (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={(form[f.key] as string) || ''}

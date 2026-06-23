@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SearchableSelect from './SearchableSelect';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'متن' },
@@ -56,7 +57,7 @@ export default function SettingsTab({
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('text');
-  const [editOptions, setEditOptions] = useState('');
+  const [editOptions, setEditOptions] = useState<string[]>([]);
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [editTagValue, setEditTagValue] = useState('');
   const [mergeMode, setMergeMode] = useState(false);
@@ -67,21 +68,19 @@ export default function SettingsTab({
     setEditingKey(f.key);
     setEditName(f.fa || f.label || '');
     setEditType(f.fieldType || 'text');
-    setEditOptions((f.options || []).join(', '));
+    setEditOptions(f.options || []);
   };
 
   const cancelEdit = () => {
     setEditingKey(null);
     setEditName('');
     setEditType('text');
-    setEditOptions('');
+    setEditOptions([]);
   };
 
   const saveEdit = () => {
     if (!editName.trim() || editingKey == null) return;
-    const options = editType === 'dropdown'
-      ? editOptions.split(',').map(s => s.trim()).filter(Boolean)
-      : undefined;
+    const options = editType === 'dropdown' ? editOptions : undefined;
     onEditField(editingKey, { label: editName.trim(), fa: editName.trim(), fieldType: editType, options });
     cancelEdit();
   };
@@ -274,19 +273,47 @@ export default function SettingsTab({
                       <input type="text" className="form-input" value={editName}
                         onChange={e => setEditName(e.target.value)}
                         placeholder="نام فیلد" style={{ marginBottom: 0, flex: 1, minWidth: 120 }} />
-                      <select className="form-input" value={editType}
-                        onChange={e => setEditType(e.target.value)}
-                        style={{ width: 'auto', marginBottom: 0 }}>
-                        {FIELD_TYPES.map(t => (
-                          <option key={t.value} value={t.value}>{t.label}</option>
-                        ))}
-                      </select>
+                      <div style={{ width: 180, marginBottom: 0 }}>
+                        <SearchableSelect
+                          value={FIELD_TYPES.find(t => t.value === editType)?.label || editType}
+                          options={FIELD_TYPES.map(t => t.label)}
+                          onChange={(label) => {
+                            const found = FIELD_TYPES.find(t => t.label === label);
+                            if (found) setEditType(found.value);
+                          }}
+                          dir="rtl"
+                        />
+                      </div>
                     </div>
                     {editType === 'dropdown' && (
-                      <input type="text" className="form-input" value={editOptions}
-                        onChange={e => setEditOptions(e.target.value)}
-                        placeholder="گزینه‌ها را با کاما جدا کنید: opt1, opt2, opt3"
-                        style={{ marginBottom: '0.75rem' }} />
+                      <div style={{ marginBottom: '0.75rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: editOptions.length ? '0.5rem' : 0 }}>
+                          {editOptions.map((opt, i) => (
+                            <span key={i} style={{
+                              display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
+                              padding: '0.3rem 0.6rem', background: 'var(--primary)', color: 'white',
+                              borderRadius: 6, fontSize: '0.8rem',
+                            }}>
+                              {opt}
+                              <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '0.75rem' }}
+                                onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))}></i>
+                            </span>
+                          ))}
+                        </div>
+                        <input type="text" className="form-input"
+                          placeholder="گزینه را تایپ کنید و Enter بزنید..."
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              const val = (e.target as HTMLInputElement).value.trim();
+                              if (val && !editOptions.includes(val)) {
+                                setEditOptions([...editOptions, val]);
+                                (e.target as HTMLInputElement).value = '';
+                              }
+                            }
+                          }}
+                          style={{ marginBottom: 0 }} />
+                      </div>
                     )}
                     <div className="d-flex gap-2">
                       <button className="btn btn-primary btn-sm" onClick={saveEdit}>
@@ -342,16 +369,17 @@ export default function SettingsTab({
             style={{ marginBottom: 0, flex: 1, minWidth: 140 }}
             onKeyDown={e => e.key === 'Enter' && onAddField()}
           />
-          <select
-            className="form-input"
-            value={newFieldType}
-            onChange={e => onNewFieldTypeChange(e.target.value)}
-            style={{ width: 'auto', marginBottom: 0 }}
-          >
-            {FIELD_TYPES.map(t => (
-              <option key={t.value} value={t.value}>{t.label}</option>
-            ))}
-          </select>
+          <div style={{ width: 160, marginBottom: 0 }}>
+            <SearchableSelect
+              value={FIELD_TYPES.find(t => t.value === newFieldType)?.label || newFieldType}
+              options={FIELD_TYPES.map(t => t.label)}
+              onChange={(label) => {
+                const found = FIELD_TYPES.find(t => t.label === label);
+                if (found) onNewFieldTypeChange(found.value);
+              }}
+              dir="rtl"
+            />
+          </div>
           <button className="btn btn-primary" onClick={onAddField}>
             <i className="ti ti-plus"></i> افزودن
           </button>

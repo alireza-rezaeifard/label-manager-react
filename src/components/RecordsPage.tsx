@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { FIELDS, PAGE_SIZE } from '../data/fields';
 import RecordCard from './RecordCard';
 import BatchActionBar from './BatchActionBar';
+import SearchableSelect from './SearchableSelect';
 import { CardSkeleton, TableSkeleton } from './LoadingSkeleton';
 import type { RecordItem, CustomField } from '../types';
 import type { FilterState } from './FilterPresets';
@@ -228,14 +229,8 @@ export default function RecordsPage({
       </div>
 
       <div className="records-filter">
-        <select className="form-input" value={filterType} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { onSetFilterType(e.target.value); onSetPage(1); }}>
-          <option value="">همه انواع</option>
-          {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <select className="form-input" value={filterParty} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => { onSetFilterParty(e.target.value); onSetPage(1); }}>
-          <option value="">همه طرف حساب‌ها</option>
-          {allParties.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+        <SearchableSelect value={filterType} options={allTypes} onChange={(v) => { onSetFilterType(v); onSetPage(1); }} placeholder="همه انواع" />
+        <SearchableSelect value={filterParty} options={allParties} onChange={(v) => { onSetFilterParty(v); onSetPage(1); }} placeholder="همه طرف حساب‌ها" />
         <Suspense fallback={null}>
           <DateRangePicker
             dateFrom={filterDateFrom}
