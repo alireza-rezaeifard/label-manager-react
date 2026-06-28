@@ -123,7 +123,7 @@ export default function App() {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords,
     undo, undoStack, pushUndo,
-    isDuplicateCode,
+    isDuplicateCode, checkDuplicateCode,
   } = useRecords();
 
   const [serverRecords, setServerRecords] = useState<any[]>([]);
@@ -1441,6 +1441,7 @@ export default function App() {
                   editIndex={editIndex}
                   availableLabels={availLabels}
                   isDuplicateCode={isDuplicateCode}
+                  checkDuplicateCode={checkDuplicateCode}
                   onSubmit={handleSubmit}
                   onCancel={() => { setEditIndex(null); setTemplateData(null); setTab('records'); }}
                   addToast={addToast}

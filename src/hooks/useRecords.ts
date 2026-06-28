@@ -96,7 +96,7 @@ export function useRecords() {
     try {
       const params = `?code=${encodeURIComponent(code)}${excludeId ? `&excludeId=${excludeId}` : ''}`;
       const result: any = await api.checkDuplicateCode(params);
-      return result.duplicate;
+      return result.exists;
     } catch {
       return false;
     }

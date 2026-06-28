@@ -10,6 +10,7 @@ import MultiSelectDropdown from "./MultiSelectDropdown";
 import SearchableSelect from "./SearchableSelect";
 import LoadingSpinner from "./LoadingSpinner";
 import type { RecordItem } from "../types";
+import { useDebounce } from "../hooks/useDebounce";
 
 interface RecordFormState {
   code: string;
@@ -41,6 +42,7 @@ interface RecordFormProps {
   editIndex: number | null;
   availableLabels: { code: string; project: string }[];
   isDuplicateCode: (code: string, index: number | null) => boolean;
+  checkDuplicateCode?: (code: string, excludeId?: string | null) => Promise<boolean>;
   onSubmit: (record: RecordItem) => void;
   onCancel: () => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
@@ -51,7 +53,7 @@ interface RecordFormProps {
   loading?: boolean;
 }
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: RecordFormProps) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, checkDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: RecordFormProps) {
   const allFields: FormField[] = [...FIELDS.filter((f: FormField) => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find((f: FormField) => f.isRelated);
 
@@ -82,9 +84,13 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   const [formErrors, setFormErrors] = useState<Record<string, string | undefined>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
+  const [codeDuplicate, setCodeDuplicate] = useState(false);
+  const [codeChecking, setCodeChecking] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const prevEditKey = useRef<string | number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const debouncedCode = useDebounce(form.code, 500);
 
   const currentKey = editRecord?.code ?? editIndex;
   if (currentKey !== prevEditKey.current) {
@@ -106,6 +112,30 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   useEffect(() => {
     if (onFormChange) onFormChange(form);
   }, [form, onFormChange]);
+
+  useEffect(() => {
+    const code = debouncedCode.trim();
+    if (!code) {
+      setCodeDuplicate(false);
+      setCodeChecking(false);
+      return;
+    }
+    if (isDuplicateCode(code, editIndex)) {
+      setCodeDuplicate(true);
+      setCodeChecking(false);
+      return;
+    }
+    if (checkDuplicateCode && serverMode) {
+      setCodeChecking(true);
+      const excludeId = editRecord?.id ? String(editRecord.id) : null;
+      checkDuplicateCode(code, excludeId)
+        .then(dup => setCodeDuplicate(dup))
+        .catch(() => setCodeDuplicate(false))
+        .finally(() => setCodeChecking(false));
+    } else {
+      setCodeDuplicate(false);
+    }
+  }, [debouncedCode, editIndex, serverMode, isDuplicateCode, checkDuplicateCode, editRecord?.id]);
 
   const setField = (key: string, value: unknown) => {
     setForm((p: RecordFormState) => ({ ...p, [key]: value }));
@@ -277,6 +307,18 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                   }}
                   onBlur={() => handleBlur(f.key)}
                   placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
+              ) : f.key === "code" ? (
+                <div style={{ position: 'relative' }}>
+                  <input type="text" className={`form-input ${formErrors[f.key] || codeDuplicate ? 'border-danger' : ''} ${codeChecking ? 'border-warning' : ''}`}
+                    value={form[f.key] as string} onChange={e => { setField(f.key, e.target.value); setCodeDuplicate(false); }}
+                    onBlur={() => handleBlur(f.key)}
+                    placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left', paddingRight: codeChecking ? '2rem' : undefined }} />
+                  {codeChecking && (
+                    <div style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)' }}>
+                      <LoadingSpinner size={16} />
+                    </div>
+                  )}
+                </div>
               ) : (
                 <input type="text" className={`form-input ${formErrors[f.key] ? 'border-danger' : ''}`}
                   value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
@@ -285,6 +327,9 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
               )}
               {formErrors[f.key] && (
                 <small style={{ color: 'var(--danger)', marginTop: '0.25rem', display: 'block' }}>{formErrors[f.key]}</small>
+              )}
+              {f.key === 'code' && !formErrors[f.key] && codeDuplicate && (
+                <small style={{ color: 'var(--danger)', marginTop: '0.25rem', display: 'block' }}>این کد تکراری است</small>
               )}
             </div>
           </div>
