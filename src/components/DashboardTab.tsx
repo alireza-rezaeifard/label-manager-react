@@ -2,8 +2,19 @@ import { useMemo, useState } from 'react';
 import Chart from 'react-apexcharts';
 import { formatAmount } from '../utils/formatters';
 import type { RecordItem, CustomField } from '../types';
+import {
+  Files,
+  CalendarDays,
+  Building2,
+  Tag,
+  ArrowLeft,
+  History,
+  ChevronUp,
+  ChevronDown,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
+const COLORS = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 interface Props {
   records: RecordItem[];
@@ -33,15 +44,15 @@ function relativeTime(dateStr?: string): string {
 }
 
 const ACTION_CONFIG: Record<string, { icon: string; color: string; bg: string; label: string }> = {
-  create: { icon: 'ti-plus', color: '#28c76f', bg: 'rgba(40,199,111,0.1)', label: 'ایجاد' },
-  update: { icon: 'ti-edit', color: '#7367f0', bg: 'rgba(115,103,240,0.1)', label: 'ویرایش' },
-  delete: { icon: 'ti-trash', color: '#ea5455', bg: 'rgba(234,84,85,0.1)', label: 'حذف' },
-  trash: { icon: 'ti-trash', color: '#ff9f43', bg: 'rgba(255,159,67,0.1)', label: 'انتقال به سطل زباله' },
-  restore: { icon: 'ti-rotate', color: '#00cfe8', bg: 'rgba(0,207,232,0.1)', label: 'بازیابی' },
-  restore_version: { icon: 'ti-history', color: '#6d62e0', bg: 'rgba(109,98,224,0.1)', label: 'بازگردانی نسخه' },
-  permanent_delete: { icon: 'ti-alert-triangle', color: '#ea5455', bg: 'rgba(234,84,85,0.15)', label: 'حذف دائمی' },
-  reorder: { icon: 'ti-sort', color: '#00cfe8', bg: 'rgba(0,207,232,0.1)', label: 'تغییر ترتیب' },
-  renumber: { icon: 'ti-number', color: '#20a862', bg: 'rgba(32,168,98,0.1)', label: 'تغییر کدگذاری' },
+  create: { icon: 'ti-plus', color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'ایجاد' },
+  update: { icon: 'ti-edit', color: '#6366f1', bg: 'rgba(99,102,241,0.1)', label: 'ویرایش' },
+  delete: { icon: 'ti-trash', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'حذف' },
+  trash: { icon: 'ti-trash', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'انتقال به سطل زباله' },
+  restore: { icon: 'ti-rotate', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)', label: 'بازیابی' },
+  restore_version: { icon: 'ti-history', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', label: 'بازگردانی نسخه' },
+  permanent_delete: { icon: 'ti-alert-triangle', color: '#ef4444', bg: 'rgba(239,68,68,0.15)', label: 'حذف دائمی' },
+  reorder: { icon: 'ti-sort', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)', label: 'تغییر ترتیب' },
+  renumber: { icon: 'ti-number', color: '#14b8a6', bg: 'rgba(20,184,166,0.1)', label: 'تغییر کدگذاری' },
 };
 
 function pieOptions(labels: string[]) {
@@ -171,22 +182,22 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
     <div className="fade-in">
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-icon primary"><i className="ti ti-files"></i></div>
+          <div className="stat-icon primary"><Files className="h-6 w-6" /></div>
           <div className="stat-value">{records.length.toLocaleString('fa-IR')}</div>
           <div className="stat-label">مجموع رکوردها</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon success"><i className="ti ti-calendar-event"></i></div>
+          <div className="stat-icon success"><CalendarDays className="h-6 w-6" /></div>
           <div className="stat-value">{recordsThisWeek.toLocaleString('fa-IR')}</div>
           <div className="stat-label">رکوردهای این هفته</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon info"><i className="ti ti-building"></i></div>
+          <div className="stat-icon info"><Building2 className="h-6 w-6" /></div>
           <div className="stat-value">{uniqueProjects.toLocaleString('fa-IR')}</div>
-          <div className="stat-label">پروژه‌ها</div>
+          <div className="stat-label">پروژهها</div>
         </div>
         <div className="stat-card">
-          <div className="stat-icon warning"><i className="ti ti-tag"></i></div>
+          <div className="stat-icon warning"><Tag className="h-6 w-6" /></div>
           <div className="stat-value">{uniqueTypes.toLocaleString('fa-IR')}</div>
           <div className="stat-label">انواع برچسب</div>
         </div>
@@ -194,48 +205,48 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
 
       <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h4 style={{ margin: 0 }}>مجموع مبالغ</h4>
+          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>مجموع مبالغ</h4>
           <span style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--primary)' }}>
             {formatAmount(totalAmount)}
           </span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
           {typeData.slice(0, 6).map((d, i) => (
             <div key={d.name} style={{
               display: 'flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.5rem 0.75rem', background: 'var(--bg-body)', borderRadius: 8,
             }}>
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[i % COLORS.length], flexShrink: 0 }}></span>
-              <span style={{ fontSize: '0.85rem', flex: 1 }}>{d.name}</span>
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, direction: 'ltr' }}>{d.value.toLocaleString('fa-IR')}</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS[i % COLORS.length], flexShrink: 0 }}></span>
+              <span style={{ fontSize: '0.8125rem', flex: 1 }}>{d.name}</span>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 600, direction: 'ltr' }}>{d.value.toLocaleString('fa-IR')}</span>
             </div>
           ))}
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
         <div className="form-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس نوع</h4>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>رکوردها بر اساس نوع</h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {cssBarData.map(d => (
               <div key={d.name}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.2rem' }}>
                   <span>{d.name}</span>
                   <span style={{ fontWeight: 600, direction: 'ltr' }}>{d.value.toLocaleString('fa-IR')}</span>
                 </div>
-                <div style={{ height: 24, background: 'var(--bg-body)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+                <div style={{ height: 20, background: 'var(--bg-body)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
                   <div style={{
                     width: `${d.percent}%`, height: '100%', background: d.color,
-                    borderRadius: 6, transition: 'width 0.6s ease', minWidth: d.value > 0 ? 24 : 0,
+                    borderRadius: 6, transition: 'width 0.6s ease', minWidth: d.value > 0 ? 20 : 0,
                   }}></div>
                 </div>
               </div>
             ))}
-            {cssBarData.length === 0 && <p style={{ opacity: 0.5, textAlign: 'center', padding: '2rem' }}>داده‌ای موجود نیست</p>}
+            {cssBarData.length === 0 && <p style={{ opacity: 0.5, textAlign: 'center', padding: '2rem' }}>دادهای موجود نیست</p>}
           </div>
         </div>
         <div className="form-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس پروژه (۱۰ تا برتر)</h4>
+          <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>رکوردها بر اساس پروژه (۱۰ تا برتر)</h4>
           <Chart
             options={barOptions(projectData.map(d => d.name))}
             series={[{ name: 'تعداد', data: projectData.map(d => d.value) }]}
@@ -245,9 +256,9 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
         <div className="form-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>رکوردها بر اساس طرف حساب (۱۰ تا برتر)</h4>
+          <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>رکوردها بر اساس طرف حساب (۱۰ تا برتر)</h4>
           <Chart
             options={barOptions(partyData.map(d => d.name))}
             series={[{ name: 'تعداد', data: partyData.map(d => d.value) }]}
@@ -256,7 +267,7 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           />
         </div>
         <div className="form-card" style={{ padding: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>مبلغ به تفکیک پروژه (۱۰ تا برتر)</h4>
+          <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>مبلغ به تفکیک پروژه (۱۰ تا برتر)</h4>
           <Chart
             options={barOptions(
               amountByProject.map(d => d.name),
@@ -270,15 +281,15 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
       </div>
 
       {monthlyData.length > 0 && (
-        <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-          <h4 style={{ margin: '0 0 1rem' }}>روند ماهانه</h4>
+        <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
+          <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>روند ماهانه</h4>
           <Chart
             options={{
               chart: { type: 'line', toolbar: { show: false } },
-              colors: ['#7367f0'],
+              colors: ['#6366f1'],
               xaxis: { categories: monthlyData.map(d => d.name), labels: { style: { fontSize: '11px' } } },
               stroke: { curve: 'smooth', width: 2 },
-              markers: { size: 4, colors: ['#7367f0'] },
+              markers: { size: 4, colors: ['#6366f1'] },
               dataLabels: { enabled: false },
               tooltip: { enabled: true },
             }}
@@ -289,10 +300,10 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: tags.length > 0 || customFields.length > 0 ? '1fr 1fr' : '1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: tags.length > 0 || customFields.length > 0 ? '1fr 1fr' : '1fr', gap: '1.25rem', marginBottom: '1.25rem' }}>
         {tagData.length > 0 && (
           <div className="form-card" style={{ padding: '1.5rem' }}>
-            <h4 style={{ margin: '0 0 1rem' }}>توزیع برچسب‌ها (Tags)</h4>
+            <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>توزیع برچسبها (Tags)</h4>
             <Chart
               options={pieOptions(tagData.map(d => d.name))}
               series={tagData.map(d => d.value)}
@@ -304,16 +315,16 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
 
         {customFieldSummary.length > 0 && (
           <div className="form-card" style={{ padding: '1.5rem' }}>
-            <h4 style={{ margin: '0 0 1rem' }}>فیلدهای سفارشی — نرخ تکمیل</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <h4 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: 600 }}>فیلدهای سفارشی — نرخ تکمیل</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
               {customFieldSummary.map(f => (
                 <div key={f.key}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '0.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
                     <span>{f.name}</span>
                     <span style={{ opacity: 0.6 }}>{f.filled.toLocaleString('fa-IR')} از {f.total.toLocaleString('fa-IR')} ({f.percent}%)</span>
                   </div>
-                  <div style={{ height: 8, background: 'var(--border-color)', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${f.percent}%`, height: '100%', background: 'var(--primary)', borderRadius: 4, transition: 'width 0.5s' }}></div>
+                  <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+                    <div style={{ width: `${f.percent}%`, height: '100%', background: 'var(--primary)', borderRadius: 3, transition: 'width 0.5s' }}></div>
                   </div>
                 </div>
               ))}
@@ -322,12 +333,12 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
         )}
       </div>
 
-      <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+      <div className="form-card" style={{ padding: '1.5rem', marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h4 style={{ margin: 0 }}>آخرین رکوردها</h4>
-          <button className="btn btn-outline btn-sm" onClick={() => onTabChange('records')}>
-            <i className="ti ti-arrow-left"></i> مشاهده همه
-          </button>
+          <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>آخرین رکوردها</h4>
+          <Button variant="outline" size="sm" onClick={() => onTabChange('records')}>
+            <ArrowLeft className="h-3.5 w-3.5" /> مشاهده همه
+          </Button>
         </div>
         {recentRecords.length === 0 ? (
           <div className="empty-state" style={{ padding: '2rem' }}>
@@ -335,15 +346,15 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>کد</th>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>پروژه</th>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>نوع</th>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>تاریخ</th>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>طرف حساب</th>
-                  <th style={{ padding: '0.5rem', textAlign: 'right' }}>مبلغ</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>کد</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>پروژه</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>نوع</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>تاریخ</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>طرف حساب</th>
+                  <th style={{ padding: '0.5rem', textAlign: 'right', fontWeight: 600 }}>مبلغ</th>
                 </tr>
               </thead>
               <tbody>
@@ -366,47 +377,47 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
       {actLog.length > 0 && (
         <div className="form-card" style={{ padding: '1.5rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-            <h4 style={{ margin: 0 }}>
-              <i className="ti ti-history" style={{ marginLeft: '0.5rem', opacity: 0.6 }}></i>
-              فعالیت‌های اخیر
-              <span style={{ fontSize: '0.8rem', fontWeight: 400, opacity: 0.5, marginRight: '0.5rem' }}>
+            <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}>
+              <History className="h-4 w-4 inline-block ml-1 opacity-60" />
+              فعالیتهای اخیر
+              <span style={{ fontSize: '0.75rem', fontWeight: 400, opacity: 0.5, marginRight: '0.5rem' }}>
                 ({actLog.length.toLocaleString('fa-IR')})
               </span>
             </h4>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {(showAllActivity ? actLog : actLog.slice(0, 20)).map((a, i) => {
-              const cfg = ACTION_CONFIG[a.action] || { icon: 'ti-info-circle', color: 'var(--primary)', bg: 'rgba(115,103,240,0.08)', label: a.action };
+              const cfg = ACTION_CONFIG[a.action] || { icon: 'ti-info-circle', color: 'var(--primary)', bg: 'rgba(99,102,241,0.08)', label: a.action };
               return (
                 <div key={a.record_id || i} style={{
                   display: 'flex', alignItems: 'center', gap: '0.75rem',
-                  padding: '0.6rem 0.75rem', background: cfg.bg, borderRadius: 8,
-                  fontSize: '0.85rem', transition: 'background 0.2s',
+                  padding: '0.5rem 0.75rem', background: cfg.bg, borderRadius: 8,
+                  fontSize: '0.8125rem', transition: 'background 0.2s',
                 }}>
                   <div style={{
-                    width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: `${cfg.color}20`, flexShrink: 0,
                   }}>
-                    <i className={`ti ${cfg.icon}`} style={{ color: cfg.color, fontSize: '1rem' }}></i>
+                    <i className={`ti ${cfg.icon}`} style={{ color: cfg.color, fontSize: '0.875rem' }}></i>
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <span style={{
-                        padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.7rem', fontWeight: 600,
+                        padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.65rem', fontWeight: 600,
                         background: `${cfg.color}20`, color: cfg.color,
                       }}>{cfg.label}</span>
                       {a.user_id ? (
-                        <span style={{ fontWeight: 500 }}>کاربر #{a.user_id}</span>
+                        <span style={{ fontWeight: 500, fontSize: '0.75rem' }}>کاربر #{a.user_id}</span>
                       ) : null}
                     </div>
                     {a.details && (
-                      <div style={{ opacity: 0.7, fontSize: '0.8rem', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ opacity: 0.7, fontSize: '0.75rem', marginTop: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {a.details}
                       </div>
                     )}
                   </div>
                   <span style={{
-                    opacity: 0.45, fontSize: '0.75rem', whiteSpace: 'nowrap', direction: 'ltr',
+                    opacity: 0.45, fontSize: '0.6875rem', whiteSpace: 'nowrap', direction: 'ltr',
                   }}>
                     {relativeTime(a.created_at || a.date || a.time || '')}
                   </span>
@@ -416,16 +427,17 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           </div>
           {actLog.length > 20 && (
             <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-              <button
-                className="btn btn-outline btn-sm"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => setShowAllActivity(p => !p)}
               >
                 {showAllActivity ? (
-                  <><i className="ti ti-chevron-up"></i> نمایش کمتر</>
+                  <><ChevronUp className="h-3.5 w-3.5" /> نمایش کمتر</>
                 ) : (
-                  <><i className="ti ti-chevron-down"></i> نمایش بیشتر ({actLog.length - 20} مورد)</>
+                  <><ChevronDown className="h-3.5 w-3.5" /> نمایش بیشتر ({actLog.length - 20} مورد)</>
                 )}
-              </button>
+              </Button>
             </div>
           )}
         </div>

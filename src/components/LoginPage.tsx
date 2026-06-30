@@ -1,5 +1,12 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { toast } from 'sonner';
 import { api } from '../utils/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { AlertCircle, Loader2, Tags } from 'lucide-react';
 
 export default function LoginPage({ onLogin }: {
   onLogin: (user: any) => void;
@@ -21,100 +28,110 @@ export default function LoginPage({ onLogin }: {
         : await api.register(username, password);
       localStorage.setItem('auth_token', result.token);
       localStorage.setItem('auth_user', JSON.stringify(result.user));
+      toast.success(mode === 'login' ? 'خوش آمدید!' : 'حساب با موفقیت ایجاد شد');
       onLogin(result.user);
     } catch (err: any) {
       setError(err.message);
+      toast.error(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const btnBase = {
-    width: '100%', padding: '1rem', borderRadius: 10, border: 'none',
-    fontWeight: 600, fontSize: '1rem', cursor: 'pointer',
-    fontFamily: 'inherit', transition: 'all 0.2s',
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'var(--bg-body)', padding: '1rem',
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 420, background: 'var(--card-bg)',
-        borderRadius: 20, padding: '2.5rem', border: '1px solid var(--border-color)',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div className="sidebar-brand-icon" style={{ margin: '0 auto 1rem', width: 64, height: 64, fontSize: '2rem' }}>
-            <i className="ti ti-tags"></i>
-          </div>
-          <h2 style={{ marginBottom: '0.25rem' }}>Label Studio</h2>
-          <p style={{ opacity: 0.6, fontSize: '0.9rem', margin: 0 }}>
-            {mode === 'login' ? 'ورود به حساب کاربری' : 'ایجاد حساب جدید'}
-          </p>
-        </div>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: 'easeOut' }}
+      >
+        <Card className="w-full max-w-md border-border/50 shadow-xl">
+          <CardHeader className="space-y-3 text-center">
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+              className="sidebar-brand-icon mx-auto flex h-16 w-16 items-center justify-center text-2xl"
+            >
+              <Tags className="h-7 w-7" />
+            </motion.div>
+            <h2 className="text-xl font-bold">Label Studio</h2>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'login' ? 'ورود به حساب کاربری' : 'ایجاد حساب جدید'}
+            </p>
+          </CardHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label">نام کاربری</label>
-            <input
-              type="text"
-              className="form-input"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              placeholder="username"
-              required
-              style={{ direction: 'ltr', textAlign: 'left' }}
-            />
-          </div>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username">نام کاربری</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  value={username}
+                  onChange={e => setUsername(e.target.value)}
+                  placeholder="username"
+                  required
+                  className="text-left"
+                  dir="ltr"
+                />
+              </div>
 
-          <div className="form-group">
-            <label className="form-label">رمز عبور</label>
-            <input
-              type="password"
-              className="form-input"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              style={{ direction: 'ltr', textAlign: 'left' }}
-            />
-          </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">رمز عبور</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="text-left"
+                  dir="ltr"
+                />
+              </div>
 
-          {error && (
-            <div className="alert alert-danger" style={{ marginTop: 0, marginBottom: '1rem' }}>
-              {error}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{error}</span>
+                </motion.div>
+              )}
+
+              <Button type="submit" className="w-full" size="lg" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    در حال پردازش...
+                  </>
+                ) : mode === 'login' ? 'ورود' : 'ثبت نام'}
+              </Button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+                className="text-sm text-primary transition-colors hover:text-primary-hover hover:underline cursor-pointer bg-transparent border-none"
+              >
+                {mode === 'login' ? 'حساب ندارید؟ ثبت نام کنید' : 'قبلا ثبت نام کردهاید؟ وارد شوید'}
+              </button>
             </div>
-          )}
 
-          <button
-            type="submit"
-            className="btn btn-primary"
-            style={btnBase}
-            disabled={loading}
-          >
-            {loading ? '...' : mode === 'login' ? 'ورود' : 'ثبت نام'}
-          </button>
-        </form>
-
-        <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontFamily: 'inherit', fontSize: '0.9rem' }}
-          >
-            {mode === 'login' ? 'حساب ندارید؟ ثبت نام کنید' : 'قبلا ثبت نام کرده‌اید؟ وارد شوید'}
-          </button>
-        </div>
-
-        <div style={{ textAlign: 'center', marginTop: '1rem' }}>
-          <button
-            onClick={() => onLogin(null)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.5, fontFamily: 'inherit', fontSize: '0.8rem' }}
-          >
-            ادامه به صورت محلی (بدون سرور)
-          </button>
-        </div>
-      </div>
+            <div className="mt-3 text-center">
+              <button
+                onClick={() => onLogin(null)}
+                className="text-xs text-muted-foreground transition-colors hover:text-foreground hover:underline cursor-pointer bg-transparent border-none"
+              >
+                ادامه به صورت محلی (بدون سرور)
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }

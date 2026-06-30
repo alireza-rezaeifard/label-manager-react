@@ -11,6 +11,7 @@ import SearchableSelect from "./SearchableSelect";
 import LoadingSpinner from "./LoadingSpinner";
 import type { RecordItem } from "../types";
 import { useDebounce } from "../hooks/useDebounce";
+import { Grid3X3, Calendar, Palette, ImageIcon, Link2, Tags, Trash2, Check, Plus } from 'lucide-react';
 
 interface RecordFormState {
   code: string;
@@ -223,7 +224,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           <div key={f.key} className="col-md-6">
             <div className="form-group">
               <label className="form-label">
-                <i className="ti ti-apps" style={{ marginRight: 8 }}></i>
+                <Grid3X3 className="h-4 w-4" style={{ marginRight: 8 }} />
                 {f.label} {f.isCustom ? '⭐' : ''}
                 <span style={{ opacity: 0.5 }}>({f.fa})</span>
                 {["code", "project"].includes(f.key) && <span className="text-danger"> *</span>}
@@ -237,10 +238,9 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                       onBlur={() => handleBlur(f.key)}
                       onClick={() => setShowDatePicker(true)}
                       placeholder="1403/02/15" style={{ direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem', cursor: 'pointer' }} />
-                    <i className="ti ti-calendar"
-                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
-                      onClick={(e) => { e.stopPropagation(); setShowDatePicker(!showDatePicker); }}>
-                    </i>
+                    <Calendar className="h-4 w-4"
+                                          style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
+                                          onClick={(e) => { e.stopPropagation(); setShowDatePicker(!showDatePicker); }} />
                   </div>
                   {showDatePicker && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
@@ -265,10 +265,9 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                       onBlur={() => handleBlur(f.key)}
                       onClick={() => setShowDatePicker(true)}
                       placeholder="1403/02/15" style={{ direction: 'ltr', textAlign: 'left', paddingLeft: '2.5rem', cursor: 'pointer' }} />
-                    <i className="ti ti-calendar"
-                      style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
-                      onClick={(e) => { e.stopPropagation(); setShowDatePicker(!showDatePicker); }}>
-                    </i>
+                    <Calendar className="h-4 w-4"
+                                          style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', opacity: 0.6 }}
+                                          onClick={(e) => { e.stopPropagation(); setShowDatePicker(!showDatePicker); }} />
                   </div>
                   {showDatePicker && (
                     <div style={{ position: 'absolute', top: '100%', right: 0, zIndex: 1000, marginTop: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: 10, boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }}>
@@ -338,7 +337,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           <div className="col-md-6">
             <div className="form-group">
               <label className="form-label">
-                <i className="ti ti-color-picker" style={{ marginRight: 8 }}></i>
+                <Palette className="h-4 w-4" style={{ marginRight: 8 }} />
                 رنگ برچسب <span style={{ opacity: 0.5 }}>(اختیاری)</span>
               </label>
               <div className="d-flex gap-2 align-items-center">
@@ -355,7 +354,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           <div className="col-12">
           <div className="form-group">
             <label className="form-label">
-              <i className="ti ti-photo" style={{ marginRight: 8 }}></i>
+              <ImageIcon className="h-4 w-4" style={{ marginRight: 8 }} />
               تصویر <span style={{ opacity: 0.5 }}>(اختیاری)</span>
             </label>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="form-input" style={{ padding: '0.75rem' }} />
@@ -364,7 +363,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
               <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                 <img src={form.image} alt="preview" style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border-color)' }} />
                 <button className="btn btn-outline btn-sm" onClick={() => setField("image", "")}>
-                  <i className="ti ti-trash"></i> حذف
+                  <Trash2 className="h-4 w-4" /> حذف
                 </button>
               </div>
             )}
@@ -374,7 +373,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         <div className="col-12">
           <div className="form-group">
             <label className="form-label">
-              <i className="ti ti-link" style={{ marginRight: 8 }}></i>
+              <Link2 className="h-4 w-4" style={{ marginRight: 8 }} />
               {relatedField?.label} <span style={{ opacity: 0.5 }}>({relatedField?.fa})</span>
             </label>
             <MultiSelectDropdown
@@ -391,7 +390,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         <div className="col-12">
           <div className="form-group">
             <label className="form-label">
-              <i className="ti ti-tags" style={{ marginRight: 8 }}></i>
+              <Tags className="h-4 w-4" style={{ marginRight: 8 }} />
               برچسب‌ها <span style={{ opacity: 0.5 }}>(اختیاری)</span>
             </label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -419,7 +418,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
 
       <div className="d-flex gap-3 mt-4">
         <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-          {loading ? <LoadingSpinner size={18} /> : <i className={`ti ${editIndex !== null ? 'ti-check' : 'ti-plus'}`}></i>}
+          {loading ? <LoadingSpinner size={18} /> : editIndex !== null ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           {loading ? 'در حال ذخیره...' : (editIndex !== null ? 'ذخیره تغییرات' : 'افزودن رکورد')}
         </button>
         <button className="btn btn-outline" onClick={onCancel}>انصراف</button>

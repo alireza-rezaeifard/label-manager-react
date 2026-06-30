@@ -1,5 +1,7 @@
 body {
-  font-family: 'Tahoma', Arial, sans-serif;
+  font-family: 'Vazirmatn', 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 :root {
@@ -7,5 +9,5 @@ body {
 }
 
 .font-mono {
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { X, FileSpreadsheet, FileText, Pencil, Trash2 } from 'lucide-react';
 
 interface BatchActionBarProps {
   selectedCount: number;
@@ -53,26 +54,26 @@ export default function BatchActionBar({
         direction: 'rtl',
       }}
     >
-      <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>
+      <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>
         {selectedCount} رکورد انتخاب شده
       </span>
       <div style={{ flex: 1 }} />
       <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }} onClick={onClearSelection}>
-        <i className="ti ti-x"></i> لغو انتخاب
+        <X className="h-3.5 w-3.5" /> لغو انتخاب
       </button>
       <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }} onClick={onExportExcel}>
-        <i className="ti ti-file-excel"></i> اکسل
+        <FileSpreadsheet className="h-3.5 w-3.5" /> اکسل
       </button>
       <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }} onClick={onExportCSV}>
-        <i className="ti ti-file-text"></i> CSV
+        <FileText className="h-3.5 w-3.5" /> CSV
       </button>
       {!isViewer && (
         <>
           <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }} onClick={onBulkEdit}>
-            <i className="ti ti-edit"></i> ویرایش دسته‌جمعی
+            <Pencil className="h-3.5 w-3.5" /> ویرایش دستهجمعی
           </button>
-          <button className="btn btn-sm" style={{ background: '#dc3545', color: '#fff', border: 'none' }} onClick={onDelete}>
-            <i className="ti ti-trash"></i> حذف
+          <button className="btn btn-sm" style={{ background: '#dc2626', color: '#fff', border: 'none' }} onClick={onDelete}>
+            <Trash2 className="h-3.5 w-3.5" /> حذف
           </button>
         </>
       )}

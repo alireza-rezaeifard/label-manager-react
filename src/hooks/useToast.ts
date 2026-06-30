@@ -1,26 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { toast as sonnerToast } from 'sonner';
 import type { ToastType } from '../types';
 
+// Backward-compatible wrapper: routes existing addToast() calls through Sonner.
+// The old Toast.tsx component is no longer rendered — Sonner's <Toaster /> in
+// main.tsx handles the UI. The `toasts` array and `removeToast` are kept as
+// no-ops so callers don't break, but they are effectively unused now.
 export function useToast() {
-  const [toasts, setToasts] = useState<ToastType[]>([]);
-
-  const addToast = useCallback((message: string, type: ToastType['type'] = 'success', duration = 3000) => {
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, message, type } as ToastType]);
-    setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 300);
-    }, duration);
+  const addToast = useCallback((message: string, type: ToastType['type'] = 'success', _duration = 3000) => {
+    if (type === 'success') {
+      sonnerToast.success(message);
+    } else if (type === 'error') {
+      sonnerToast.error(message);
+    } else if (type === 'warning') {
+      sonnerToast.warning(message);
+    } else if (type === 'info') {
+      sonnerToast.info(message);
+    } else {
+      sonnerToast(message);
+    }
   }, []);
 
-  const removeToast = useCallback((id: number) => {
-    setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t));
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 300);
+  const removeToast = useCallback((_id: number) => {
+    // Sonner manages its own dismissals; no-op for compatibility
   }, []);
 
-  return { toasts, addToast, removeToast };
+  return { toasts: [] as ToastType[], addToast, removeToast };
 }

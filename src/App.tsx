@@ -33,6 +33,11 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useDebounce } from './hooks/useDebounce';
 import type { RecordItem } from './types';
 import RecordsPage from './components/RecordsPage';
+import {
+  Settings as SettingsIcon, FileSpreadsheet, FileText, Printer, ArrowRight,
+  ScanLine, CloudDownload, Lock, LayoutTemplate, Save, Trash2, Undo2,
+  X, Palette, Tags, Check, ArrowLeft, Loader2,
+} from 'lucide-react';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
 const ImportCSV = lazy(() => import('./components/ImportCSV'));
@@ -393,7 +398,9 @@ export default function App() {
       const pa = parseCode(a.code);
       const pb = parseCode(b.code);
       if (pa && pb) {
-        if (pa.projectNum !== pb.projectNum) return pa.projectNum - pb.projectNum;
+        const projA = pa.projectNum ?? 0;
+        const projB = pb.projectNum ?? 0;
+        if (projA !== projB) return projA - projB;
         if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
         if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
         return pb.sequence - pa.sequence;
@@ -1042,7 +1049,7 @@ export default function App() {
       const unparseable = parsed.filter(x => x.parsed === null);
 
       if (parseable.length === 0) {
-        addToast('هیچ رکوردی با فرمت معتبر (PROJxxx-YYY-xxxx-xxx) یافت نشد', 'error');
+        addToast('هیچ رکوردی با فرمت معتبر یافت نشد', 'error');
         setServerLoading(false);
         setShowRenumberConfirm(false);
         return;
@@ -1050,7 +1057,7 @@ export default function App() {
 
       const groups: Record<string, typeof parseable> = {};
       for (const item of parseable) {
-        const key = `${item.parsed!.projectNum}|${item.parsed!.type}|${item.parsed!.year}`;
+        const key = `${item.parsed!.projectNum ?? ''}|${item.parsed!.type}|${item.parsed!.year}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
       }
@@ -1066,8 +1073,8 @@ export default function App() {
       const groupKeys = Object.keys(groups).sort((a, b) => {
         const [projA, typeA, yearA] = a.split('|');
         const [projB, typeB, yearB] = b.split('|');
-        const pNumA = parseInt(projA, 10);
-        const pNumB = parseInt(projB, 10);
+        const pNumA = parseInt(projA, 10) || 0;
+        const pNumB = parseInt(projB, 10) || 0;
         if (pNumA !== pNumB) return pNumA - pNumB;
         if (typeA !== typeB) return typeA.localeCompare(typeB);
         return yearB.localeCompare(yearA);
@@ -1261,30 +1268,30 @@ export default function App() {
                 {tab === 'preview' && selected.size > 0 && (
                   <>
                     <button className="btn btn-outline btn-sm" onClick={() => setShowPrintSettings(true)}>
-                      <i className="ti ti-settings"></i> تنظیمات چاپ
+                      <SettingsIcon className="h-4 w-4" /> تنظیمات چاپ
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={handleExcel}>
-                      <i className="ti ti-file-excel"></i> اکسل
+                      <FileSpreadsheet className="h-4 w-4" /> اکسل
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={handleCSVExport}>
-                      <i className="ti ti-file-text"></i> CSV
+                      <FileText className="h-4 w-4" /> CSV
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={handlePDF}>
-                      <i className="ti ti-file-type-pdf"></i> PDF
+                      <FileText className="h-4 w-4" /> PDF
                     </button>
                     <button className="btn btn-success btn-sm" onClick={() => handlePrint('selected')}>
-                       <i className="ti ti-printer"></i> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, printCols)} برگ)
+                       <Printer className="h-4 w-4" /> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, printCols)} برگ)
                      </button>
                   </>
                 )}
                 {tab === 'view' && viewIndex !== null && (
                   <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); setSelected(new Set([viewIndex])); }}>
-                    <i className="ti ti-arrow-right"></i> بازگشت
+                    <ArrowRight className="h-4 w-4" /> بازگشت
                   </button>
                 )}
                 {(tab === 'records' || tab === 'add' || tab === 'import') && (
                   <button className="btn btn-outline btn-sm" onClick={() => setTab('preview')}>
-                    <i className="ti ti-printer"></i> پیش‌نمایش
+                    <Printer className="h-4 w-4" /> پیش‌نمایش
                   </button>
                 )}
                 {serverMode && (
@@ -1300,13 +1307,13 @@ export default function App() {
                   />
                 )}
                 <button className="btn btn-outline btn-sm" onClick={() => setShowPrintQueue(true)}>
-                  <i className="ti ti-printer"></i> صف چاپ
+                  <Printer className="h-4 w-4" /> صف چاپ
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={() => setShowScanner(true)}>
-                  <i className="ti ti-scan"></i> اسکن QR
+                  <ScanLine className="h-4 w-4" /> اسکن QR
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={() => setShowBackupModal(true)}>
-                  <i className="ti ti-cloud-download"></i> پشتیبان
+                  <CloudDownload className="h-4 w-4" /> پشتیبان
                 </button>
                 <button className="btn btn-outline btn-sm" onClick={serverMode ? handleLogout : handleLoginGoToServer}>
                   <i className={`ti ${serverMode ? 'ti-logout' : 'ti-server'}`}></i>
@@ -1391,7 +1398,7 @@ export default function App() {
               <div className="fade-in">
                 {isViewer ? (
                   <div className="empty-state">
-                    <div className="empty-icon"><i className="ti ti-lock"></i></div>
+                    <div className="empty-icon"><Lock className="h-10 w-10" /></div>
                     <h3 style={{ marginBottom: '0.5rem' }}>دسترسی محدود</h3>
                     <p style={{ opacity: 0.7 }}>شما دسترسی مشاهده دارید و نمی‌توانید رکورد جدید اضافه یا ویرایش کنید</p>
                   </div>
@@ -1401,7 +1408,7 @@ export default function App() {
                   <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
                     <div className="d-flex gap-2 align-items-center">
                       <button className="btn btn-outline btn-sm" onClick={() => setShowTemplates(p => !p)}>
-                        <i className="ti ti-template"></i> الگوها
+                        <LayoutTemplate className="h-4 w-4" /> الگوها
                       </button>
                       {templates.length > 0 && (
                         <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>{templates.length} الگو</span>
@@ -1413,7 +1420,7 @@ export default function App() {
                         value={templateName} onChange={e => setTemplateName(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()} />
                       <button className="btn btn-outline btn-sm" onClick={handleSaveTemplate}>
-                        <i className="ti ti-device-floppy"></i> ذخیره به عنوان الگو
+                        <Save className="h-4 w-4" /> ذخیره به عنوان الگو
                       </button>
                     </div>
                   </div>
@@ -1424,13 +1431,13 @@ export default function App() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {templates.map((tmpl: any, i: number) => (
                         <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
-                          <i className="ti ti-template" style={{ fontSize: '1.5rem', color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }}></i>
+                          <LayoutTemplate className="h-6 w-6" style={{ color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }} />
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 600 }}>{tmpl.name}</div>
                             <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{tmpl.fields?.project || (tmpl.fields?.code ? '' : 'نامعتبر - حذف کنید')}</div>
                           </div>
-                          <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
-                            onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }}></i>
+                          <Trash2 className="h-4 w-4 cursor-pointer opacity-50 hover:opacity-80 transition-opacity" style={{ color: 'var(--danger)' }}
+                            onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }} />
                         </div>
                       ))}
                     </div>
@@ -1571,7 +1578,7 @@ export default function App() {
           }}>
             <button className="btn btn-outline btn-sm" onClick={() => { undo(); addToast('عملیات لغو شد', 'success'); }}
               style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <i className="ti ti-undo"></i> لغو
+              <Undo2 className="h-4 w-4" /> لغو
             </button>
             <span style={{ opacity: 0.5 }}>{undoStack.length} عملیات قابل بازگشت</span>
           </div>
@@ -1614,7 +1621,7 @@ export default function App() {
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>بازیابی فیلدهای سفارشی</h3>
-                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}></i>
+                <X className="h-5 w-5 cursor-pointer" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }} />
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
                 فایل پشتیبان شامل <strong>{pendingRestore.customFields.length} فیلد سفارشی</strong> است:
@@ -1664,7 +1671,7 @@ export default function App() {
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>بازنویسی کدها</h3>
-                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowRenumberConfirm(false)}></i>
+                <X className="h-5 w-5 cursor-pointer" onClick={() => setShowRenumberConfirm(false)} />
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
                 همه رکوردها بر اساس پروژه، نوع و سال مرتب شده و کدهای آنها بازنویسی می‌شوند.
@@ -1687,7 +1694,7 @@ export default function App() {
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>ویرایش دسته‌جمعی</h3>
-                <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={() => setShowBulkEdit(false)}></i>
+                <X className="h-5 w-5 cursor-pointer" onClick={() => setShowBulkEdit(false)} />
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem' }}>{selected.size} رکورد انتخاب شده</p>
 
@@ -1720,7 +1727,7 @@ export default function App() {
 
               <div className="form-group">
                 <label className="form-label">
-                  <i className="ti ti-color-picker" style={{ marginRight: 8 }}></i>
+                  <Palette className="h-4 w-4" style={{ marginRight: 8 }} />
                   رنگ
                 </label>
                 <div className="d-flex gap-2 align-items-center">
@@ -1731,14 +1738,14 @@ export default function App() {
                     onChange={e => setBulkEditColor(e.target.value)}
                     placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
                   <button className="btn btn-outline btn-sm" onClick={() => setBulkEditColor('')}>
-                    <i className="ti ti-x"></i>
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">
-                  <i className="ti ti-tags" style={{ marginRight: 8 }}></i>
+                  <Tags className="h-4 w-4" style={{ marginRight: 8 }} />
                   افزودن برچسب
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -1763,7 +1770,7 @@ export default function App() {
               </div>
 
               <button className="btn btn-primary w-100" onClick={handleBulkEdit} disabled={serverLoading}>
-                {serverLoading ? <LoadingSpinner size={18} /> : <i className="ti ti-check"></i>} اعمال به {selected.size} رکورد
+                {serverLoading ? <LoadingSpinner size={18} /> : <Check className="h-4 w-4" />} اعمال به {selected.size} رکورد
               </button>
             </div>
           </div>
