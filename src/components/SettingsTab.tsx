@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import SearchableSelect from './SearchableSelect';
+import {
+  Server, Palette, Tags, ListDetails, Zap, Plus, Trash2, Pencil, Check, X,
+  ChevronDown, Merge, Sun, Moon, Droplet, Contrast,
+} from 'lucide-react';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'متن' },
@@ -10,12 +14,19 @@ const FIELD_TYPES = [
 ];
 
 const FIELD_TYPE_BADGES: Record<string, { label: string; color: string }> = {
-  text: { label: 'متن', color: 'var(--primary)' },
-  number: { label: 'عدد', color: 'var(--success)' },
-  date: { label: 'تاریخ', color: 'var(--warning)' },
-  dropdown: { label: 'لیست', color: 'var(--info)' },
-  color: { label: 'رنگ', color: 'var(--danger)' },
+  text: { label: 'متن', color: '#6366f1' },
+  number: { label: 'عدد', color: '#10b981' },
+  date: { label: 'تاریخ', color: '#f59e0b' },
+  dropdown: { label: 'لیست', color: '#06b6d4' },
+  color: { label: 'رنگ', color: '#ef4444' },
 };
+
+const THEME_OPTIONS = [
+  { key: 'light', icon: Sun, label: 'روشن' },
+  { key: 'dark', icon: Moon, label: 'تیره' },
+  { key: 'sepia', icon: Droplet, label: 'قهوه‌ای' },
+  { key: 'high-contrast', icon: Contrast, label: 'کنتراست بالا' },
+];
 
 interface CustomFieldSettings {
   key: string;
@@ -43,6 +54,21 @@ interface Props {
   onToggleVirtualScroll: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
+}
+
+function SectionHeader({ numeral, title, icon: Icon }: {
+  numeral: string;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+}) {
+  return (
+    <div className="st-section-header">
+      <div className="st-section-badge"><Icon className="st-section-badge-icon" /></div>
+      <span className="st-section-numeral">{numeral}</span>
+      <h4 className="st-section-title">{title}</h4>
+      <div className="st-section-rule" />
+    </div>
+  );
 }
 
 export default function SettingsTab({
@@ -115,65 +141,48 @@ export default function SettingsTab({
   };
 
   return (
-    <div className="fade-in">
-      <div className="form-card mb-4">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon info"><i className="ti ti-server"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>اتصال به سرور</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
+    <div className="st fade-in">
+      {/* ── Server Connection ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="I" title="اتصال به سرور" icon={Server} />
+        <div className="st-server-status">
+          <div className="st-server-info">
+            <span className="st-server-dot" style={{ background: serverMode ? 'var(--success)' : 'var(--text-color)' }} />
+            <span className="st-server-text">
               {serverMode ? `متصل به عنوان ${authUser?.username || 'کاربر'}` : 'حالت محلی (localStorage)'}
-            </p>
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="form-card mb-4">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon info"><i className="ti ti-palette"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>پوسته (Theme)</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              انتخاب پوسته نمایش برنامه
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-          {[
-            { key: 'light', icon: 'ti-sun', label: 'روشن' },
-            { key: 'dark', icon: 'ti-moon', label: 'تیره' },
-            { key: 'sepia', icon: 'ti-droplet', label: 'قهوه‌ای' },
-            { key: 'high-contrast', icon: 'ti-contrast', label: 'کنتراست بالا' },
-          ].map(t => (
-            <button key={t.key} onClick={() => onThemeChange(t.key)}
-              className={`btn ${theme === t.key ? 'btn-primary' : 'btn-outline'}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <i className={`ti ${t.icon}`}></i>
-              {t.label}
-            </button>
-          ))}
+      {/* ── Theme ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="II" title="پوسته (Theme)" icon={Palette} />
+        <div className="st-themes">
+          {THEME_OPTIONS.map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.key} className={`st-theme ${theme === t.key ? 'active' : ''}`} onClick={() => onThemeChange(t.key)}>
+                <div className="st-theme-icon-wrap">
+                  <Icon className="st-theme-icon" />
+                </div>
+                <span className="st-theme-label">{t.label}</span>
+                {theme === t.key && <div className="st-theme-check"><Check className="st-theme-check-icon" /></div>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      <div className="form-card mb-4">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon primary"><i className="ti ti-tags"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>برچسب‌ها (Tags)</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              برچسب‌های دلخواه برای دسته‌بندی رکوردها
-            </p>
-          </div>
-        </div>
+      {/* ── Tags ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="III" title="برچسب‌ها (Tags)" icon={Tags} />
 
         {tags.length > 0 && (
-          <div style={{ marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div className="st-tags">
             {tags.map(tag => (
-              <span key={tag} style={{
-                display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-                padding: '0.4rem 0.8rem', background: mergeSource === tag ? 'var(--danger)' : 'var(--primary)',
-                color: 'white', borderRadius: 20, fontSize: '0.85rem', cursor: mergeMode ? 'pointer' : 'default',
-              }}
+              <span key={tag}
+                className={`st-tag ${mergeSource === tag ? 'merge-source' : ''} ${mergeMode ? 'merge-mode' : ''}`}
                 onClick={() => {
                   if (mergeMode) {
                     if (!mergeSource) setMergeSource(tag);
@@ -185,60 +194,48 @@ export default function SettingsTab({
                   <input type="text" value={editTagValue} onChange={e => setEditTagValue(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveTagEdit(); if (e.key === 'Escape') setEditingTag(null); }}
                     onBlur={saveTagEdit}
-                    style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '0.85rem', width: Math.max(60, editTagValue.length * 9), outline: 'none', padding: 0 }}
-                    autoFocus />
+                    className="st-tag-input" autoFocus />
                 ) : tag}
                 {!mergeMode && (
-                  <i className="ti ti-pencil" style={{ cursor: 'pointer', fontSize: '0.8rem', opacity: 0.8 }}
-                    onClick={(e) => { e.stopPropagation(); startTagEdit(tag); }}></i>
+                  <Pencil className="st-tag-icon" onClick={(e) => { e.stopPropagation(); startTagEdit(tag); }} />
                 )}
                 {!mergeMode && (
-                  <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '0.9rem' }}
-                    onClick={() => onRemoveTag(tag)}></i>
+                  <X className="st-tag-icon" onClick={() => onRemoveTag(tag)} />
                 )}
               </span>
             ))}
           </div>
         )}
 
-        <div className="d-flex gap-2" style={{ flexWrap: 'wrap', marginBottom: mergeMode ? '1rem' : 0 }}>
-          <input
-            type="text"
-            className="form-input"
-            value={newTag}
+        <div className="st-add-row">
+          <input type="text" className="st-input" value={newTag}
             onChange={e => setNewTag(e.target.value)}
             placeholder="نام برچسب جدید..."
-            style={{ marginBottom: 0 }}
-            onKeyDown={e => { if (e.key === 'Enter') { onAddTag(newTag); setNewTag(''); } }}
-          />
-          <button className="btn btn-primary" onClick={() => { onAddTag(newTag); setNewTag(''); }}>
-            <i className="ti ti-plus"></i> افزودن
+            onKeyDown={e => { if (e.key === 'Enter') { onAddTag(newTag); setNewTag(''); } }} />
+          <button className="st-btn primary" onClick={() => { onAddTag(newTag); setNewTag(''); }}>
+            <Plus className="h-4 w-4" /> افزودن
           </button>
         </div>
 
         {tags.length >= 2 && (
-          <div className="d-flex gap-2" style={{ marginTop: '1rem' }}>
-            <button className={`btn ${mergeMode ? 'btn-danger' : 'btn-outline'} btn-sm`}
-              onClick={() => { setMergeMode(!mergeMode); setMergeSource(null); setMergeTarget(''); }}>
-              <i className="ti ti-arrows-cross"></i> ادغام
-            </button>
-          </div>
+          <button className={`st-btn ${mergeMode ? 'danger' : ''}`} onClick={() => { setMergeMode(!mergeMode); setMergeSource(null); setMergeTarget(''); }}>
+            <Merge className="h-4 w-4" /> ادغام
+          </button>
         )}
 
         {mergeMode && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: 'var(--hover-bg)', borderRadius: 8 }}>
-            <p style={{ fontSize: '0.85rem', opacity: 0.7, marginBottom: '0.75rem' }}>
-              {mergeSource ? `برچسب "${mergeSource}" به کجا ادغام شود؟` : 'برچسب مبدأ را انتخاب کنید (روی برچسب کلیک کنید)'}
+          <div className="st-merge-box">
+            <p className="st-merge-hint">
+              {mergeSource ? `برچسب "${mergeSource}" به کجا ادغام شود؟` : 'برچسب مبدأ را انتخاب کنید'}
             </p>
             {mergeSource && (
-              <div className="d-flex gap-2">
-                <input type="text" className="form-input" value={mergeTarget}
+              <div className="st-merge-row">
+                <input type="text" className="st-input" value={mergeTarget}
                   onChange={e => setMergeTarget(e.target.value)}
                   placeholder="نام برچسب مقصد..."
-                  style={{ marginBottom: 0, flex: 1 }}
                   onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
-                <button className="btn btn-primary btn-sm" onClick={handleMerge}>
-                  <i className="ti ti-check"></i> تأیید
+                <button className="st-btn primary" onClick={handleMerge}>
+                  <Check className="h-4 w-4" /> تأیید
                 </button>
               </div>
             )}
@@ -246,112 +243,75 @@ export default function SettingsTab({
         )}
       </div>
 
-      <div className="form-card">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon warning"><i className="ti ti-list-details"></i></div>
-          <div>
-            <h4 style={{ margin: 0 }}>فیلدهای سفارشی</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              فیلدهای دلخواه خود را به رکوردها اضافه کنید
-            </p>
-          </div>
-        </div>
+      {/* ── Custom Fields ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="IV" title="فیلدهای سفارشی" icon={ListDetails} />
 
         {customFields.length > 0 && (
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div className="st-fields">
             {customFields.map(f => {
               const badge = FIELD_TYPE_BADGES[f.fieldType] || FIELD_TYPE_BADGES.text;
               const isEditing = editingKey === f.key;
 
               if (isEditing) {
                 return (
-                  <div key={f.key} style={{
-                    padding: '1rem', background: 'var(--bg-body)',
-                    borderRadius: 8, marginBottom: '0.5rem',
-                  }}>
-                    <div className="d-flex gap-2" style={{ flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                      <input type="text" className="form-input" value={editName}
+                  <div key={f.key} className="st-field-edit">
+                    <div className="st-field-edit-row">
+                      <input type="text" className="st-input" value={editName}
                         onChange={e => setEditName(e.target.value)}
-                        placeholder="نام فیلد" style={{ marginBottom: 0, flex: 1, minWidth: 120 }} />
-                      <div style={{ width: 180, marginBottom: 0 }}>
+                        placeholder="نام فیلد" style={{ flex: 1, minWidth: 120 }} />
+                      <div style={{ width: 180 }}>
                         <SearchableSelect
                           value={FIELD_TYPES.find(t => t.value === editType)?.label || editType}
                           options={FIELD_TYPES.map(t => t.label)}
-                          onChange={(label) => {
-                            const found = FIELD_TYPES.find(t => t.label === label);
-                            if (found) setEditType(found.value);
-                          }}
+                          onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) setEditType(found.value); }}
                           dir="rtl"
                         />
                       </div>
                     </div>
                     {editType === 'dropdown' && (
-                      <div style={{ marginBottom: '0.75rem' }}>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: editOptions.length ? '0.5rem' : 0 }}>
-                          {editOptions.map((opt, i) => (
-                            <span key={i} style={{
-                              display: 'inline-flex', alignItems: 'center', gap: '0.25rem',
-                              padding: '0.3rem 0.6rem', background: 'var(--primary)', color: 'white',
-                              borderRadius: 6, fontSize: '0.8rem',
-                            }}>
-                              {opt}
-                              <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '0.75rem' }}
-                                onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))}></i>
-                            </span>
-                          ))}
-                        </div>
-                        <input type="text" className="form-input"
+                      <div className="st-field-edit-opts">
+                        {editOptions.length > 0 && (
+                          <div className="st-field-opt-tags">
+                            {editOptions.map((opt, i) => (
+                              <span key={i} className="st-opt-tag">
+                                {opt}
+                                <X className="st-opt-tag-x" onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} />
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <input type="text" className="st-input"
                           placeholder="گزینه را تایپ کنید و Enter بزنید..."
                           onKeyDown={e => {
                             if (e.key === 'Enter') {
                               e.preventDefault();
                               const val = (e.target as HTMLInputElement).value.trim();
-                              if (val && !editOptions.includes(val)) {
-                                setEditOptions([...editOptions, val]);
-                                (e.target as HTMLInputElement).value = '';
-                              }
+                              if (val && !editOptions.includes(val)) { setEditOptions([...editOptions, val]); (e.target as HTMLInputElement).value = ''; }
                             }
-                          }}
-                          style={{ marginBottom: 0 }} />
+                          }} />
                       </div>
                     )}
-                    <div className="d-flex gap-2">
-                      <button className="btn btn-primary btn-sm" onClick={saveEdit}>
-                        <i className="ti ti-check"></i> ذخیره
-                      </button>
-                      <button className="btn btn-outline btn-sm" onClick={cancelEdit}>
-                        <i className="ti ti-x"></i> لغو
-                      </button>
+                    <div className="st-field-edit-actions">
+                      <button className="st-btn-sm primary" onClick={saveEdit}><Check className="h-3.5 w-3.5" /> ذخیره</button>
+                      <button className="st-btn-sm" onClick={cancelEdit}><X className="h-3.5 w-3.5" /> لغو</button>
                     </div>
                   </div>
                 );
               }
 
               return (
-                <div key={f.key} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '0.75rem 1rem', background: 'var(--bg-body)',
-                  borderRadius: 8, marginBottom: '0.5rem',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <span>{f.fa}</span>
-                    <span style={{
-                      fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: 10,
-                      background: badge.color, color: 'white', fontWeight: 500,
-                    }}>
-                      {badge.label}
-                    </span>
+                <div key={f.key} className="st-field-row">
+                  <div className="st-field-info">
+                    <span className="st-field-name">{f.fa}</span>
+                    <span className="st-field-badge" style={{ background: badge.color }}>{badge.label}</span>
                     {f.fieldType === 'dropdown' && f.options && f.options.length > 0 && (
-                      <span style={{ fontSize: '0.75rem', opacity: 0.5 }}>
-                        ({f.options.length} گزینه)
-                      </span>
+                      <span className="st-field-opts-count">({f.options.length} گزینه)</span>
                     )}
                   </div>
-                  <div className="d-flex gap-2" style={{ alignItems: 'center' }}>
-                    <i className="ti ti-pencil" style={{ cursor: 'pointer', opacity: 0.5, fontSize: '1rem' }}
-                      onClick={() => startEdit(f)}></i>
-                    <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.5, color: 'var(--danger)' }}
-                      onClick={() => onRemoveField(f.key)}></i>
+                  <div className="st-field-actions">
+                    <Pencil className="st-field-action-icon" onClick={() => startEdit(f)} />
+                    <Trash2 className="st-field-action-icon danger" onClick={() => onRemoveField(f.key)} />
                   </div>
                 </div>
               );
@@ -359,47 +319,33 @@ export default function SettingsTab({
           </div>
         )}
 
-        <div className="d-flex gap-2" style={{ flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            className="form-input"
-            value={newFieldName}
+        <div className="st-add-row">
+          <input type="text" className="st-input" value={newFieldName}
             onChange={e => onNewFieldNameChange(e.target.value)}
             placeholder="نام فیلد جدید..."
-            style={{ marginBottom: 0, flex: 1, minWidth: 140 }}
-            onKeyDown={e => e.key === 'Enter' && onAddField()}
-          />
-          <div style={{ width: 160, marginBottom: 0 }}>
+            style={{ flex: 1, minWidth: 140 }}
+            onKeyDown={e => e.key === 'Enter' && onAddField()} />
+          <div style={{ width: 160 }}>
             <SearchableSelect
               value={FIELD_TYPES.find(t => t.value === newFieldType)?.label || newFieldType}
               options={FIELD_TYPES.map(t => t.label)}
-              onChange={(label) => {
-                const found = FIELD_TYPES.find(t => t.label === label);
-                if (found) onNewFieldTypeChange(found.value);
-              }}
+              onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) onNewFieldTypeChange(found.value); }}
               dir="rtl"
             />
           </div>
-          <button className="btn btn-primary" onClick={onAddField}>
-            <i className="ti ti-plus"></i> افزودن
+          <button className="st-btn primary" onClick={onAddField}>
+            <Plus className="h-4 w-4" /> افزودن
           </button>
         </div>
       </div>
 
-      <div className="form-card" style={{ marginTop: '1.5rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div className="stat-icon success"><i className="ti ti-zap"></i></div>
+      {/* ── Performance ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="V" title="عملکرد (Performance)" icon={Zap} />
+        <div className="st-toggle-row">
           <div>
-            <h4 style={{ margin: 0 }}>عملکرد (Performance)</h4>
-            <p style={{ opacity: 0.6, margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-              تنظیمات بهینه‌سازی برای حجم بالای داده
-            </p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0' }}>
-          <div>
-            <div style={{ fontWeight: 500 }}>نمایش مجازی (Virtual Scroll)</div>
-            <div style={{ opacity: 0.6, fontSize: '0.85rem' }}>حافظه و پردازش کمتر برای هزاران رکورد</div>
+            <div className="st-toggle-label">نمایش مجازی (Virtual Scroll)</div>
+            <div className="st-toggle-desc">حافظه و پردازش کمتر برای هزاران رکورد</div>
           </div>
           <label className="toggle-switch">
             <input type="checkbox" checked={useVirtualScroll} onChange={onToggleVirtualScroll} />
@@ -407,6 +353,501 @@ export default function SettingsTab({
           </label>
         </div>
       </div>
+
+      <style>{`
+        /* ══════════════════════════════════════════════════════════════
+           Settings — Classic Badge Theme
+           ══════════════════════════════════════════════════════════════ */
+
+        .st {
+          display: flex;
+          flex-direction: column;
+          gap: 1.5rem;
+        }
+
+        /* ── Panel ── */
+        .st-panel {
+          background: var(--card-bg);
+          border: 1px solid var(--border-color);
+          border-radius: 14px;
+          padding: 1.5rem;
+        }
+
+        /* ── Section Header ── */
+        .st-section-header {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          margin-bottom: 1.25rem;
+        }
+
+        .st-section-badge {
+          width: 26px;
+          height: 26px;
+          border-radius: 7px;
+          background: linear-gradient(135deg, var(--primary), #818cf8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .st-section-badge-icon {
+          width: 13px;
+          height: 13px;
+          color: white;
+        }
+
+        .st-section-numeral {
+          font-family: 'Georgia', serif;
+          font-size: 0.5625rem;
+          font-weight: 700;
+          color: var(--primary);
+          background: rgba(99, 102, 241, 0.06);
+          padding: 0.1rem 0.35rem;
+          border-radius: 3px;
+          border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+
+        .st-section-title {
+          margin: 0;
+          font-size: 0.9375rem;
+          font-weight: 700;
+          color: var(--text-color);
+        }
+
+        .st-section-rule {
+          flex: 1;
+          height: 1px;
+          background: var(--border-color);
+        }
+
+        /* ── Server Status ── */
+        .st-server-status {
+          padding: 0.75rem 1rem;
+          background: var(--hover-bg);
+          border-radius: 8px;
+        }
+
+        .st-server-info {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .st-server-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        .st-server-text {
+          font-size: 0.8125rem;
+          font-weight: 500;
+        }
+
+        /* ── Themes ── */
+        .st-themes {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0.625rem;
+        }
+
+        .st-theme {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 1rem 0.75rem;
+          border-radius: 10px;
+          border: 1.5px solid var(--border-color);
+          background: transparent;
+          color: var(--text-color);
+          cursor: pointer;
+          transition: all 0.15s;
+          position: relative;
+          font-family: inherit;
+        }
+
+        .st-theme:hover {
+          border-color: var(--primary);
+        }
+
+        .st-theme.active {
+          border-color: var(--primary);
+          background: rgba(99, 102, 241, 0.04);
+        }
+
+        .st-theme-icon-wrap {
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          background: var(--hover-bg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.15s;
+        }
+
+        .st-theme.active .st-theme-icon-wrap {
+          background: linear-gradient(135deg, var(--primary), #818cf8);
+          color: white;
+          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+
+        .st-theme-icon {
+          width: 20px;
+          height: 20px;
+        }
+
+        .st-theme-label {
+          font-size: 0.75rem;
+          font-weight: 600;
+        }
+
+        .st-theme-check {
+          position: absolute;
+          top: 6px;
+          left: 6px;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          background: var(--primary);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .st-theme-check-icon {
+          width: 10px;
+          height: 10px;
+          color: white;
+        }
+
+        /* ── Tags ── */
+        .st-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .st-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.4rem 0.8rem;
+          border-radius: 20px;
+          background: var(--primary);
+          color: white;
+          font-size: 0.8125rem;
+          cursor: default;
+          transition: all 0.15s;
+        }
+
+        .st-tag.merge-source {
+          background: var(--danger);
+        }
+
+        .st-tag.merge-mode {
+          cursor: pointer;
+          opacity: 0.7;
+        }
+
+        .st-tag.merge-mode:hover {
+          opacity: 1;
+        }
+
+        .st-tag-input {
+          background: transparent;
+          border: none;
+          color: white;
+          font-size: 0.8125rem;
+          width: auto;
+          min-width: 50px;
+          outline: none;
+          padding: 0;
+          font-family: inherit;
+        }
+
+        .st-tag-icon {
+          width: 14px;
+          height: 14px;
+          cursor: pointer;
+          opacity: 0.8;
+          transition: opacity 0.15s;
+          flex-shrink: 0;
+        }
+
+        .st-tag-icon:hover {
+          opacity: 1;
+        }
+
+        /* ── Merge ── */
+        .st-merge-box {
+          margin-top: 1rem;
+          padding: 1rem;
+          background: var(--hover-bg);
+          border-radius: 8px;
+        }
+
+        .st-merge-hint {
+          font-size: 0.8125rem;
+          opacity: 0.7;
+          margin-bottom: 0.75rem;
+        }
+
+        .st-merge-row {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        /* ── Custom Fields ── */
+        .st-fields {
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          margin-bottom: 1rem;
+        }
+
+        .st-field-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.75rem 1rem;
+          background: var(--hover-bg);
+          border-radius: 8px;
+          transition: background 0.15s;
+        }
+
+        .st-field-row:hover {
+          background: var(--border-color);
+        }
+
+        .st-field-info {
+          display: flex;
+          align-items: center;
+          gap: 0.625rem;
+        }
+
+        .st-field-name {
+          font-weight: 500;
+          font-size: 0.875rem;
+        }
+
+        .st-field-badge {
+          font-size: 0.625rem;
+          padding: 0.15rem 0.5rem;
+          border-radius: 10px;
+          color: white;
+          font-weight: 600;
+        }
+
+        .st-field-opts-count {
+          font-size: 0.75rem;
+          opacity: 0.5;
+        }
+
+        .st-field-actions {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .st-field-action-icon {
+          width: 18px;
+          height: 18px;
+          cursor: pointer;
+          opacity: 0.4;
+          transition: all 0.15s;
+        }
+
+        .st-field-action-icon:hover {
+          opacity: 0.8;
+        }
+
+        .st-field-action-icon.danger {
+          color: var(--danger);
+        }
+
+        .st-field-edit {
+          padding: 1rem;
+          background: var(--hover-bg);
+          border-radius: 8px;
+          margin-bottom: 0.5rem;
+        }
+
+        .st-field-edit-row {
+          display: flex;
+          gap: 0.5rem;
+          margin-bottom: 0.75rem;
+          flex-wrap: wrap;
+        }
+
+        .st-field-edit-opts {
+          margin-bottom: 0.75rem;
+        }
+
+        .st-field-opt-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.4rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .st-opt-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          padding: 0.3rem 0.6rem;
+          background: var(--primary);
+          color: white;
+          border-radius: 6px;
+          font-size: 0.75rem;
+        }
+
+        .st-opt-tag-x {
+          width: 12px;
+          height: 12px;
+          cursor: pointer;
+        }
+
+        .st-field-edit-actions {
+          display: flex;
+          gap: 0.5rem;
+        }
+
+        /* ── Toggle Row ── */
+        .st-toggle-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.5rem 0;
+        }
+
+        .st-toggle-label {
+          font-weight: 600;
+          font-size: 0.875rem;
+        }
+
+        .st-toggle-desc {
+          opacity: 0.5;
+          font-size: 0.8125rem;
+          margin-top: 0.125rem;
+        }
+
+        /* ── Shared Inputs ── */
+        .st-input {
+          width: 100%;
+          padding: 0.5rem 0.75rem;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+          background: var(--bg-body);
+          color: var(--text-color);
+          font-size: 0.8125rem;
+          font-family: inherit;
+          margin-bottom: 0;
+          transition: border-color 0.15s;
+        }
+
+        .st-input:focus {
+          outline: none;
+          border-color: var(--primary);
+        }
+
+        .st-input::placeholder {
+          color: var(--text-color);
+          opacity: 0.3;
+        }
+
+        .st-add-row {
+          display: flex;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        /* ── Buttons ── */
+        .st-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          font-size: 0.8125rem;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+          white-space: nowrap;
+        }
+
+        .st-btn:hover {
+          border-color: var(--primary);
+          color: var(--primary);
+        }
+
+        .st-btn.primary {
+          background: var(--primary);
+          color: white;
+          border-color: var(--primary);
+        }
+
+        .st-btn.primary:hover {
+          background: var(--primary-hover);
+        }
+
+        .st-btn.danger {
+          background: var(--danger);
+          color: white;
+          border-color: var(--danger);
+        }
+
+        .st-btn-sm {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.375rem;
+          padding: 0.4rem 0.875rem;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          background: var(--card-bg);
+          color: var(--text-color);
+          font-size: 0.75rem;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          transition: all 0.15s;
+        }
+
+        .st-btn-sm:hover {
+          border-color: var(--primary);
+          color: var(--primary);
+        }
+
+        .st-btn-sm.primary {
+          background: var(--primary);
+          color: white;
+          border-color: var(--primary);
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 768px) {
+          .st-themes {
+            grid-template-columns: repeat(2, 1fr);
+          }
+
+          .st-add-row {
+            flex-direction: column;
+          }
+
+          .st-add-row > div {
+            width: 100% !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

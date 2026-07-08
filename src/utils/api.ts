@@ -89,6 +89,18 @@ export const api = {
   getCustomFields: (workspaceId?: string | number) =>
     apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`).catch(() => []),
 
+  createCustomField: (field: any) =>
+    apiRequest('/custom-fields', { method: 'POST', body: JSON.stringify(field) }),
+
+  updateCustomField: (key: string, field: any, workspaceId: string | number) =>
+    apiRequest(`/custom-fields/${key}`, { method: 'PUT', body: JSON.stringify({ ...field, workspace_id: workspaceId }) }),
+
+  deleteCustomField: (key: string, workspaceId: string | number) =>
+    apiRequest(`/custom-fields/${key}?workspace_id=${workspaceId}`, { method: 'DELETE' }),
+
+  batchSaveCustomFields: (fields: any[], workspaceId: string | number) =>
+    apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
+
   getMe: () =>
     apiRequest('/auth/me'),
 

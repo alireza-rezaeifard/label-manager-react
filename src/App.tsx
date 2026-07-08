@@ -270,7 +270,8 @@ export default function App() {
     const data = await api.getAllRecords(currentWorkspaceId);
     const cache = loadRecordCustomFieldsCache();
     const codeCache = loadRecordCustomFieldsCodeCache();
-    const customKeys = new Set<string>(customFields.map((f: any) => f.key));
+    const currentCustomFields = loadCustomFields();
+    const customKeys = new Set<string>(currentCustomFields.map((f: any) => f.key));
     return data.map((serverRecord: any) => {
       const merged: any = { ...serverRecord };
       for (const key of customKeys) {
@@ -279,7 +280,7 @@ export default function App() {
       }
       return merged;
     });
-  }, [serverMode, currentWorkspaceId, customFields]);
+  }, [serverMode, currentWorkspaceId]);
 
   const { data: swrData, isLoading: swrLoading, revalidate } = useSWR(
     serverMode && currentWorkspaceId ? `records:${currentWorkspaceId}` : null,
@@ -766,7 +767,7 @@ export default function App() {
       const text = await backupFile.text();
       const data = JSON.parse(text);
       let restoredRecords: any, restoredCustomFields: any;
-      const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order']);
+      const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order', 'notes', 'deleted_at', 'is_favorite', 'locked_by', 'locked_at']);
       if (Array.isArray(data)) {
         restoredRecords = data;
         restoredCustomFields = [];
