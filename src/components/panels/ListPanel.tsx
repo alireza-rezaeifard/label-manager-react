@@ -1,0 +1,72 @@
+import React from 'react';
+import RecordsPage from '../RecordsPage';
+import type { RecordItem, CustomField } from '../../types';
+
+interface ListPanelProps {
+  currentRecords: RecordItem[];
+  sortedRecords: RecordItem[];
+  pagedRecords: RecordItem[];
+  selected: Set<number>;
+  sortBy: string | null;
+  sortOrder: string;
+  refreshKey: number;
+  search: string;
+  filterType: string;
+  filterParty: string;
+  filterDateFrom: string;
+  filterDateTo: string;
+  filterAmountMin: string;
+  filterAmountMax: string;
+  selectedTagFilter: string | null;
+  allTypes: string[];
+  allParties: string[];
+  viewMode: string;
+  useVirtualScroll: boolean;
+  serverLoading: boolean;
+  safePage: number;
+  totalPages: number;
+  customFields: CustomField[];
+  enabledCustomFieldKeys: string[];
+  tags: string[];
+  findRelated: (codes: string[]) => RecordItem[];
+  recordToIndex: Map<RecordItem, number>;
+  isViewer: boolean;
+  serverMode: boolean;
+  onSort: (field: string) => void;
+  onToggleSelect: (i: number) => void;
+  onToggleAll: () => void;
+  onEdit: (i: number) => void;
+  onView: (i: number) => void;
+  onDeleteClick: () => void;
+  onExcel: () => void;
+  onCSVExport: () => void;
+  onExportAllExcel: () => void;
+  onExportAllCSV: () => void;
+  onExportAllPrint: () => void;
+  onDragStart: (e: React.DragEvent, idx: number | null) => void;
+  onDrop: (e: React.DragEvent, dropIdx: number) => void;
+  onSetDragIndex: (i: number | null) => void;
+  onInlineEdit: (index: number, field: string, value: string) => void;
+  onToggleFavorite: (index: number) => void;
+  onApplyPreset: (filters: any) => void;
+  onTabChange: (t: string) => void;
+  onSetViewMode: (m: string) => void;
+  onSetUseVirtualScroll: (v: boolean) => void;
+  onSetFilterType: (v: string) => void;
+  onSetFilterParty: (v: string) => void;
+  onSetFilterDateFrom: (v: string) => void;
+  onSetFilterDateTo: (v: string) => void;
+  onSetFilterAmountMin: (v: string) => void;
+  onSetFilterAmountMax: (v: string) => void;
+  onSetSelectedTagFilter: (v: string | null) => void;
+  onSetPage: (p: number) => void;
+  onShowRenumberConfirm: (s: boolean) => void;
+  onShowBulkEdit: (s: boolean) => void;
+  onSetEnabledCustomFieldKeys: (fn: (prev: string[]) => string[]) => void;
+  onClearSelection: () => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
+}
+
+export default function ListPanel(props: ListPanelProps) {
+  return <RecordsPage {...props} />;
+}

@@ -18,11 +18,16 @@ export interface RecordItem {
   image?: string;
   color?: string;
   id?: string;
+  user_id?: number;
+  workspace_id?: number;
+  sort_order?: number;
   is_favorite?: boolean;
   notes?: string;
   deleted_at?: string;
   locked_by?: string;
   locked_at?: string;
+  created_at?: string;
+  updated_at?: string;
   [key: string]: unknown;
 }
 
@@ -56,3 +61,57 @@ export interface ToastType {
 }
 
 export type Record = RecordItem;
+
+export interface Template {
+  name: string;
+  fields: RecordItem;
+}
+
+export interface Workspace {
+  id: number;
+  name: string;
+  description?: string;
+  created_by?: number;
+  member_role?: string;
+  created_at?: string;
+}
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  filters: FilterState;
+}
+
+export interface FilterState {
+  search?: string;
+  sortBy?: string;
+  sortOrder?: string;
+  filterType?: string;
+  filterParty?: string;
+  selectedTagFilter?: string;
+  filterDateFrom?: string;
+  filterDateTo?: string;
+  filterAmountMin?: string;
+  filterAmountMax?: string;
+}
+
+export interface FormField {
+  key: string;
+  label: string;
+  fa: string;
+  placeholder?: string;
+  isRelated?: boolean;
+  isCustom?: boolean;
+  fieldType?: string;
+  options?: string[];
+}
+
+export interface ActivityLogEntry {
+  id: number;
+  action: string;
+  details?: string;
+  user_name?: string;
+  created_at?: string;
+  workspace_id?: number;
+  record_id?: number;
+}

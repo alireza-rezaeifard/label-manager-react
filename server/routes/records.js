@@ -40,7 +40,7 @@ function saveRecordVersion(userId, record, workspaceId, summary) {
 
 router.get('/', asyncHandler((req, res) => {
   const {
-    page = 1,
+    cursor,
     limit = 50,
     search = '',
     sortBy = 'created_at',
@@ -50,9 +50,7 @@ router.get('/', asyncHandler((req, res) => {
     workspace_id: filterWorkspace = '',
   } = req.query;
 
-  const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const limitNum = Math.min(10000, Math.max(1, parseInt(limit, 10) || 50));
-  const offset = (pageNum - 1) * limitNum;
 
   const allowedSortFields = ['code', 'project', 'type', 'date', 'party', 'amount', 'created_at', 'updated_at', 'sort_order'];
   const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
@@ -94,19 +92,35 @@ router.get('/', asyncHandler((req, res) => {
     params.push(filterParty);
   }
 
+  // Cursor-based pagination (keyset pagination on created_at)
+  if (cursor) {
+    where += ' AND created_at < ?';
+    params.push(cursor);
+  }
+
+  // Default sort: sort_order ASC, created_at DESC for stable listing
+  let orderClause;
+  if (sortBy === 'created_at' && sortOrder === 'desc') {
+    orderClause = 'sort_order ASC, created_at DESC';
+  } else {
+    orderClause = `${safeSortBy} ${safeSortOrder}`;
+  }
+
   const countResult = db.prepare(`SELECT COUNT(*) as total FROM records ${where}`).get(...params);
   const total = countResult.total;
 
   const records = db.prepare(
-    `SELECT * FROM records ${where} ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT ? OFFSET ?`
-  ).all(...params, limitNum, offset);
+    `SELECT * FROM records ${where} ORDER BY ${orderClause} LIMIT ?`
+  ).all(...params, limitNum);
+
+  const nextCursor = records.length > 0 ? records[records.length - 1].created_at : null;
 
   res.json({
     records: records.map(parseRecord),
     total,
-    page: pageNum,
+    nextCursor,
+    page: 1,
     limit: limitNum,
-    totalPages: Math.ceil(total / limitNum),
   });
 }));
 

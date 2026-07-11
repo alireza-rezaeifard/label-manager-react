@@ -59,7 +59,7 @@ export const api = {
 
   getAllRecords: (workspaceId?: string | number) => {
     const qs = workspaceId ? `?workspace_id=${workspaceId}&limit=10000` : '?limit=10000';
-    return apiRequest(`/records${qs}`).then((r: any) => r.records || r);
+    return apiRequest(`/records${qs}`).then((r: { records?: RecordItem[] } | RecordItem[]) => Array.isArray(r) ? r : (r.records ?? []));
   },
 
   createRecord: (record: RecordItem) =>
@@ -89,16 +89,16 @@ export const api = {
   getCustomFields: (workspaceId?: string | number) =>
     apiRequest(`/custom-fields${workspaceId ? `?workspace_id=${workspaceId}` : ''}`).catch(() => []),
 
-  createCustomField: (field: any) =>
+  createCustomField: (field: CustomField) =>
     apiRequest('/custom-fields', { method: 'POST', body: JSON.stringify(field) }),
 
-  updateCustomField: (key: string, field: any, workspaceId: string | number) =>
+  updateCustomField: (key: string, field: Partial<CustomField>, workspaceId: string | number) =>
     apiRequest(`/custom-fields/${key}`, { method: 'PUT', body: JSON.stringify({ ...field, workspace_id: workspaceId }) }),
 
   deleteCustomField: (key: string, workspaceId: string | number) =>
     apiRequest(`/custom-fields/${key}?workspace_id=${workspaceId}`, { method: 'DELETE' }),
 
-  batchSaveCustomFields: (fields: any[], workspaceId: string | number) =>
+  batchSaveCustomFields: (fields: CustomField[], workspaceId: string | number) =>
     apiRequest('/custom-fields/batch', { method: 'POST', body: JSON.stringify({ fields, workspace_id: workspaceId }) }),
 
   getMe: () =>

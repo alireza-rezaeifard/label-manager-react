@@ -8,10 +8,20 @@ services:
     environment:
       - JWT_SECRET=${JWT_SECRET?Please set JWT_SECRET}
       - PORT=3001
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3001}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
       - NODE_ENV=production
     volumes:
       - label-studio-data:/app/server
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - label-studio
     restart: unless-stopped
 
 volumes:

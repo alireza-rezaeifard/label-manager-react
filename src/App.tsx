@@ -6,7 +6,10 @@ import { useSWR, invalidateCache } from './hooks/useSWR';
 import { usePrintExport } from './hooks/usePrintExport';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useCustomFields } from './hooks/useCustomFields';
-import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT, PAGE_SIZE } from './data/fields';
+import { useRecordForm } from './hooks/useRecordForm';
+import { useRecordsList } from './hooks/useRecordsList';
+import { useWorkspaceData, loadHistory, saveHistory, loadCustomFields, saveCustomFields, loadTags, saveTags } from './hooks/useWorkspaceData';
+import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT } from './data/fields';
 import { formatAmount, parseCode, formatCode } from './utils/formatters';
 import { estimatePaperCount } from './utils/printHelpers';
 import { api, isAuthenticated, getAuthUser } from './utils/api';
@@ -16,22 +19,21 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import TransitionPage from './components/TransitionPage';
-import RecordForm from './components/RecordForm';
 import Toast from './components/Toast';
 import ShortcutsHelp from './components/ShortcutsHelp';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import LoadingScreen from './components/LoadingScreen';
 import LoadingSpinner from './components/LoadingSpinner';
 import ConfirmDialog from './components/ConfirmDialog';
+import FormPanel from './components/panels/FormPanel';
+import ListPanel from './components/panels/ListPanel';
 import {
   DashboardSkeleton, ReportsSkeleton, SettingsSkeleton,
   ProfileSkeleton, HistorySkeleton, ViewDetailSkeleton,
   ImportSkeleton, PreviewSkeleton,
 } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import { useWebSocket } from './hooks/useWebSocket';
-import { useDebounce } from './hooks/useDebounce';
-import type { RecordItem } from './types';
+import type { RecordItem, Template, Workspace, FilterPreset, FilterState, CustomField, FormField, ActivityLogEntry } from './types';
 import RecordsPage from './components/RecordsPage';
 import {
   Settings as SettingsIcon, FileSpreadsheet, FileText, Printer, ArrowRight,
@@ -55,49 +57,11 @@ const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
 const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 
-const HISTORY_KEY = 'label-studio-print-history';
-const CUSTOM_FIELDS_KEY = 'label-studio-custom-fields';
-const TAGS_KEY = 'label-studio-tags';
-
-function loadHistory() {
-  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
-}
-function saveHistory(h: any[]) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch { /* localStorage may be full */ }
-}
-function loadCustomFields() {
-  try { return JSON.parse(localStorage.getItem(CUSTOM_FIELDS_KEY) || '[]'); } catch { return []; }
-}
-function saveCustomFields(f: any[]) {
-  try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch { /* localStorage may be full */ }
-}
-function loadTags() {
-  try { return JSON.parse(localStorage.getItem(TAGS_KEY) || '[]'); } catch { return []; }
-}
-function saveTags(t: string[]) {
-  try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch { /* localStorage may be full */ }
-}
-
-const RECORD_CUSTOM_FIELDS_CACHE_KEY = 'label-studio-record-cfields-cache';
-const RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY = 'label-studio-record-cfields-code-cache';
-
-function loadRecordCustomFieldsCache() {
-  try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CACHE_KEY) || '{}'); } catch { return {}; }
-}
-
-function saveRecordCustomFieldsCache(data: Record<string, unknown>) {
-  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
-}
-
-function loadRecordCustomFieldsCodeCache() {
-  try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY) || '{}'); } catch { return {}; }
-}
-
-function saveRecordCustomFieldsCodeCache(data: Record<string, unknown>) {
-  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch { /* */ }
-}
-
 export default function App() {
+  // ========== TOAST (needed by many hooks) ==========
+  const { toasts, addToast, removeToast } = useToast();
+
+  // ========== NAVIGATION ==========
   const location = useLocation();
   const navigate = useNavigate();
   const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
@@ -116,14 +80,13 @@ export default function App() {
   const setTab = useCallback((t: string) => {
     const target = '/' + t;
     if (location.pathname !== target) navigate(target);
-    startTransition(() => {
-      setTabState(t);
-    });
+    startTransition(() => { setTabState(t); });
   }, [navigate, location.pathname]);
-  const [localMode, setLocalMode] = useState(() => localStorage.getItem('local_mode') === 'true');
-  const [authUser, setAuthUser] = useState(() => localMode ? null : getAuthUser());
-  const [serverMode, setServerMode] = useState(() => localMode ? false : !!getAuthUser());
 
+  // ========== WORKSPACE DATA (server, auth, data fetching, settings state) ==========
+  const ws = useWorkspaceData();
+
+  // ========== LOCAL RECORDS ==========
   const {
     records, setRecords,
     addRecord, updateRecord, deleteRecords, reorderRecords,
@@ -131,180 +94,40 @@ export default function App() {
     isDuplicateCode, checkDuplicateCode,
   } = useRecords();
 
-  const [serverRecords, setServerRecords] = useState<any[]>([]);
-  const [serverLoading, setServerLoading] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const fetchedRef = useRef(false);
-  const isRestoringRef = useRef(false);
+  const currentRecords: RecordItem[] = ws.serverMode ? ws.serverRecords : records;
 
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-  const [selected, setSelected] = useState<Set<number>>(new Set());
-  const [editIndex, setEditIndex] = useState<number | null>(null);
+  // ========== RECORDS LIST (search, sort, filter, pagination, selection) ==========
+  const list = useRecordsList(currentRecords, ws.customFields);
+
+  // ========== RECORD FORM ==========
+  const formState = useRecordForm({
+    currentRecords,
+    serverMode: ws.serverMode,
+    currentWorkspaceId: ws.currentWorkspaceId,
+    customFields: ws.customFields,
+    addToast,
+    setServerRecords: ws.setServerRecords,
+    setServerLoading: ws.setServerLoading,
+    refreshServerRecords: ws.refreshServerRecords,
+    setRecords,
+    setRefreshKey: ws.setRefreshKey,
+    setTab,
+    setPage: list.setPage,
+  });
+
+  // ========== NAVIGATION CALLBACKS (depend on formState) ==========
+  const handleTabChange = useCallback((t: string) => {
+    startTransition(() => {
+      setTab(t);
+      formState.setEditIndex(null);
+      formState.setTemplateData(null);
+      formState.setShowTemplates(false);
+      formState.setTemplateKey(k => k + 1);
+    });
+  }, [setTab, formState.setEditIndex, formState.setTemplateData, formState.setShowTemplates, formState.setTemplateKey]);
+
+  // ========== VIEW STATE ==========
   const [viewIndex, setViewIndex] = useState<number | null>(null);
-  const [search, setSearch] = useState('');
-  const debouncedSearch = useDebounce(search, 150);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [sidebarCompact, setSidebarCompact] = useState(() => {
-    try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
-  });
-
-  const toggleSidebarCompact = useCallback(() => {
-    setSidebarCompact(p => {
-      const next = !p;
-      try { localStorage.setItem('sidebar-compact', String(next)); } catch {}
-      return next;
-    });
-  }, []);
-
-  const [sortBy, setSortBy] = useState<string | null>(null);
-  const [sortOrder, setSortOrder] = useState('asc');
-  const [page, setPage] = useState(1);
-
-  const [printHistory, setPrintHistory] = useState(loadHistory);
-  const [showPrintSettings, setShowPrintSettings] = useState(false);
-  const [printCols, setPrintCols] = useState(LABEL_PRINT_COLS);
-  const [printWidth, setPrintWidth] = useState(LABEL_WIDTH);
-  const [printHeight, setPrintHeight] = useState(LABEL_HEIGHT);
-  const [printTemplate, setPrintTemplate] = useState('classic');
-  const [printQr, setPrintQr] = useState(false);
-  const [printBarcode, setPrintBarcode] = useState(false);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
-
-  const [customFields, setCustomFields] = useState(loadCustomFields);
-  const [enabledCustomFieldKeys, setEnabledCustomFieldKeys] = useState<string[]>(() => {
-    const saved = localStorage.getItem('label-studio-enabled-cfields');
-    if (saved) return JSON.parse(saved);
-    const fields = loadCustomFields();
-    return fields.map((f: any) => f.key);
-  });
-  const [newFieldName, setNewFieldName] = useState('');
-  const [newFieldType, setNewFieldType] = useState('text');
-  const [showBackupModal, setShowBackupModal] = useState(false);
-  const [backupFile, setBackupFile] = useState<File | null>(null);
-  const [pendingRestore, setPendingRestore] = useState<{ records: any[]; customFields: any[] } | null>(null);
-  const [showRestoreConfirm, setShowRestoreConfirm] = useState(false);
-
-  const [tags, setTags] = useState(loadTags);
-  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState('');
-  const [filterParty, setFilterParty] = useState('');
-  const [filterDateFrom, setFilterDateFrom] = useState('');
-  const [filterDateTo, setFilterDateTo] = useState('');
-  const [viewMode, setViewMode] = useState(() => { try { return localStorage.getItem('view_mode') || 'card'; } catch { return 'card'; } });
-  const [templates, setTemplates] = useState(() => { try { return JSON.parse(localStorage.getItem('label-studio-record-templates') || '[]'); } catch { return []; } });
-  const [templateName, setTemplateName] = useState('');
-  const [showTemplates, setShowTemplates] = useState(false);
-  const [templateData, setTemplateData] = useState<any>(null);
-  const [templateKey, setTemplateKey] = useState(0);
-  const formDraftRef = useRef<any>(null);
-  const [filterAmountMin, setFilterAmountMin] = useState('');
-  const [filterAmountMax, setFilterAmountMax] = useState('');
-  const [bulkEditField, setBulkEditField] = useState('');
-  const [bulkEditValue, setBulkEditValue] = useState('');
-  const [bulkEditTags, setBulkEditTags] = useState<string[]>([]);
-  const [bulkEditColor, setBulkEditColor] = useState('');
-  const [showBulkEdit, setShowBulkEdit] = useState(false);
-  const [showRenumberConfirm, setShowRenumberConfirm] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
-  const [versionHistoryRecord, setVersionHistoryRecord] = useState<{ id: string; code: string } | null>(null);
-  const [showPrintQueue, setShowPrintQueue] = useState(false);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
-  const [currentWorkspaceId, setCurrentWorkspaceId] = useState(() => {
-    const saved = localStorage.getItem('current_workspace_id');
-    return saved ? parseInt(saved, 10) : null;
-  });
-
-  const { toasts, addToast, removeToast } = useToast();
-
-  const { data: activityLog = [], revalidate: refreshActivity } = useSWR<any[]>(
-    serverMode && currentWorkspaceId ? `activity:${currentWorkspaceId}` : null,
-    () => api.getActivity(currentWorkspaceId!).then((data: any) => data || []),
-    { revalidateOnMount: true, refreshInterval: 15000 }
-  );
-
-  const handleRefreshActivity = useCallback(() => {
-    invalidateCache(`activity:${currentWorkspaceId}`);
-    refreshActivity();
-  }, [refreshActivity, currentWorkspaceId]);
-
-  const [useVirtualScroll, setUseVirtualScroll] = useState(() => {
-    try { return localStorage.getItem('use_virtual_scroll') === 'true'; } catch { return false; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch { /* may be full */ }
-  }, [useVirtualScroll]);
-
-  useEffect(() => {
-    setEnabledCustomFieldKeys(prev => {
-      const next = new Set(prev);
-      for (const f of customFields) next.add(f.key);
-      const arr = [...next];
-      localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(arr));
-      return arr;
-    });
-  }, [customFields]);
-
-  useEffect(() => {
-    if (serverMode && currentWorkspaceId) {
-      api.getCustomFields(currentWorkspaceId).then(serverFields => {
-        if (serverFields && serverFields.length > 0) {
-          setCustomFields((prev: any[]) => {
-            const merged = [...serverFields];
-            for (const local of prev) {
-              if (!merged.find(f => f.key === local.key)) {
-                merged.push(local);
-              }
-            }
-            saveCustomFields(merged);
-            return merged;
-          });
-        }
-      }).catch(() => {});
-    }
-  }, [serverMode, currentWorkspaceId]);
-
-  // SWR fetcher: fetch records from server + merge custom fields
-  const fetchServerRecords = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId) return [];
-    const data = await api.getAllRecords(currentWorkspaceId);
-    const cache = loadRecordCustomFieldsCache();
-    const codeCache = loadRecordCustomFieldsCodeCache();
-    const currentCustomFields = loadCustomFields();
-    const customKeys = new Set<string>(currentCustomFields.map((f: any) => f.key));
-    return data.map((serverRecord: any) => {
-      const merged: any = { ...serverRecord };
-      for (const key of customKeys) {
-        const val = cache[serverRecord.id]?.[key] ?? codeCache[serverRecord.code]?.[key];
-        if (val !== undefined) merged[key] = val;
-      }
-      return merged;
-    });
-  }, [serverMode, currentWorkspaceId]);
-
-  const { data: swrData, isLoading: swrLoading, revalidate } = useSWR(
-    serverMode && currentWorkspaceId ? `records:${currentWorkspaceId}` : null,
-    fetchServerRecords,
-  );
-
-  // Sync SWR data to serverRecords
-  useEffect(() => {
-    if (swrData) setServerRecords(swrData as any[]);
-  }, [swrData]);
-
-  const refreshServerRecords = useCallback(async () => {
-    if (!serverMode || !currentWorkspaceId || isRestoringRef.current) return;
-    invalidateCache(`records:${currentWorkspaceId}`);
-    await revalidate();
-  }, [revalidate, serverMode, currentWorkspaceId]);
-
-  const refreshServerRecordsRef = useRef(refreshServerRecords);
-  refreshServerRecordsRef.current = refreshServerRecords;
-
-  const { connectionStatus } = useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
-
-  const currentRecords: any[] = serverMode ? serverRecords : records;
 
   useEffect(() => {
     if (!viewCode || currentRecords.length === 0) return;
@@ -312,55 +135,355 @@ export default function App() {
     if (idx !== -1) setViewIndex(idx);
   }, [viewCode, currentRecords]);
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
-
-    const handleAuthChange = () => {
-      if (!isAuthenticated()) {
-        setServerMode(false);
-        setAuthUser(null);
-      }
-    };
-    window.addEventListener('auth-change', handleAuthChange);
-    return () => window.removeEventListener('auth-change', handleAuthChange);
-  }, [theme]);
-
-  useEffect(() => {
-    if (serverMode && !fetchedRef.current) {
-      fetchedRef.current = true;
-
-      api.getWorkspaces().then(wsList => {
-        setWorkspaces(wsList);
-        if (!currentWorkspaceId && wsList.length > 0) {
-          setCurrentWorkspaceId(wsList[0].id);
-          localStorage.setItem('current_workspace_id', String(wsList[0].id));
-        }
-      }).catch(() => {});
-    }
-  }, [serverMode, currentWorkspaceId]);
-
-  const toggleTheme = () => setTheme(p => p === 'light' ? 'dark' : 'light');
-  const toggleSidebar = () => setSidebarOpen(p => !p);
-  const resetForm = () => setEditIndex(null);
-
-  const handleTabChange = useCallback((t: string) => {
-    startTransition(() => {
-      setTab(t);
-      setEditIndex(null);
-      setTemplateData(null);
-      setShowTemplates(false);
-      setTemplateKey(k => k + 1);
-    });
+  const handleView = useCallback((i: number) => {
+    setViewIndex(i);
+    setTab('view');
   }, [setTab]);
 
+  const handleEdit = useCallback((i: number) => {
+    formState.setEditIndex(i);
+    formState.setTemplateData(null);
+    setTab('add');
+  }, [formState.setEditIndex, formState.setTemplateData, setTab]);
+
+  // ========== EXPORT & PRINT ==========
+  const enabledSet = new Set(ws.enabledCustomFieldKeys);
+  const allExportFields = [...FIELDS, ...ws.customFields.filter((f: CustomField) => enabledSet.has(f.key))];
+
+  const {
+    handlePrint, handleExcel, handleCSVExport, handlePDF,
+    handleExportAllExcel, handleExportAllCSV, handleExportAllPrint,
+  } = usePrintExport({
+    currentRecords, sortedRecords: list.sortedRecords, selected: list.selected, allExportFields,
+    printCols: ws.printCols, printWidth: ws.printWidth, printHeight: ws.printHeight,
+    printTemplate: ws.printTemplate, printQr: ws.printQr, printBarcode: ws.printBarcode,
+    printHistory: ws.printHistory, sortByCode: list.sortByCode,
+    setPrintHistory: ws.setPrintHistory, saveHistory, addToast,
+  });
+
+  // ========== CUSTOM FIELDS & TAGS ==========
+  const {
+    handleToggleCustomField, handleAddCustomField,
+    handleRemoveCustomField, handleEditCustomField,
+    handleAddTag, handleRemoveTag,
+  } = useCustomFields(
+    ws.serverMode, ws.currentWorkspaceId, ws.customFields, ws.setCustomFields, saveCustomFields,
+    ws.tags, ws.setTags, saveTags, ws.setEnabledCustomFieldKeys, ws.enabledCustomFieldKeys,
+    ws.newFieldName, ws.setNewFieldName, ws.newFieldType, ws.setNewFieldType,
+    (v: string | null) => list.setSelectedTagFilter(v), addToast, invalidateCache,
+  );
+
+  // ========== WORKSPACE ACTIONS ==========
+  const {
+    handleLogin, handleLoginGoToServer, handleLogout,
+    handleWorkspaceSwitch, handleCreateWorkspace,
+    handleInviteMember, handleLeaveWorkspace, handleDeleteWorkspace,
+  } = useWorkspace({
+    serverMode: ws.serverMode, currentWorkspaceId: ws.currentWorkspaceId,
+    workspaces: ws.workspaces,
+    setServerMode: ws.setServerMode, setAuthUser: ws.setAuthUser,
+    setLocalMode: ws.setLocalMode, setWorkspaces: ws.setWorkspaces,
+    setCurrentWorkspaceId: ws.setCurrentWorkspaceId,
+    setServerLoading: ws.setServerLoading, setSelected: list.setSelected,
+    setTab, addToast, invalidateCache, fetchedRef: ws.fetchedRef,
+  });
+
+  // ========== RECORD OPERATIONS ==========
+  const handleDeleteClick = () => {
+    if (list.selected.size === 0) return;
+    ws.setShowDeleteConfirm(true);
+  };
+
+  const handleDelete = async () => {
+    const count = list.selected.size;
+    if (count === 0) return;
+    ws.setShowDeleteConfirm(false);
+    if (ws.serverMode) {
+      const ids = [...list.selected].map(i => currentRecords[i]?.id).filter(Boolean);
+      if (ids.length === 0) { addToast('هیچ رکوردی برای حذف انتخاب نشده', 'error'); return; }
+      ws.setServerLoading(true);
+      try {
+        await api.deleteRecords(ids);
+        const idSet = new Set(ids);
+        ws.setServerRecords(prev => prev.filter(r => !idSet.has(r.id)));
+        ws.setRefreshKey(k => k + 1);
+        list.setSelected(new Set());
+        await ws.refreshServerRecords();
+        ws.setServerLoading(false);
+        addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
+      } catch (err: any) {
+        ws.setServerLoading(false);
+        addToast('خطا در حذف: ' + err.message, 'error');
+      }
+    } else {
+      deleteRecords(list.selected);
+      list.setSelected(new Set());
+      addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
+    }
+  };
+
+  const handleReorder = useCallback(async (from: number, to: number) => {
+    if (ws.serverMode) {
+      const reordered = [...currentRecords];
+      const [moved] = reordered.splice(from, 1);
+      reordered.splice(to, 0, moved);
+      const ids = reordered.map((r: RecordItem) => r.id).filter(Boolean);
+      ws.setServerRecords(reordered);
+      try {
+        await api.reorder(ids as number[]);
+        await ws.refreshServerRecords();
+      } catch (err: any) {
+        ws.setServerRecords(currentRecords);
+        addToast('خطا در مرتب‌سازی: ' + err.message, 'error');
+      }
+    } else {
+      reorderRecords(from, to);
+    }
+  }, [ws.serverMode, currentRecords, reorderRecords, ws.refreshServerRecords, addToast]);
+
+  const handleImport = async (imported: RecordItem[]) => {
+    let ok = true;
+    if (ws.serverMode) {
+      for (const r of imported) {
+        try {
+          await api.createRecord({ ...r, workspace_id: ws.currentWorkspaceId });
+        } catch {
+          ok = false;
+        }
+      }
+      if (ok) await ws.refreshServerRecords();
+    } else {
+      setRecords((p: RecordItem[]) => [...p, ...imported]);
+    }
+    if (ok) setTab('records');
+  };
+
+  const handleQRScan = (code: string) => {
+    ws.setShowScanner(false);
+    const idx = currentRecords.findIndex(r => r.code === code);
+    if (idx === -1) { addToast(`کد "${code}" یافت نشد`, 'error'); return; }
+    handleView(idx);
+  };
+
+  const handleShowVersionHistory = useCallback((id: string, code: string) => {
+    ws.setVersionHistoryRecord({ id, code });
+  }, []);
+
+  const handleRestoreVersion = useCallback(async (versionId: number) => {
+    if (!ws.versionHistoryRecord) return;
+    try {
+      if (ws.serverMode) {
+        await api.restoreRecordVersion(ws.versionHistoryRecord.id, versionId);
+        await ws.refreshServerRecords();
+        addToast('نسخه با موفقیت بازگردانی شد', 'success');
+      } else {
+        addToast('بازگردانی نسخه فقط در حالت سرور پشتیبانی می‌شود', 'error');
+      }
+    } catch (err: any) {
+      addToast('خطا در بازگردانی نسخه: ' + err.message, 'error');
+    }
+    ws.setVersionHistoryRecord(null);
+  }, [ws.versionHistoryRecord, ws.serverMode]);
+
+  const handleDragStart = (e: React.DragEvent, idx: number | null) => {
+    list.setDragIndex(idx);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
+    e.preventDefault();
+    if (list.dragIndex !== null && list.dragIndex !== dropIdx) {
+      handleReorder(list.dragIndex, dropIdx);
+      list.setSelected(new Set());
+    }
+    list.setDragIndex(null);
+  };
+
+  const clearHistory = () => {
+    ws.setPrintHistory([]);
+    saveHistory([]);
+    addToast('تاریخچه پاک شد', 'success');
+  };
+
+  const handleBackup = () => {
+    const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
+    const codeCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-code-cache') || '{}'); } catch { return {}; } })();
+    const recordsWithCustomFields = list.sortByCode(currentRecords).map(r => {
+      if (!ws.serverMode) return r;
+      const merged = { ...r };
+      for (const f of ws.customFields) {
+        if (merged[f.key] === undefined) {
+          const val = cache[r.id]?.[f.key] ?? codeCache[r.code]?.[f.key];
+          if (val !== undefined) merged[f.key] = val;
+        }
+      }
+      return merged;
+    });
+    const blob = new Blob([JSON.stringify({ records: recordsWithCustomFields, customFields: ws.customFields }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    addToast('پشتیبان با موفقیت ساخته شد', 'success');
+  };
+
+  const handleRestore = async () => {
+    if (!ws.backupFile) { addToast('فایل را انتخاب کنید', 'error'); return; }
+    try {
+      const text = await ws.backupFile.text();
+      const data = JSON.parse(text);
+      let restoredRecords: RecordItem[], restoredCustomFields: CustomField[];
+      const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order', 'notes', 'deleted_at', 'is_favorite', 'locked_by', 'locked_at']);
+      if (Array.isArray(data)) {
+        restoredRecords = data;
+        restoredCustomFields = [];
+      } else if (data && data.records) {
+        restoredRecords = data.records;
+        restoredCustomFields = data.customFields || [];
+      } else {
+        throw new Error('فرمت فایل نامعتبر');
+      }
+      if (!restoredCustomFields.length && restoredRecords.length > 0) {
+        const customKeys = new Set<string>();
+        for (const r of restoredRecords) {
+          for (const k of Object.keys(r)) {
+            if (!STATIC_KEYS.has(k)) customKeys.add(k);
+          }
+        }
+        if (customKeys.size > 0) {
+          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, fieldType: 'text' }));
+        }
+      }
+      if (restoredCustomFields.length > 0) {
+        ws.setPendingRestore({ records: restoredRecords, customFields: restoredCustomFields });
+        ws.setShowRestoreConfirm(true);
+      } else {
+        executeRestore(restoredRecords, []);
+      }
+    } catch (err: any) {
+      addToast('خطا در بازیابی: ' + err.message, 'error');
+    }
+  };
+
+  const executeRestore = async (restoredRecords: RecordItem[], restoredCustomFields: CustomField[]) => {
+    if (restoredCustomFields.length > 0) {
+      ws.setCustomFields(restoredCustomFields);
+      saveCustomFields(restoredCustomFields);
+    }
+    if (ws.serverMode) {
+      ws.setServerLoading(true);
+      ws.isRestoringRef.current = true;
+      try {
+        if (restoredCustomFields.length > 0) {
+          await api.batchSaveCustomFields(restoredCustomFields, ws.currentWorkspaceId!);
+        }
+        await api.restore(restoredRecords, ws.currentWorkspaceId!);
+        const freshRecords = await api.getAllRecords(ws.currentWorkspaceId!);
+        const merged = freshRecords.map((sr: RecordItem) => {
+          const br = restoredRecords.find(r => r.code === sr.code);
+          if (br) return { ...br, id: sr.id, created_at: sr.created_at, updated_at: sr.updated_at, workspace_id: sr.workspace_id };
+          return sr;
+        });
+        ws.setServerRecords(merged);
+        const existingCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
+        const codeCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-code-cache') || '{}'); } catch { return {}; } })();
+        const restoredKeys = new Set(restoredCustomFields.map(f => f.key));
+        for (const r of merged) {
+          const entry: Record<string, unknown> = {};
+          for (const k of restoredKeys) {
+            if (k in r) entry[k] = r[k];
+          }
+          if (Object.keys(entry).length) {
+            if (r.id) existingCache[r.id] = entry;
+            if (r.code) codeCache[r.code] = entry;
+          }
+        }
+        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(existingCache)); } catch {}
+        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+        ws.setRefreshKey(k => k + 1);
+        ws.setServerLoading(false);
+        ws.setShowBackupModal(false);
+        addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
+      } catch (err: any) {
+        ws.setServerLoading(false);
+        addToast('خطا در بازیابی: ' + err.message, 'error');
+      } finally {
+        ws.isRestoringRef.current = false;
+        setTimeout(() => { ws.refreshServerRecordsRef.current(); }, 100);
+      }
+    } else {
+      setRecords(restoredRecords);
+      ws.setShowBackupModal(false);
+      addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
+    }
+  };
+
+  // ========== INLINE EDIT & FAVORITE ==========
+  const handleInlineEdit = useCallback((index: number, field: string, value: string) => {
+    if (ws.serverMode) {
+      const record = currentRecords[index];
+      if (!record) return;
+      if (record.locked_by) {
+        addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
+        return;
+      }
+      ws.setServerLoading(true);
+      api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
+        ws.setServerRecords((prev: RecordItem[]) => {
+          const idx = prev.findIndex(r => r.id === record.id);
+          if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
+          return prev;
+        });
+        ws.setRefreshKey(k => k + 1);
+        const merged: RecordItem = { ...record, [field]: value };
+        const cfields: Record<string, unknown> = {};
+        ws.customFields.forEach((f: CustomField) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
+        if (Object.keys(cfields).length > 0) {
+          const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
+          cache[record.id] = cfields;
+          try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {}
+          const codeCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-code-cache') || '{}'); } catch { return {}; } })();
+          if (updated.code) codeCache[updated.code] = cfields;
+          try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+        }
+        ws.setServerLoading(false);
+        ws.refreshServerRecords();
+      }).catch(() => ws.setServerLoading(false));
+    } else {
+      const record = currentRecords[index];
+      if (!record) return;
+      updateRecord(index, { ...record, [field]: value });
+      ws.setRefreshKey(k => k + 1);
+    }
+    addToast('فیلد با موفقیت ویرایش شد', 'success');
+  }, [ws.serverMode, currentRecords, ws.customFields, updateRecord, addToast]);
+
+  const handleToggleFavorite = useCallback(async (index: number) => {
+    const record = currentRecords[index];
+    if (!record) return;
+    if (ws.serverMode) {
+      try {
+        const updated = await api.toggleFavorite(record.id);
+        ws.setServerRecords((prev: RecordItem[]) => prev.map(r => r.id === record.id ? { ...r, is_favorite: updated.is_favorite } : r));
+        addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
+      } catch (err: any) {
+        addToast('خطا: ' + err.message, 'error');
+      }
+    } else {
+      const updated = { ...record, is_favorite: !record.is_favorite };
+      updateRecord(index, updated);
+      addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
+    }
+  }, [currentRecords, ws.serverMode, updateRecord, addToast]);
+
+  // ========== LOCK / UNLOCK ==========
   const handleLockRecord = useCallback(async () => {
     if (viewIndex === null) return;
     const record = currentRecords[viewIndex];
     if (!record?.id) return;
     try {
       const result = await api.lockRecord(record.id);
-      setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, locked_by: result.locked_by, locked_at: result.locked_at } : r));
+      ws.setServerRecords((prev: RecordItem[]) => prev.map(r => r.id === record.id ? { ...r, locked_by: result.locked_by, locked_at: result.locked_at } : r));
       addToast('رکورد قفل شد', 'success');
     } catch (err: any) {
       addToast('خطا در قفل کردن: ' + err.message, 'error');
@@ -373,611 +496,36 @@ export default function App() {
     if (!record?.id) return;
     try {
       await api.unlockRecord(record.id);
-      setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, locked_by: undefined, locked_at: undefined } : r));
+      ws.setServerRecords((prev: RecordItem[]) => prev.map(r => r.id === record.id ? { ...r, locked_by: undefined, locked_at: undefined } : r));
       addToast('قفل رکورد باز شد', 'success');
     } catch (err: any) {
       addToast('خطا در باز کردن قفل: ' + err.message, 'error');
     }
   }, [viewIndex, currentRecords, addToast]);
 
-  const toggleSelect = useCallback((i: number) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
-      return next;
-    });
-  }, []);
-
-  const toggleAll = () => {
-    const filtered = getSortedRecords();
-    if (selected.size === filtered.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map(r => r.__lid !== undefined ? r.__lid : currentRecords.indexOf(r))));
-    }
-  };
-
-  const sortByCode = useCallback((records: RecordItem[]) => {
-    return [...records].sort((a, b) => {
-      const pa = parseCode(a.code);
-      const pb = parseCode(b.code);
-      if (pa && pb) {
-        const projA = pa.projectNum ?? 0;
-        const projB = pb.projectNum ?? 0;
-        if (projA !== projB) return projA - projB;
-        if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
-        if (pa.year !== pb.year) return pb.year.localeCompare(pa.year);
-        return pb.sequence - pa.sequence;
-      }
-      if (pa) return -1;
-      if (pb) return 1;
-      return a.code.localeCompare(b.code);
-    });
-  }, []);
-
-  const getSortedRecords = useCallback(() => {
-    let result = currentRecords;
-
-    if (debouncedSearch.trim()) {
-      const q = debouncedSearch.toLowerCase();
-      result = currentRecords.filter(r => {
-        const formattedAmount = formatAmount(r.amount);
-        const customFieldMatch = customFields.some((f: any) =>
-          r[f.key] && formatAmount(r[f.key]).toLowerCase().includes(q)
-        );
-        return Object.values(r).some(v =>
-          Array.isArray(v)
-            ? v.some(item => String(item).toLowerCase().includes(q))
-            : String(v).toLowerCase().includes(q)
-        ) || (formattedAmount && formattedAmount.toLowerCase().includes(q)) || customFieldMatch;
-      });
-    }
-
-    if (filterType) {
-      result = result.filter(r => r.type === filterType);
-    }
-    if (filterParty) {
-      result = result.filter(r => r.party === filterParty);
-    }
-    if (selectedTagFilter) {
-      result = result.filter(r => r.tags && r.tags.includes(selectedTagFilter));
-    }
-    if (filterDateFrom) {
-      result = result.filter(r => r.date && r.date >= filterDateFrom);
-    }
-    if (filterDateTo) {
-      result = result.filter(r => r.date && r.date <= filterDateTo);
-    }
-    if (filterAmountMin) {
-      result = result.filter(r => {
-        const amt = parseFloat(r.amount);
-        return !isNaN(amt) && amt >= parseFloat(filterAmountMin);
-      });
-    }
-    if (filterAmountMax) {
-      result = result.filter(r => {
-        const amt = parseFloat(r.amount);
-        return !isNaN(amt) && amt <= parseFloat(filterAmountMax);
-      });
-    }
-    if (sortBy === 'code') {
-      result = sortByCode(result);
-      if (sortOrder === 'desc') result.reverse();
-    } else if (sortBy) {
-      result = [...result].sort((a, b) => {
-        const aVal = String(a[sortBy] || '').toLowerCase();
-        const bVal = String(b[sortBy] || '').toLowerCase();
-        return sortOrder === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      });
-    } else {
-      result = sortByCode(result);
-    }
-    return result;
-  }, [debouncedSearch, sortBy, sortOrder, currentRecords, filterType, filterParty, selectedTagFilter, filterDateFrom, filterDateTo, filterAmountMin, filterAmountMax, customFields]);
-
-  const handleSort = (field: string) => {
-    if (sortBy === field) setSortOrder(p => p === 'asc' ? 'desc' : 'asc');
-    else { setSortBy(field); setSortOrder('asc'); }
-    setPage(1);
-  };
-
-  const handleApplyPreset = useCallback((filters: any) => {
-    setSearch(filters.search || '');
-    setFilterType(filters.filterType || '');
-    setFilterParty(filters.filterParty || '');
-    setFilterDateFrom(filters.filterDateFrom || '');
-    setFilterDateTo(filters.filterDateTo || '');
-    setFilterAmountMin(filters.filterAmountMin || '');
-    setFilterAmountMax(filters.filterAmountMax || '');
-    setSelectedTagFilter(filters.selectedTagFilter || null);
-    setPage(1);
-  }, []);
-
-  const sortedRecords = useMemo(() => getSortedRecords(), [getSortedRecords]);
-  const totalPages = Math.max(1, Math.ceil(sortedRecords.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pagedRecords = useMemo(
-    () => sortedRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [sortedRecords, safePage]
-  );
-
-  const recordToIndex: Map<any, number> = useMemo(
-    () => new Map(currentRecords.map((r: any, i) => [r, i] as [any, number])),
-    [currentRecords]
-  );
-
-  const enabledSet = new Set(enabledCustomFieldKeys);
-  const allExportFields = [...FIELDS, ...customFields.filter((f: any) => enabledSet.has(f.key))];
-
-  const serverOp = async (fn: () => Promise<any>) => {
-    if (!serverMode) return true;
-    setServerLoading(true);
-    try { await fn(); setServerLoading(false); return true; }
-    catch (err: any) { addToast(err.message, 'error'); setServerLoading(false); return false; }
-  };
-
-  const handleSubmit = async (recordData: any) => {
-    if (editIndex !== null) {
-      if (serverMode) {
-        const record = currentRecords[editIndex];
-        if (!record) { addToast('رکورد یافت نشد', 'error'); return; }
-        if (record.locked_by) {
-          addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
-          return;
-        }
-        setServerLoading(true);
-        try {
-          const updated = await api.updateRecord(record.id, recordData);
-          const cfields: Record<string, unknown> = {};
-          customFields.forEach((f: any) => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
-          if (Object.keys(cfields).length > 0) {
-            const cache = loadRecordCustomFieldsCache();
-            cache[record.id] = cfields;
-            saveRecordCustomFieldsCache(cache);
-            const codeCache = loadRecordCustomFieldsCodeCache();
-            if (updated.code) codeCache[updated.code] = cfields;
-            saveRecordCustomFieldsCodeCache(codeCache);
-          }
-          setServerRecords(prev => {
-            const idx = prev.findIndex(r => r.id === record.id);
-            if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...recordData }; return c; }
-            return prev;
-          });
-          setRefreshKey(k => k + 1);
-          setServerLoading(false);
-          setEditIndex(null);
-          setTemplateData(null);
-          await refreshServerRecords();
-          addToast('رکورد با موفقیت ویرایش شد', 'success');
-          setTab('records');
-        } catch (err: any) {
-          setServerLoading(false);
-          addToast('خطا در ویرایش: ' + err.message, 'error');
-        }
-      } else {
-        updateRecord(editIndex, recordData);
-        setRefreshKey(k => k + 1);
-        setEditIndex(null);
-        setTemplateData(null);
-        addToast('رکورد با موفقیت ویرایش شد', 'success');
-        setTab('records');
-      }
-    } else {
-      if (serverMode) {
-        setServerLoading(true);
-        try {
-          const created = await api.createRecord({ ...recordData, workspace_id: currentWorkspaceId });
-          const cfields: Record<string, unknown> = {};
-          customFields.forEach((f: any) => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
-          if (Object.keys(cfields).length > 0) {
-            const cache = loadRecordCustomFieldsCache();
-            cache[created.id] = cfields;
-            saveRecordCustomFieldsCache(cache);
-            const codeCache = loadRecordCustomFieldsCodeCache();
-            if (created.code) codeCache[created.code] = cfields;
-            saveRecordCustomFieldsCodeCache(codeCache);
-          }
-          setServerRecords(prev => [{ ...created, ...recordData }, ...prev]);
-          setRefreshKey(k => k + 1);
-          setTemplateData(null);
-          setServerLoading(false);
-          await refreshServerRecords();
-          addToast('رکورد با موفقیت اضافه شد', 'success');
-          setTab('records');
-          setPage(1);
-        } catch (err: any) {
-          setServerLoading(false);
-          addToast('خطا در ایجاد: ' + err.message, 'error');
-        }
-      } else {
-        addRecord(recordData);
-        setRefreshKey(k => k + 1);
-        setTemplateData(null);
-        addToast('رکورد با موفقیت اضافه شد', 'success');
-        setTab('records');
-        setPage(1);
-      }
-    }
-  };
-
-  const handleEdit = (i: number) => { setEditIndex(i); setTemplateData(null); setTab('add'); };
-  const handleView = (i: number) => { setViewIndex(i); setTab('view'); };
-
-  const handleDeleteClick = () => {
-    if (selected.size === 0) return;
-    setShowDeleteConfirm(true);
-  };
-
-  const handleDelete = async () => {
-    const count = selected.size;
-    if (count === 0) return;
-    setShowDeleteConfirm(false);
-
-    if (serverMode) {
-      const ids = [...selected].map(i => currentRecords[i]?.id).filter(Boolean);
-      if (ids.length === 0) { addToast('هیچ رکوردی برای حذف انتخاب نشده', 'error'); return; }
-      setServerLoading(true);
-      try {
-        await api.deleteRecords(ids);
-        const idSet = new Set(ids);
-        setServerRecords(prev => prev.filter(r => !idSet.has(r.id)));
-        setRefreshKey(k => k + 1);
-        setSelected(new Set());
-        await refreshServerRecords();
-        setServerLoading(false);
-        addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
-      } catch (err: any) {
-        setServerLoading(false);
-        addToast('خطا در حذف: ' + err.message, 'error');
-      }
-    } else {
-      deleteRecords(selected);
-      setSelected(new Set());
-      addToast(`${count} رکورد با موفقیت حذف شد`, 'success');
-    }
-  };
-
-  const handleImport = async (imported: any[]) => {
-    let ok = true;
-    if (serverMode) {
-      ok = await serverOp(async () => {
-        for (const r of imported) {
-          await api.createRecord({ ...r, workspace_id: currentWorkspaceId });
-        }
-        await refreshServerRecords();
-      });
-    } else {
-      setRecords(p => [...p, ...imported]);
-    }
-    if (ok) setTab('records');
-  };
-
-  const handleReorder = useCallback(async (from: number, to: number) => {
-    if (serverMode) {
-      const reordered = [...currentRecords];
-      const [moved] = reordered.splice(from, 1);
-      reordered.splice(to, 0, moved);
-      const ids = reordered.map((r: any) => r.id).filter(Boolean);
-      setServerRecords(reordered);
-      try {
-        await api.reorder(ids as any);
-        await refreshServerRecords();
-      } catch (err: any) {
-        setServerRecords(currentRecords);
-        addToast('خطا در مرتب‌سازی: ' + err.message, 'error');
-      }
-    } else {
-      reorderRecords(from, to);
-    }
-  }, [serverMode, currentRecords, reorderRecords, refreshServerRecords, addToast]);
-
-  const handleQRScan = (code: string) => {
-    setShowScanner(false);
-    const idx = currentRecords.findIndex(r => r.code === code);
-    if (idx === -1) {
-      addToast(`کد "${code}" یافت نشد`, 'error');
-      return;
-    }
-    handleView(idx);
-  };
-
-  const handleShowVersionHistory = useCallback((id: string, code: string) => {
-    setVersionHistoryRecord({ id, code });
-  }, []);
-
-  const handleRestoreVersion = useCallback(async (versionId: number) => {
-    if (!versionHistoryRecord) return;
-    try {
-      if (serverMode) {
-        await api.restoreRecordVersion(versionHistoryRecord.id, versionId);
-        await refreshServerRecords();
-        addToast('نسخه با موفقیت بازگردانی شد', 'success');
-      } else {
-        addToast('بازگردانی نسخه فقط در حالت سرور پشتیبانی می‌شود', 'error');
-      }
-    } catch (err: any) {
-      addToast('خطا در بازگردانی نسخه: ' + err.message, 'error');
-    }
-    setVersionHistoryRecord(null);
-  }, [versionHistoryRecord, serverMode]);
-
-  const {
-    handlePrint, handleExcel, handleCSVExport, handlePDF,
-    handleExportAllExcel, handleExportAllCSV, handleExportAllPrint,
-  } = usePrintExport({
-    currentRecords, sortedRecords, selected, allExportFields,
-    printCols, printWidth, printHeight, printTemplate, printQr, printBarcode,
-    printHistory, sortByCode, setPrintHistory, saveHistory, addToast,
-  });
-
-  const {
-    handleToggleCustomField, handleAddCustomField,
-    handleRemoveCustomField, handleEditCustomField,
-    handleAddTag, handleRemoveTag,
-  } = useCustomFields(
-    serverMode, currentWorkspaceId, customFields, setCustomFields, saveCustomFields,
-    tags, setTags, saveTags, setEnabledCustomFieldKeys, enabledCustomFieldKeys,
-    newFieldName, setNewFieldName, newFieldType, setNewFieldType, setSelectedTagFilter, addToast, invalidateCache,
-  );
-
-  const {
-    handleLogin, handleLoginGoToServer, handleLogout,
-    handleWorkspaceSwitch, handleCreateWorkspace,
-    handleInviteMember, handleLeaveWorkspace, handleDeleteWorkspace,
-  } = useWorkspace({
-    serverMode, currentWorkspaceId, workspaces, setServerMode, setAuthUser,
-    setLocalMode, setWorkspaces, setCurrentWorkspaceId,
-    setServerLoading, setSelected, setTab, addToast, invalidateCache, fetchedRef,
-  });
-
-  const handleDragStart = (e: React.DragEvent, idx: number | null) => { setDragIndex(idx); e.dataTransfer.effectAllowed = 'move'; };
-  const handleDrop = (e: React.DragEvent, dropIdx: number) => {
-    e.preventDefault();
-    if (dragIndex !== null && dragIndex !== dropIdx) {
-      handleReorder(dragIndex, dropIdx);
-      setSelected(new Set());
-    }
-    setDragIndex(null);
-  };
-
-  const clearHistory = () => { setPrintHistory([]); saveHistory([]); addToast('تاریخچه پاک شد', 'success'); };
-
-  const handleBackup = () => {
-    const cache = loadRecordCustomFieldsCache();
-    const codeCache = loadRecordCustomFieldsCodeCache();
-    const recordsWithCustomFields = sortByCode(currentRecords).map(r => {
-      if (!serverMode) return r;
-      const merged = { ...r };
-      for (const f of customFields) {
-        if (merged[f.key] === undefined) {
-          const val = cache[r.id]?.[f.key] ?? codeCache[r.code]?.[f.key];
-          if (val !== undefined) merged[f.key] = val;
-        }
-      }
-      return merged;
-    });
-    const blob = new Blob([JSON.stringify({ records: recordsWithCustomFields, customFields }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `label-studio-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    addToast('پشتیبان با موفقیت ساخته شد', 'success');
-  };
-
-  const handleRestore = async () => {
-    if (!backupFile) { addToast('فایل را انتخاب کنید', 'error'); return; }
-    try {
-      const text = await backupFile.text();
-      const data = JSON.parse(text);
-      let restoredRecords: any, restoredCustomFields: any;
-      const STATIC_KEYS = new Set(['id', 'code', 'project', 'type', 'date', 'party', 'amount', 'related', 'tags', 'image', 'color', 'user_id', 'created_at', 'updated_at', 'workspace_id', 'sort_order', 'notes', 'deleted_at', 'is_favorite', 'locked_by', 'locked_at']);
-      if (Array.isArray(data)) {
-        restoredRecords = data;
-        restoredCustomFields = [];
-      } else if (data && data.records) {
-        restoredRecords = data.records;
-        restoredCustomFields = data.customFields || [];
-      } else {
-        throw new Error('فرمت فایل نامعتبر');
-      }
-
-      if (!restoredCustomFields.length && restoredRecords.length > 0) {
-        const customKeys = new Set<string>();
-        for (const r of restoredRecords) {
-          for (const k of Object.keys(r)) {
-            if (!STATIC_KEYS.has(k)) customKeys.add(k);
-          }
-        }
-        if (customKeys.size > 0) {
-          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, fieldType: 'text' }));
-        }
-      }
-
-      if (restoredCustomFields.length > 0) {
-        setPendingRestore({ records: restoredRecords, customFields: restoredCustomFields });
-        setShowRestoreConfirm(true);
-      } else {
-        executeRestore(restoredRecords, []);
-      }
-    } catch (err: any) {
-      addToast('خطا در بازیابی: ' + err.message, 'error');
-    }
-  };
-
-  const executeRestore = async (restoredRecords: any[], restoredCustomFields: any[]) => {
-    if (restoredCustomFields.length > 0) {
-      setCustomFields(restoredCustomFields);
-      saveCustomFields(restoredCustomFields);
-    }
-
-    if (serverMode) {
-      setServerLoading(true);
-      isRestoringRef.current = true;
-      try {
-        if (restoredCustomFields.length > 0) {
-          await api.batchSaveCustomFields(restoredCustomFields, currentWorkspaceId!);
-        }
-        await api.restore(restoredRecords, currentWorkspaceId!);
-        const freshRecords = await api.getAllRecords(currentWorkspaceId!);
-        const merged = freshRecords.map((sr: any) => {
-          const br = restoredRecords.find(r => r.code === sr.code);
-          if (br) return { ...br, id: sr.id, created_at: sr.created_at, updated_at: sr.updated_at, workspace_id: sr.workspace_id };
-          return sr;
-        });
-        setServerRecords(merged);
-        const existingCache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
-        const restoredKeys = new Set(restoredCustomFields.map(f => f.key));
-        for (const r of merged) {
-          const entry: any = {};
-          for (const k of restoredKeys) {
-            if (k in r) entry[k] = r[k];
-          }
-          if (Object.keys(entry).length) {
-            if (r.id) existingCache[r.id] = entry;
-            if (r.code) codeCache[r.code] = entry;
-          }
-        }
-        saveRecordCustomFieldsCache(existingCache);
-        saveRecordCustomFieldsCodeCache(codeCache);
-        setRefreshKey(k => k + 1);
-        setServerLoading(false);
-        setShowBackupModal(false);
-        addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
-      } catch (err: any) {
-        setServerLoading(false);
-        addToast('خطا در بازیابی: ' + err.message, 'error');
-      } finally {
-        isRestoringRef.current = false;
-        setTimeout(() => {
-          refreshServerRecordsRef.current();
-        }, 100);
-      }
-    } else {
-      setRecords(restoredRecords);
-      setShowBackupModal(false);
-      addToast(`${restoredRecords.length} رکورد با موفقیت بازیابی شد`, 'success');
-    }
-  };
-
-  const TEMPLATES_KEY = 'label-studio-record-templates';
-  const saveTemplates = (t: any[]) => { try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {} };
-
-  const handleSaveTemplate = () => {
-    if (!templateName.trim()) { addToast('نام الگو را وارد کنید', 'error'); return; }
-    if (templates.some((t: any) => t.name === templateName.trim())) { addToast('این الگو قبلا وجود دارد', 'error'); return; }
-    const sourceRecord = editIndex !== null ? currentRecords[editIndex] : (templateData || formDraftRef.current);
-    if (!sourceRecord || !sourceRecord.code) { addToast('ابتدا یک رکورد را باز کنید یا فیلدها را پر کنید', 'error'); return; }
-    const newTemplate = { name: templateName.trim(), fields: { ...sourceRecord } };
-    const updated = [...templates, newTemplate];
-    setTemplates(updated);
-    saveTemplates(updated);
-    setTemplateName('');
-    setShowTemplates(false);
-    addToast(`الگوی "${newTemplate.name}" ذخیره شد`, 'success');
-  };
-
-  const handleLoadTemplate = (tmpl: any) => {
-    setShowTemplates(false);
-    if (tmpl.fields && tmpl.fields.code) {
-      setTemplateData(tmpl.fields);
-      setTemplateKey(k => k + 1);
-      setEditIndex(null);
-      setTab('add');
-      addToast(`الگوی "${tmpl.name}" اعمال شد`, 'success');
-    } else {
-      addToast('این الگو معتبر نیست (قدیمی یا خالی). لطفا حذف کنید و دوباره ذخیره نمایید', 'error');
-    }
-  };
-
-  const handleDeleteTemplate = (name: string) => {
-    const updated = templates.filter((t: any) => t.name !== name);
-    setTemplates(updated);
-    saveTemplates(updated);
-    addToast(`الگوی "${name}" حذف شد`, 'success');
-  };
-
-  const handleToggleFavorite = useCallback(async (index: number) => {
-    const record = currentRecords[index];
-    if (!record) return;
-    if (serverMode) {
-      try {
-        const updated = await api.toggleFavorite(record.id);
-        setServerRecords(prev => prev.map(r => r.id === record.id ? { ...r, is_favorite: updated.is_favorite } : r));
-        addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
-      } catch (err: any) {
-        addToast('خطا: ' + err.message, 'error');
-      }
-    } else {
-      const updated = { ...record, is_favorite: !record.is_favorite };
-      updateRecord(index, updated);
-      addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
-    }
-  }, [currentRecords, serverMode, updateRecord, addToast]);
-
-  useEffect(() => { try { localStorage.setItem('view_mode', viewMode); } catch {} }, [viewMode]);
-
-  const handleInlineEdit = (index: number, field: string, value: string) => {
-    if (serverMode) {
-      const record = currentRecords[index];
-      if (!record) return;
-      if (record.locked_by) {
-        addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
-        return;
-      }
-      setServerLoading(true);
-      api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
-        setServerRecords(prev => {
-          const idx = prev.findIndex(r => r.id === record.id);
-          if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
-          return prev;
-        });
-        setRefreshKey(k => k + 1);
-        const merged: any = { ...record, [field]: value };
-        const cfields: Record<string, unknown> = {};
-        customFields.forEach((f: any) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
-        if (Object.keys(cfields).length > 0) {
-          const cache = loadRecordCustomFieldsCache();
-          cache[record.id] = cfields;
-          saveRecordCustomFieldsCache(cache);
-          const codeCache = loadRecordCustomFieldsCodeCache();
-          if (updated.code) codeCache[updated.code] = cfields;
-          saveRecordCustomFieldsCodeCache(codeCache);
-        }
-        setServerLoading(false);
-        refreshServerRecords();
-      }).catch(() => setServerLoading(false));
-    } else {
-      const record = currentRecords[index];
-      if (!record) return;
-      updateRecord(index, { ...record, [field]: value });
-      setRefreshKey(k => k + 1);
-    }
-    addToast('فیلد با موفقیت ویرایش شد', 'success');
-  };
-
+  // ========== BULK EDIT & RENUMBER ==========
+  const [bulkEditField, setBulkEditField] = useState('');
+  const [bulkEditValue, setBulkEditValue] = useState('');
+  const [bulkEditTags, setBulkEditTags] = useState<string[]>([]);
+  const [bulkEditColor, setBulkEditColor] = useState('');
 
   const handleBulkEdit = () => {
     if (!bulkEditField && bulkEditValue === undefined && bulkEditTags.length === 0 && !bulkEditColor) {
       addToast('حداقل یک فیلد، برچسب یا رنگ را مشخص کنید', 'error'); return;
     }
-    const selectedIndices = [...selected];
-    const buildUpdates = (record: any) => {
-      const updates: any = {};
-      if (bulkEditField && bulkEditValue !== undefined) {
-        updates[bulkEditField] = bulkEditValue;
-      }
-      if (bulkEditColor) {
-        updates.color = bulkEditColor;
-      }
+    const selectedIndices = [...list.selected];
+    const buildUpdates = (record: RecordItem) => {
+      const updates: Record<string, unknown> = {};
+      if (bulkEditField && bulkEditValue !== undefined) updates[bulkEditField] = bulkEditValue;
+      if (bulkEditColor) updates.color = bulkEditColor;
       if (bulkEditTags.length > 0) {
         const existing = record.tags || [];
         updates.tags = [...new Set([...existing, ...bulkEditTags])];
       }
       return updates;
     };
-    if (serverMode) {
-      setServerLoading(true);
+    if (ws.serverMode) {
+      ws.setServerLoading(true);
       Promise.all(selectedIndices.map(i => {
         const record = currentRecords[i];
         if (!record) return Promise.resolve(null);
@@ -986,16 +534,16 @@ export default function App() {
       })).then((results) => {
         const updatedMap = new Map(results.filter(Boolean).map(r => [r.id, r]));
         if (updatedMap.size > 0) {
-          setServerRecords(prev => prev.map(r => updatedMap.get(r.id) || r));
+          ws.setServerRecords((prev: RecordItem[]) => prev.map(r => updatedMap.get(r.id) || r));
         }
-        setRefreshKey(k => k + 1);
-        const cache = loadRecordCustomFieldsCache();
-        const codeCache = loadRecordCustomFieldsCodeCache();
+        ws.setRefreshKey(k => k + 1);
+        const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
+        const codeCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-code-cache') || '{}'); } catch { return {}; } })();
         selectedIndices.forEach(i => {
           const record = currentRecords[i];
           if (record) {
             const cfields: Record<string, unknown> = {};
-            customFields.forEach((f: any) => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
+            ws.customFields.forEach((f: CustomField) => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
             if (Object.keys(cfields).length > 0) {
               const updated = updatedMap.get(record.id) || record;
               cache[record.id] = cfields;
@@ -1003,18 +551,18 @@ export default function App() {
             }
           }
         });
-        saveRecordCustomFieldsCache(cache);
-        saveRecordCustomFieldsCodeCache(codeCache);
-        setServerLoading(false);
-        setShowBulkEdit(false);
+        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {}
+        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+        ws.setServerLoading(false);
+        ws.setShowBulkEdit(false);
         setBulkEditField('');
         setBulkEditValue('');
         setBulkEditTags([]);
         setBulkEditColor('');
         addToast(`${selectedIndices.length} رکورد با موفقیت ویرایش شد`, 'success');
-        refreshServerRecords();
+        ws.refreshServerRecords();
       }).catch(() => {
-        setServerLoading(false);
+        ws.setServerLoading(false);
         addToast('خطا در ویرایش دسته‌جمعی', 'error');
       });
     } else {
@@ -1025,8 +573,8 @@ export default function App() {
           updateRecord(i, { ...record, ...updates });
         }
       });
-      setRefreshKey(k => k + 1);
-      setShowBulkEdit(false);
+      ws.setRefreshKey(k => k + 1);
+      ws.setShowBulkEdit(false);
       setBulkEditField('');
       setBulkEditValue('');
       setBulkEditTags([]);
@@ -1036,34 +584,29 @@ export default function App() {
   };
 
   const handleRenumber = async () => {
-    if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
+    if (ws.isViewer) { addToast('دسترسی محدود', 'error'); return; }
     if (currentRecords.length === 0) { addToast('هیچ رکوردی وجود ندارد', 'error'); return; }
-
     const snapshot = [...currentRecords];
-    setServerLoading(true);
+    ws.setServerLoading(true);
     try {
       const parsed = currentRecords.map((r, i) => {
         const p = parseCode(r.code);
         return { record: r, index: i, parsed: p };
       });
-
       const parseable = parsed.filter(x => x.parsed !== null);
       const unparseable = parsed.filter(x => x.parsed === null);
-
       if (parseable.length === 0) {
         addToast('هیچ رکوردی با فرمت معتبر یافت نشد', 'error');
-        setServerLoading(false);
-        setShowRenumberConfirm(false);
+        ws.setServerLoading(false);
+        ws.setShowRenumberConfirm(false);
         return;
       }
-
       const groups: Record<string, typeof parseable> = {};
       for (const item of parseable) {
         const key = `${item.parsed!.projectNum ?? ''}|${item.parsed!.type}|${item.parsed!.year}`;
         if (!groups[key]) groups[key] = [];
         groups[key].push(item);
       }
-
       for (const key of Object.keys(groups)) {
         groups[key].sort((a, b) => {
           const dateA = a.record.date || '';
@@ -1071,7 +614,6 @@ export default function App() {
           return dateA.localeCompare(dateB);
         });
       }
-
       const groupKeys = Object.keys(groups).sort((a, b) => {
         const [projA, typeA, yearA] = a.split('|');
         const [projB, typeB, yearB] = b.split('|');
@@ -1081,10 +623,8 @@ export default function App() {
         if (typeA !== typeB) return typeA.localeCompare(typeB);
         return yearB.localeCompare(yearA);
       });
-
-      const newRecordsOrder: { record: any }[] = [];
+      const newRecordsOrder: { record: RecordItem }[] = [];
       const updates: { id: number; newCode: string }[] = [];
-
       for (const groupKey of groupKeys) {
         const items = groups[groupKey];
         const { projectNum, type, year } = items[0].parsed!;
@@ -1096,67 +636,55 @@ export default function App() {
           newRecordsOrder.push({ record: { ...item.record, code: newCode } });
         });
       }
-
       for (const item of unparseable) {
         newRecordsOrder.push({ record: { ...item.record } });
       }
-
       const finalRecords = newRecordsOrder.map(item => item.record);
-
-      if (serverMode) {
-        if (updates.length > 0) {
-          await api.renumberRecords(updates as any);
-        }
-        setServerRecords(finalRecords);
+      if (ws.serverMode) {
+        if (updates.length > 0) await api.renumberRecords(updates);
+        ws.setServerRecords(finalRecords);
         pushUndo({ records: snapshot, label: 'renumber' });
       } else {
         try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {}
         setRecords(finalRecords);
         pushUndo({ records: snapshot, label: 'renumber' });
-        setRefreshKey(k => k + 1);
+        ws.setRefreshKey(k => k + 1);
       }
-
-      setSelected(new Set());
-      setPage(1);
+      list.setSelected(new Set());
+      list.setPage(1);
       addToast(`${parseable.length} رکورد با موفقیت بازنویسی شد`, 'success');
-      setServerLoading(false);
-      setShowRenumberConfirm(false);
+      ws.setServerLoading(false);
+      ws.setShowRenumberConfirm(false);
     } catch (err: any) {
-      setServerLoading(false);
+      ws.setServerLoading(false);
       addToast('خطا در بازنویسی کدها: ' + (err.message || 'خطای ناشناخته'), 'error');
     }
   };
 
-  const keyboardHandlers = {
-    onNewRecord: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } setEditIndex(null); setTab('add'); },
+  // ========== KEYBOARD SHORTCUTS ==========
+  const keyboardHandlers = useMemo(() => ({
+    onNewRecord: () => { if (ws.isViewer) { addToast('دسترسی محدود', 'error'); return; } formState.setEditIndex(null); setTab('add'); },
     onEdit: () => {
-      if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
-      const first = [...selected][0];
-      if (first !== undefined && currentRecords[first]) {
-        setEditIndex(first); setTab('add');
-      } else {
-        addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
-      }
+      if (ws.isViewer) { addToast('دسترسی محدود', 'error'); return; }
+      const first = [...list.selected][0];
+      if (first !== undefined && currentRecords[first]) { formState.setEditIndex(first); setTab('add'); }
+      else { addToast('ابتدا یک رکورد را انتخاب کنید', 'error'); }
     },
     onDuplicate: () => {
-      if (isViewer) { addToast('دسترسی محدود', 'error'); return; }
-      const first = [...selected][0];
+      if (ws.isViewer) { addToast('دسترسی محدود', 'error'); return; }
+      const first = [...list.selected][0];
       if (first !== undefined && currentRecords[first]) {
         const dup = { ...currentRecords[first], code: currentRecords[first].code + '-COPY' };
-        if (serverMode) {
-          api.createRecord({ ...dup, workspace_id: currentWorkspaceId }).then(created => {
-            setServerRecords(prev => [created, ...prev]);
-            refreshServerRecords();
+        if (ws.serverMode) {
+          api.createRecord({ ...dup, workspace_id: ws.currentWorkspaceId }).then(created => {
+            ws.setServerRecords((prev: RecordItem[]) => [created, ...prev]);
+            ws.refreshServerRecords();
           }).catch(e => addToast(e.message, 'error'));
-        } else {
-          addRecord(dup);
-        }
+        } else { addRecord(dup); }
         addToast('رکورد کپی شد', 'success');
-      } else {
-        addToast('ابتدا یک رکورد را انتخاب کنید', 'error');
-      }
+      } else { addToast('ابتدا یک رکورد را انتخاب کنید', 'error'); }
     },
-    onDelete: () => { if (isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDeleteClick(); },
+    onDelete: () => { if (ws.isViewer) { addToast('دسترسی محدود', 'error'); return; } handleDeleteClick(); },
     onSearch: () => {
       const input = document.querySelector<HTMLInputElement>('.search-box input');
       if (input) { input.focus(); input.select(); }
@@ -1168,103 +696,78 @@ export default function App() {
         submitBtn?.click();
       }
     },
-    onSelectAll: () => toggleAll(),
+    onSelectAll: () => list.toggleAll(),
     onEscape: () => {
-      if (showDeleteConfirm) { setShowDeleteConfirm(false); return; }
-      if (showPrintQueue) { setShowPrintQueue(false); return; }
-      if (showPrintSettings) { setShowPrintSettings(false); return; }
-      if (showBackupModal) { setShowBackupModal(false); return; }
-      if (showRenumberConfirm) { setShowRenumberConfirm(false); return; }
-      if (showBulkEdit) { setShowBulkEdit(false); return; }
-      if (showScanner) { setShowScanner(false); return; }
-      if (editIndex !== null) { setEditIndex(null); setTab('records'); return; }
+      if (ws.showDeleteConfirm) { ws.setShowDeleteConfirm(false); return; }
+      if (ws.showPrintQueue) { ws.setShowPrintQueue(false); return; }
+      if (ws.showPrintSettings) { ws.setShowPrintSettings(false); return; }
+      if (ws.showBackupModal) { ws.setShowBackupModal(false); return; }
+      if (ws.showRenumberConfirm) { ws.setShowRenumberConfirm(false); return; }
+      if (ws.showBulkEdit) { ws.setShowBulkEdit(false); return; }
+      if (ws.showScanner) { ws.setShowScanner(false); return; }
+      if (formState.editIndex !== null) { formState.setEditIndex(null); setTab('records'); return; }
       if (viewIndex !== null) { setViewIndex(null); setTab('records'); return; }
-      if (selected.size > 0) { setSelected(new Set()); return; }
+      if (list.selected.size > 0) { list.setSelected(new Set()); return; }
     },
     onUndo: () => {
-      if (!serverMode && undoStack.length > 0) {
-        undo();
-        addToast('عملیات لغو شد', 'success');
-      }
+      if (!ws.serverMode && undoStack.length > 0) { undo(); addToast('عملیات لغو شد', 'success'); }
     },
-    onTabChange: (t: string) => { setEditIndex(null); setTab(t); },
-  };
+    onTabChange: (t: string) => { formState.setEditIndex(null); setTab(t); },
+  }), [ws.isViewer, ws.serverMode, ws.currentWorkspaceId, list.selected, currentRecords, formState.editIndex, viewIndex, undoStack, tab]);
 
   const { showHelp: showShortcutsHelp, setShowHelp: setShowShortcutsHelp } = useKeyboardShortcuts(keyboardHandlers);
 
-  const availLabels = editIndex !== null
-    ? currentRecords.filter(r => r.code !== currentRecords[editIndex]?.code)
-    : currentRecords;
-  const editRecord = editIndex !== null ? currentRecords[editIndex] : templateData;
-  const selectedRecords = sortByCode(currentRecords.filter((_, i) => selected.has(i)));
-
+  // ========== COMPUTED VALUES ==========
   const findRelated = (codes: string[]) => {
     if (!codes || !codes.length) return [];
     return currentRecords.filter(r => codes.includes(r.code));
   };
 
-  const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
-  const currentWsRole = currentWs?.member_role;
-  const isViewer = serverMode && currentWsRole === 'viewer';
+  const selectedRecords = useMemo(
+    () => list.sortByCode(currentRecords.filter((_, i) => list.selected.has(i))),
+    [currentRecords, list.selected, list.sortByCode]
+  );
 
-  const fieldSuggestions = useMemo(() => {
-    const textKeys = ['project', 'type', 'party'];
-    customFields.forEach((f: any) => {
-      if (!f.fieldType || f.fieldType === 'text' || f.fieldType === 'string') {
-        if (!textKeys.includes(f.key)) textKeys.push(f.key);
-      }
-    });
-    const map: Record<string, string[]> = {};
-    for (const key of textKeys) {
-      const vals = new Set<string>();
-      for (const r of currentRecords) {
-        const v = r[key];
-        if (v && typeof v === 'string' && v.trim()) vals.add(v.trim());
-      }
-      if (vals.size > 0) map[key] = [...vals].sort();
-    }
-    return map;
-  }, [currentRecords, customFields]);
-
-  if (!serverMode && !authUser && !getAuthUser() && !localMode) {
+  // ========== EARLY RETURNS ==========
+  if (!ws.serverMode && !ws.authUser && !getAuthUser() && !ws.localMode) {
     return <LoginPage onLogin={handleLogin} />;
   }
-
-  if (serverMode && (serverLoading || (swrLoading && currentRecords.length === 0))) {
+  if (ws.serverMode && (ws.serverLoading || (ws.swrLoading && currentRecords.length === 0))) {
     return <LoadingScreen message="در حال بارگذاری..." />;
   }
 
-  const allTypes = [...new Set(currentRecords.map((r: any) => r.type).filter(Boolean))] as string[];
-  const allParties = [...new Set(currentRecords.map((r: any) => r.party).filter(Boolean))] as string[];
+  // ========== RENDER ==========
+  const allTypes = [...new Set(currentRecords.map((r: RecordItem) => r.type).filter(Boolean))] as string[];
+  const allParties = [...new Set(currentRecords.map((r: RecordItem) => r.party).filter(Boolean))] as string[];
 
   return (
     <ErrorBoundary>
-      <div className={`app-container${sidebarOpen ? ' sidebar-collapsed' : ''}${sidebarCompact ? ' sidebar-compact' : ''}`}>
+      <div className={`app-container${ws.sidebarOpen ? ' sidebar-collapsed' : ''}${ws.sidebarCompact ? ' sidebar-compact' : ''}`}>
         <Sidebar
           tab={tab}
           onTabChange={handleTabChange}
-          sidebarOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          onResetForm={resetForm}
-          isViewer={isViewer}
-          serverMode={serverMode}
-          activityLog={activityLog}
-          compact={sidebarCompact}
-          onToggleCompact={toggleSidebarCompact}
-          onRefreshActivity={handleRefreshActivity}
+          sidebarOpen={ws.sidebarOpen}
+          onClose={() => ws.setSidebarOpen(false)}
+          onResetForm={formState.resetForm}
+          isViewer={ws.isViewer}
+          serverMode={ws.serverMode}
+          activityLog={ws.activityLog}
+          compact={ws.sidebarCompact}
+          onToggleCompact={ws.toggleSidebarCompact}
+          onRefreshActivity={ws.handleRefreshActivity}
         />
 
         <main className="main-content">
           <Header
-            search={search}
-            onSearchChange={(v: string) => { setSearch(v); setPage(1); }}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-            onToggleSidebar={toggleSidebar}
+            search={list.search}
+            onSearchChange={(v: string) => { list.setSearch(v); list.setPage(1); }}
+            theme={ws.theme}
+            onToggleTheme={ws.toggleTheme}
+            onToggleSidebar={ws.toggleSidebar}
             onSettingsClick={() => setTab('settings')}
             onProfileClick={() => setTab('profile')}
             onShortcutsHelp={() => setShowShortcutsHelp(true)}
-            connectionStatus={serverMode ? connectionStatus : undefined}
+            connectionStatus={ws.serverMode ? ws.connectionStatus : undefined}
           />
 
           <div className="content-area">
@@ -1272,7 +775,7 @@ export default function App() {
               <div>
                 <h1 className="page-title">
                   {tab === 'records' && 'مدیریت سوابق'}
-                  {tab === 'add' && (editIndex !== null ? 'ویرایش رکورد' : 'افزودن رکورد جدید')}
+                  {tab === 'add' && (formState.editIndex !== null ? 'ویرایش رکورد' : 'افزودن رکورد جدید')}
                   {tab === 'import' && 'ورود از CSV'}
                   {tab === 'preview' && 'پیش‌نمایش برچسب‌ها'}
                   {tab === 'view' && 'جزئیات برچسب'}
@@ -1286,9 +789,9 @@ export default function App() {
               </div>
 
               <div className="d-flex gap-2 flex-wrap align-items-center">
-                {tab === 'preview' && selected.size > 0 && (
+                {tab === 'preview' && list.selected.size > 0 && (
                   <>
-                    <button className="btn btn-outline btn-sm" onClick={() => setShowPrintSettings(true)}>
+                    <button className="btn btn-outline btn-sm" onClick={() => ws.setShowPrintSettings(true)}>
                       <SettingsIcon className="h-4 w-4" /> تنظیمات چاپ
                     </button>
                     <button className="btn btn-outline btn-sm" onClick={handleExcel}>
@@ -1301,12 +804,12 @@ export default function App() {
                       <FileText className="h-4 w-4" /> PDF
                     </button>
                     <button className="btn btn-success btn-sm" onClick={() => handlePrint('selected')}>
-                       <Printer className="h-4 w-4" /> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, printCols)} برگ)
+                       <Printer className="h-4 w-4" /> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, ws.printCols)} برگ)
                      </button>
                   </>
                 )}
                 {tab === 'view' && viewIndex !== null && (
-                  <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); setSelected(new Set([viewIndex])); }}>
+                  <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); list.setSelected(new Set([viewIndex])); }}>
                     <ArrowRight className="h-4 w-4" /> بازگشت
                   </button>
                 )}
@@ -1315,288 +818,240 @@ export default function App() {
                     <Printer className="h-4 w-4" /> پیش‌نمایش
                   </button>
                 )}
-                {serverMode && (
+                {ws.serverMode && (
                   <WorkspaceSwitcher
-                    workspaces={workspaces}
-                    currentWorkspaceId={currentWorkspaceId}
+                    workspaces={ws.workspaces}
+                    currentWorkspaceId={ws.currentWorkspaceId}
                     onSwitch={handleWorkspaceSwitch}
                     onCreateWorkspace={handleCreateWorkspace}
                     onInviteMember={handleInviteMember}
                     onLeave={handleLeaveWorkspace}
                     onDeleteWorkspace={handleDeleteWorkspace}
-                    currentRole={currentWsRole}
+                    currentRole={ws.currentWsRole}
                   />
                 )}
-                <button className="btn btn-outline btn-sm" onClick={() => setShowPrintQueue(true)}>
+                <button className="btn btn-outline btn-sm" onClick={() => ws.setShowPrintQueue(true)}>
                   <Printer className="h-4 w-4" /> صف چاپ
                 </button>
-                <button className="btn btn-outline btn-sm" onClick={() => setShowScanner(true)}>
+                <button className="btn btn-outline btn-sm" onClick={() => ws.setShowScanner(true)}>
                   <ScanLine className="h-4 w-4" /> اسکن QR
                 </button>
-                <button className="btn btn-outline btn-sm" onClick={() => setShowBackupModal(true)}>
+                <button className="btn btn-outline btn-sm" onClick={() => ws.setShowBackupModal(true)}>
                   <CloudDownload className="h-4 w-4" /> پشتیبان
                 </button>
-                <button className="btn btn-outline btn-sm" onClick={serverMode ? handleLogout : handleLoginGoToServer}>
-                  <i className={`ti ${serverMode ? 'ti-logout' : 'ti-server'}`}></i>
-                  {serverMode ? 'خروج' : 'ورود به سرور'}
+                <button className="btn btn-outline btn-sm" onClick={ws.serverMode ? handleLogout : handleLoginGoToServer}>
+                  <i className={`ti ${ws.serverMode ? 'ti-logout' : 'ti-server'}`}></i>
+                  {ws.serverMode ? 'خروج' : 'ورود به سرور'}
                 </button>
               </div>
             </div>
 
             <TransitionPage tab={tab}>
               {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
-              <StatsCards records={currentRecords} selected={selected} filtered={sortedRecords} />
-            )}
+                <StatsCards records={currentRecords} selected={list.selected} filtered={list.sortedRecords} />
+              )}
 
-            {tab === 'records' && (
-              <RecordsPage
-                currentRecords={currentRecords}
-                sortedRecords={sortedRecords}
-                pagedRecords={pagedRecords}
-                selected={selected}
-                sortBy={sortBy}
-                sortOrder={sortOrder}
-                refreshKey={refreshKey}
-                search={search}
-                filterType={filterType}
-                filterParty={filterParty}
-                filterDateFrom={filterDateFrom}
-                filterDateTo={filterDateTo}
-                filterAmountMin={filterAmountMin}
-                filterAmountMax={filterAmountMax}
-                selectedTagFilter={selectedTagFilter}
-                allTypes={allTypes}
-                allParties={allParties}
-                viewMode={viewMode}
-                useVirtualScroll={useVirtualScroll}
-                serverLoading={serverLoading}
-                safePage={safePage}
-                totalPages={totalPages}
-                customFields={customFields}
-                enabledCustomFieldKeys={enabledCustomFieldKeys}
-                tags={tags}
-                findRelated={findRelated}
-                recordToIndex={recordToIndex}
-                isViewer={isViewer}
-                serverMode={serverMode}
-                onSort={handleSort}
-                onToggleSelect={toggleSelect}
-                onToggleAll={toggleAll}
-                onEdit={handleEdit}
-                onView={handleView}
-                onDeleteClick={handleDeleteClick}
-                onExcel={handleExcel}
-                onCSVExport={handleCSVExport}
-                onExportAllExcel={handleExportAllExcel}
-                onExportAllCSV={handleExportAllCSV}
-                onExportAllPrint={handleExportAllPrint}
-                onDragStart={handleDragStart}
-                onDrop={handleDrop}
-                onSetDragIndex={(i: number | null) => setDragIndex(i)}
-                onInlineEdit={handleInlineEdit}
-                onToggleFavorite={handleToggleFavorite}
-                onApplyPreset={handleApplyPreset}
-                onTabChange={setTab}
-                onSetViewMode={setViewMode}
-                onSetUseVirtualScroll={setUseVirtualScroll}
-                onSetFilterType={setFilterType}
-                onSetFilterParty={setFilterParty}
-                onSetFilterDateFrom={setFilterDateFrom}
-                onSetFilterDateTo={setFilterDateTo}
-                onSetFilterAmountMin={setFilterAmountMin}
-                onSetFilterAmountMax={setFilterAmountMax}
-                onSetSelectedTagFilter={setSelectedTagFilter}
-                onSetPage={setPage}
-                onShowRenumberConfirm={setShowRenumberConfirm}
-                onShowBulkEdit={setShowBulkEdit}
-                onSetEnabledCustomFieldKeys={setEnabledCustomFieldKeys}
-                onClearSelection={() => setSelected(new Set())}
-                addToast={addToast}
-              />
-            )}
+              {tab === 'records' && (
+                <ListPanel
+                  currentRecords={currentRecords}
+                  sortedRecords={list.sortedRecords}
+                  pagedRecords={list.pagedRecords}
+                  selected={list.selected}
+                  sortBy={list.sortBy}
+                  sortOrder={list.sortOrder}
+                  refreshKey={ws.refreshKey}
+                  search={list.search}
+                  filterType={list.filterType}
+                  filterParty={list.filterParty}
+                  filterDateFrom={list.filterDateFrom}
+                  filterDateTo={list.filterDateTo}
+                  filterAmountMin={list.filterAmountMin}
+                  filterAmountMax={list.filterAmountMax}
+                  selectedTagFilter={list.selectedTagFilter}
+                  allTypes={allTypes}
+                  allParties={allParties}
+                  viewMode={list.viewMode}
+                  useVirtualScroll={list.useVirtualScroll}
+                  serverLoading={ws.serverLoading}
+                  safePage={list.safePage}
+                  totalPages={list.totalPages}
+                  customFields={ws.customFields}
+                  enabledCustomFieldKeys={ws.enabledCustomFieldKeys}
+                  tags={ws.tags}
+                  findRelated={findRelated}
+                  recordToIndex={list.recordToIndex}
+                  isViewer={ws.isViewer}
+                  serverMode={ws.serverMode}
+                  onSort={list.handleSort}
+                  onToggleSelect={list.toggleSelect}
+                  onToggleAll={list.toggleAll}
+                  onEdit={handleEdit}
+                  onView={handleView}
+                  onDeleteClick={handleDeleteClick}
+                  onExcel={handleExcel}
+                  onCSVExport={handleCSVExport}
+                  onExportAllExcel={handleExportAllExcel}
+                  onExportAllCSV={handleExportAllCSV}
+                  onExportAllPrint={handleExportAllPrint}
+                  onDragStart={handleDragStart}
+                  onDrop={handleDrop}
+                  onSetDragIndex={(i: number | null) => list.setDragIndex(i)}
+                  onInlineEdit={handleInlineEdit}
+                  onToggleFavorite={handleToggleFavorite}
+                  onApplyPreset={list.handleApplyPreset}
+                  onTabChange={setTab}
+                  onSetViewMode={list.setViewMode}
+                  onSetUseVirtualScroll={list.setUseVirtualScroll}
+                  onSetFilterType={list.setFilterType}
+                  onSetFilterParty={list.setFilterParty}
+                  onSetFilterDateFrom={list.setFilterDateFrom}
+                  onSetFilterDateTo={list.setFilterDateTo}
+                  onSetFilterAmountMin={list.setFilterAmountMin}
+                  onSetFilterAmountMax={list.setFilterAmountMax}
+                  onSetSelectedTagFilter={list.setSelectedTagFilter}
+                  onSetPage={list.setPage}
+                  onShowRenumberConfirm={ws.setShowRenumberConfirm}
+                  onShowBulkEdit={ws.setShowBulkEdit}
+                  onSetEnabledCustomFieldKeys={ws.setEnabledCustomFieldKeys}
+                  onClearSelection={() => list.setSelected(new Set())}
+                  addToast={addToast}
+                />
+              )}
 
-            {tab === 'add' && (
-              <div className="fade-in">
-                {isViewer ? (
-                  <div className="empty-state">
-                    <div className="empty-icon"><Lock className="h-10 w-10" /></div>
-                    <h3 style={{ marginBottom: '0.5rem' }}>دسترسی محدود</h3>
-                    <p style={{ opacity: 0.7 }}>شما دسترسی مشاهده دارید و نمی‌توانید رکورد جدید اضافه یا ویرایش کنید</p>
-                  </div>
-                ) : (
-                <>
-                {!editIndex && (
-                  <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <div className="d-flex gap-2 align-items-center">
-                      <button className="btn btn-outline btn-sm" onClick={() => setShowTemplates(p => !p)}>
-                        <LayoutTemplate className="h-4 w-4" /> الگوها
-                      </button>
-                      {templates.length > 0 && (
-                        <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>{templates.length} الگو</span>
-                      )}
-                    </div>
-                    <div className="d-flex gap-2 align-items-center">
-                      <input type="text" className="form-input" placeholder="نام الگو..."
-                        style={{ width: 150, marginBottom: 0 }}
-                        value={templateName} onChange={e => setTemplateName(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleSaveTemplate()} />
-                      <button className="btn btn-outline btn-sm" onClick={handleSaveTemplate}>
-                        <Save className="h-4 w-4" /> ذخیره به عنوان الگو
-                      </button>
-                    </div>
-                  </div>
-                )}
-                {showTemplates && (
-                  <div className="form-card mb-4">
-                    <h4 style={{ marginBottom: '1rem' }}>الگوهای ذخیره شده</h4>
-                    {templates.length === 0 ? (
-                      <p style={{ opacity: 0.5, textAlign: 'center', padding: '1rem 0' }}>
-                        هنوز الگویی ذخیره نشده. ابتدا فیلدها را پر کنید و "ذخیره به عنوان الگو" را بزنید.
-                      </p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      {templates.map((tmpl: any, i: number) => (
-                        <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
-                          <LayoutTemplate className="h-6 w-6" style={{ color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }} />
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontWeight: 600 }}>{tmpl.name}</div>
-                            <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{tmpl.fields?.project || (tmpl.fields?.code ? '' : 'نامعتبر - حذف کنید')}</div>
-                          </div>
-                          <Trash2 className="h-4 w-4 cursor-pointer opacity-50 hover:opacity-80 transition-opacity" style={{ color: 'var(--danger)' }}
-                            onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }} />
-                        </div>
-                      ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-                <RecordForm
-                  key={editIndex !== null ? `edit-${editIndex}` : `add-${templateKey}`}
-                  editRecord={editRecord}
-                  editIndex={editIndex}
-                  availableLabels={availLabels}
+              {tab === 'add' && (
+                <FormPanel
+                  isViewer={ws.isViewer}
+                  editIndex={formState.editIndex}
+                  editRecord={formState.editRecord}
+                  availLabels={formState.availLabels}
                   isDuplicateCode={isDuplicateCode}
                   checkDuplicateCode={checkDuplicateCode}
-                  onSubmit={handleSubmit}
-                  onCancel={() => { setEditIndex(null); setTemplateData(null); setTab('records'); }}
+                  onSubmit={formState.handleSubmit}
+                  onCancel={() => { formState.setEditIndex(null); formState.setTemplateData(null); setTab('records'); }}
                   addToast={addToast}
-                  customFields={customFields}
-                  serverMode={serverMode}
-                  allTags={tags}
-                  loading={serverLoading}
-                  onFormChange={(data: any) => { formDraftRef.current = data; }}
-                  fieldSuggestions={fieldSuggestions}
+                  customFields={ws.customFields}
+                  serverMode={ws.serverMode}
+                  allTags={ws.tags}
+                  loading={ws.serverLoading}
+                  onFormChange={(data: RecordItem) => { formState.formDraftRef.current = data; }}
+                  fieldSuggestions={formState.fieldSuggestions}
+                  templateName={formState.templateName}
+                  setTemplateName={formState.setTemplateName}
+                  showTemplates={formState.showTemplates}
+                  setShowTemplates={formState.setShowTemplates}
+                  templates={formState.templates}
+                  handleSaveTemplate={formState.handleSaveTemplate}
+                  handleLoadTemplate={formState.handleLoadTemplate}
+                  handleDeleteTemplate={formState.handleDeleteTemplate}
+                  templateKey={formState.templateKey}
                 />
-              </>
-            )}
-          </div>
-        )}
+              )}
 
-            {tab === 'import' && (
-              <Suspense fallback={<ImportSkeleton />}>
-                <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} customFields={customFields} />
-              </Suspense>
-            )}
+              {tab === 'import' && (
+                <Suspense fallback={<ImportSkeleton />}>
+                  <ImportCSV onImport={handleImport} addToast={addToast} existingRecords={currentRecords} customFields={ws.customFields} />
+                </Suspense>
+              )}
 
-            {tab === 'view' && viewIndex !== null && (
-              <Suspense fallback={<ViewDetailSkeleton />}>
-                <ViewDetail
-                  record={currentRecords[viewIndex]}
-                  relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
-                  onEdit={() => handleEdit(viewIndex)}
-                  customFields={customFields}
-                  onNavigateToRelated={(rel: { code: string }) => {
-                    const idx = currentRecords.findIndex(r => r.code === rel.code);
-                    if (idx !== -1) setViewIndex(idx);
-                  }}
-                  onShowHistory={serverMode ? () => {
-                    const r = currentRecords[viewIndex];
-                    handleShowVersionHistory(r.id, r.code);
-                  } : undefined}
-                  onLock={serverMode ? handleLockRecord : undefined}
-                  onUnlock={serverMode ? handleUnlockRecord : undefined}
-                />
-              </Suspense>
-            )}
+              {tab === 'view' && viewIndex !== null && (
+                <Suspense fallback={<ViewDetailSkeleton />}>
+                  <ViewDetail
+                    record={currentRecords[viewIndex]}
+                    relatedRecords={findRelated(currentRecords[viewIndex]?.related)}
+                    onEdit={() => handleEdit(viewIndex)}
+                    customFields={ws.customFields}
+                    onNavigateToRelated={(rel: { code: string }) => {
+                      const idx = currentRecords.findIndex(r => r.code === rel.code);
+                      if (idx !== -1) setViewIndex(idx);
+                    }}
+                    onShowHistory={ws.serverMode ? () => {
+                      const r = currentRecords[viewIndex];
+                      handleShowVersionHistory(r.id, r.code);
+                    } : undefined}
+                    onLock={ws.serverMode ? handleLockRecord : undefined}
+                    onUnlock={ws.serverMode ? handleUnlockRecord : undefined}
+                  />
+                </Suspense>
+              )}
 
-            {tab === 'preview' && (
-              <Suspense fallback={<PreviewSkeleton />}>
-                <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={customFields} enabledCustomFieldKeys={enabledCustomFieldKeys} />
-              </Suspense>
-            )}
+              {tab === 'preview' && (
+                <Suspense fallback={<PreviewSkeleton />}>
+                  <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={ws.customFields} enabledCustomFieldKeys={ws.enabledCustomFieldKeys} />
+                </Suspense>
+              )}
 
-            {tab === 'history' && (
-              <Suspense fallback={<HistorySkeleton />}>
-                <HistoryTab printHistory={printHistory} clearHistory={clearHistory} />
-              </Suspense>
-            )}
+              {tab === 'history' && (
+                <Suspense fallback={<HistorySkeleton />}>
+                  <HistoryTab printHistory={ws.printHistory} clearHistory={clearHistory} />
+                </Suspense>
+              )}
 
-            {tab === 'reports' && (
-              <Suspense fallback={<ReportsSkeleton />}>
-                <ReportsTab records={currentRecords}                 onFilter={(type: string, value: string) => {
-                  setSearch(''); setFilterType(''); setFilterParty('');
-                  setFilterDateFrom(''); setFilterDateTo('');
-                  setFilterAmountMin(''); setFilterAmountMax('');
-                  setSelectedTagFilter(null);
-                  if (type === 'type') setFilterType(value);
-                  else if (type === 'party') setFilterParty(value);
-                  else setSearch(value);
-                  setPage(1);
-                  setTab('records');
-                }} />
-              </Suspense>
-            )}
+              {tab === 'reports' && (
+                <Suspense fallback={<ReportsSkeleton />}>
+                  <ReportsTab records={currentRecords} onFilter={(type: string, value: string) => {
+                    list.setSearch(''); list.setFilterType(''); list.setFilterParty('');
+                    list.setFilterDateFrom(''); list.setFilterDateTo('');
+                    list.setFilterAmountMin(''); list.setFilterAmountMax('');
+                    list.setSelectedTagFilter(null);
+                    if (type === 'type') list.setFilterType(value);
+                    else if (type === 'party') list.setFilterParty(value);
+                    else list.setSearch(value);
+                    list.setPage(1);
+                    setTab('records');
+                  }} />
+                </Suspense>
+              )}
 
-            {tab === 'dashboard' && (
-              <Suspense fallback={<DashboardSkeleton />}>
-                <DashboardTab records={currentRecords} customFields={customFields} tags={tags} activityLog={activityLog} onTabChange={setTab} />
-              </Suspense>
-            )}
+              {tab === 'dashboard' && (
+                <Suspense fallback={<DashboardSkeleton />}>
+                  <DashboardTab records={currentRecords} customFields={ws.customFields} tags={ws.tags} activityLog={ws.activityLog} onTabChange={setTab} />
+                </Suspense>
+              )}
 
-            {tab === 'profile' && (
-              <Suspense fallback={<ProfileSkeleton />}>
-                <ProfileTab
-                  authUser={authUser}
-                  serverMode={serverMode}
-                  recordCount={currentRecords.length}
-                  onLogin={handleLoginGoToServer}
-                  onBackup={handleBackup}
-                  onOpenBackupModal={() => setShowBackupModal(true)}
-                  addToast={addToast}
-                />
-              </Suspense>
-            )}
+              {tab === 'profile' && (
+                <Suspense fallback={<ProfileSkeleton />}>
+                  <ProfileTab
+                    authUser={ws.authUser}
+                    serverMode={ws.serverMode}
+                    recordCount={currentRecords.length}
+                    onLogin={handleLoginGoToServer}
+                    onBackup={handleBackup}
+                    onOpenBackupModal={() => ws.setShowBackupModal(true)}
+                    addToast={addToast}
+                  />
+                </Suspense>
+              )}
 
-            {tab === 'settings' && (
-              <Suspense fallback={<SettingsSkeleton />}>
-                <SettingsTab
-                  customFields={customFields}
-                  onAddField={handleAddCustomField}
-                  onRemoveField={handleRemoveCustomField}
-                  onEditField={handleEditCustomField}
-                  newFieldName={newFieldName}
-                  onNewFieldNameChange={setNewFieldName}
-                  newFieldType={newFieldType}
-                  onNewFieldTypeChange={setNewFieldType}
-                  serverMode={serverMode}
-                  authUser={authUser}
-                  tags={tags}
-                  onAddTag={handleAddTag}
-                  onRemoveTag={handleRemoveTag}
-                  useVirtualScroll={useVirtualScroll}
-                  onToggleVirtualScroll={() => setUseVirtualScroll(p => !p)}
-                  theme={theme}
-                  onThemeChange={setTheme}
-                />
-              </Suspense>
-            )}
+              {tab === 'settings' && (
+                <Suspense fallback={<SettingsSkeleton />}>
+                  <SettingsTab
+                    customFields={ws.customFields}
+                    onAddField={handleAddCustomField}
+                    onRemoveField={handleRemoveCustomField}
+                    onEditField={handleEditCustomField}
+                    newFieldName={ws.newFieldName}
+                    onNewFieldNameChange={ws.setNewFieldName}
+                    newFieldType={ws.newFieldType}
+                    onNewFieldTypeChange={ws.setNewFieldType}
+                    serverMode={ws.serverMode}
+                    authUser={ws.authUser}
+                    tags={ws.tags}
+                    onAddTag={handleAddTag}
+                    onRemoveTag={handleRemoveTag}
+                    useVirtualScroll={list.useVirtualScroll}
+                    onToggleVirtualScroll={() => list.setUseVirtualScroll(p => !p)}
+                    theme={ws.theme}
+                    onThemeChange={ws.setTheme}
+                  />
+                </Suspense>
+              )}
             </TransitionPage>
           </div>
         </main>
 
         <Toast toasts={toasts} onRemove={removeToast} />
 
-        {!serverMode && undoStack.length > 0 && (
+        {!ws.serverMode && undoStack.length > 0 && (
           <div className="undo-redo-bar" style={{
             position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
             display: 'flex', alignItems: 'center', gap: '0.5rem',
@@ -1615,48 +1070,52 @@ export default function App() {
 
         <ShortcutsHelp show={showShortcutsHelp} onClose={() => setShowShortcutsHelp(false)} />
 
-        <PrintSettingsModal
-          show={showPrintSettings}
-          onClose={() => setShowPrintSettings(false)}
-          printTemplate={printTemplate}
-          setPrintTemplate={setPrintTemplate}
-          printCols={printCols}
-          setPrintCols={setPrintCols}
-          printWidth={printWidth}
-          setPrintWidth={setPrintWidth}
-          printHeight={printHeight}
-          setPrintHeight={setPrintHeight}
-          printQr={printQr}
-          setPrintQr={setPrintQr}
-          printBarcode={printBarcode}
-          setPrintBarcode={setPrintBarcode}
-          customFields={customFields}
-          enabledCustomFieldKeys={enabledCustomFieldKeys}
-          onToggleCustomField={handleToggleCustomField}
-        />
+        <Suspense fallback={null}>
+          <PrintSettingsModal
+            show={ws.showPrintSettings}
+            onClose={() => ws.setShowPrintSettings(false)}
+            printTemplate={ws.printTemplate}
+            setPrintTemplate={ws.setPrintTemplate}
+            printCols={ws.printCols}
+            setPrintCols={ws.setPrintCols}
+            printWidth={ws.printWidth}
+            setPrintWidth={ws.setPrintWidth}
+            printHeight={ws.printHeight}
+            setPrintHeight={ws.setPrintHeight}
+            printQr={ws.printQr}
+            setPrintQr={ws.setPrintQr}
+            printBarcode={ws.printBarcode}
+            setPrintBarcode={ws.setPrintBarcode}
+            customFields={ws.customFields}
+            enabledCustomFieldKeys={ws.enabledCustomFieldKeys}
+            onToggleCustomField={handleToggleCustomField}
+          />
+        </Suspense>
 
-        <BackupModal
-          show={showBackupModal}
-          onClose={() => setShowBackupModal(false)}
-          recordCount={currentRecords.length}
-          onBackup={handleBackup}
-          onRestore={handleRestore}
-          setBackupFile={setBackupFile}
-          isViewer={isViewer}
-        />
+        <Suspense fallback={null}>
+          <BackupModal
+            show={ws.showBackupModal}
+            onClose={() => ws.setShowBackupModal(false)}
+            recordCount={currentRecords.length}
+            onBackup={handleBackup}
+            onRestore={handleRestore}
+            setBackupFile={ws.setBackupFile}
+            isViewer={ws.isViewer}
+          />
+        </Suspense>
 
-        {showRestoreConfirm && pendingRestore && (
-          <div className="modal-overlay" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}>
+        {ws.showRestoreConfirm && ws.pendingRestore && (
+          <div className="modal-overlay" onClick={() => { ws.setShowRestoreConfirm(false); ws.setPendingRestore(null); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 460 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>بازیابی فیلدهای سفارشی</h3>
-                <X className="h-5 w-5 cursor-pointer" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }} />
+                <X className="h-5 w-5 cursor-pointer" onClick={() => { ws.setShowRestoreConfirm(false); ws.setPendingRestore(null); }} />
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
-                فایل پشتیبان شامل <strong>{pendingRestore.customFields.length} فیلد سفارشی</strong> است:
+                فایل پشتیبان شامل <strong>{ws.pendingRestore.customFields.length} فیلد سفارشی</strong> است:
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                {pendingRestore.customFields.map(cf => (
+                {ws.pendingRestore.customFields.map(cf => (
                   <span key={cf.key} style={{ padding: '0.3rem 0.7rem', background: 'var(--hover-bg)', borderRadius: 8, fontSize: '0.85rem' }}>
                     {cf.fa || cf.label || cf.key}
                   </span>
@@ -1666,13 +1125,13 @@ export default function App() {
                 آیا مایل به بازیابی این فیلدها هستید؟
               </p>
               <div className="d-flex gap-2" style={{ justifyContent: 'flex-end' }}>
-                <button className="btn btn-outline" onClick={() => { setShowRestoreConfirm(false); setPendingRestore(null); }}>
+                <button className="btn btn-outline" onClick={() => { ws.setShowRestoreConfirm(false); ws.setPendingRestore(null); }}>
                   فقط رکوردها
                 </button>
                 <button className="btn btn-primary" onClick={() => {
-                  const pr = pendingRestore;
-                  setShowRestoreConfirm(false);
-                  setPendingRestore(null);
+                  const pr = ws.pendingRestore;
+                  ws.setShowRestoreConfirm(false);
+                  ws.setPendingRestore(null);
                   executeRestore(pr.records, pr.customFields);
                 }}>
                   بازیابی با فیلدها
@@ -1683,65 +1142,65 @@ export default function App() {
         )}
 
         <ConfirmDialog
-          show={showDeleteConfirm}
+          show={ws.showDeleteConfirm}
           title="حذف رکوردها"
-          message={`آیا از حذف ${selected.size} رکورد انتخاب شده اطمینان دارید؟ این عملیات قابل بازگشت نیست.`}
+          message={`آیا از حذف ${list.selected.size} رکورد انتخاب شده اطمینان دارید؟ این عملیات قابل بازگشت نیست.`}
           confirmLabel="حذف شود"
           cancelLabel="انصراف"
           variant="danger"
           icon="ti-alert-triangle"
-          loading={serverLoading}
+          loading={ws.serverLoading}
           onConfirm={handleDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
+          onCancel={() => ws.setShowDeleteConfirm(false)}
         />
 
-        {showRenumberConfirm && (
-          <div className="modal-overlay" onClick={() => setShowRenumberConfirm(false)}>
+        {ws.showRenumberConfirm && (
+          <div className="modal-overlay" onClick={() => ws.setShowRenumberConfirm(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>بازنویسی کدها</h3>
-                <X className="h-5 w-5 cursor-pointer" onClick={() => setShowRenumberConfirm(false)} />
+                <X className="h-5 w-5 cursor-pointer" onClick={() => ws.setShowRenumberConfirm(false)} />
               </div>
               <p style={{ opacity: 0.7, marginBottom: '1rem', lineHeight: 1.8 }}>
                 همه رکوردها بر اساس پروژه، نوع و سال مرتب شده و کدهای آنها بازنویسی می‌شوند.
                 محتوای رکوردها تغییری نمی‌کند. ادامه می‌دهید؟
               </p>
               <div className="d-flex gap-2" style={{ justifyContent: 'flex-end' }}>
-                <button className="btn btn-outline" onClick={() => setShowRenumberConfirm(false)}>
+                <button className="btn btn-outline" onClick={() => ws.setShowRenumberConfirm(false)}>
                   انصراف
                 </button>
-                <button className="btn btn-primary" onClick={handleRenumber} disabled={serverLoading}>
-                  {serverLoading ? <><LoadingSpinner size={18} /> در حال اجرا...</> : 'تایید و بازنویسی'}
+                <button className="btn btn-primary" onClick={handleRenumber} disabled={ws.serverLoading}>
+                  {ws.serverLoading ? <><LoadingSpinner size={18} /> در حال اجرا...</> : 'تایید و بازنویسی'}
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {showBulkEdit && (
-          <div className="modal-overlay" onClick={() => setShowBulkEdit(false)}>
+        {ws.showBulkEdit && (
+          <div className="modal-overlay" onClick={() => ws.setShowBulkEdit(false)}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h3 style={{ margin: 0 }}>ویرایش دسته‌جمعی</h3>
-                <X className="h-5 w-5 cursor-pointer" onClick={() => setShowBulkEdit(false)} />
+                <X className="h-5 w-5 cursor-pointer" onClick={() => ws.setShowBulkEdit(false)} />
               </div>
-              <p style={{ opacity: 0.7, marginBottom: '1rem' }}>{selected.size} رکورد انتخاب شده</p>
+              <p style={{ opacity: 0.7, marginBottom: '1rem' }}>{list.selected.size} رکورد انتخاب شده</p>
 
               <div className="form-group">
                 <label className="form-label">فیلد</label>
                 <SearchableSelect
                   value={(() => {
                     const std = FIELDS.find(f => f.key === bulkEditField);
-                    const cus = customFields.find((f: any) => f.key === bulkEditField);
+                    const cus = ws.customFields.find((f: CustomField) => f.key === bulkEditField);
                     return std?.fa || cus?.fa || bulkEditField;
                   })()}
                   options={[
                     ...FIELDS.filter(f => f.key !== 'code' && f.key !== 'related').map(f => f.fa),
-                    ...customFields.map((f: any) => f.fa),
+                    ...ws.customFields.map((f: CustomField) => f.fa),
                   ]}
-                  onChange={(label) => {
+                  onChange={(label: string) => {
                     const std = FIELDS.find(f => f.fa === label);
-                    const cus = customFields.find((f: any) => f.fa === label);
+                    const cus = ws.customFields.find((f: CustomField) => f.fa === label);
                     setBulkEditField(std?.key || cus?.key || '');
                   }}
                   dir="rtl"
@@ -1778,7 +1237,7 @@ export default function App() {
                   افزودن برچسب
                 </label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  {tags.map((tag: string) => {
+                  {ws.tags.map((tag: string) => {
                     const active = bulkEditTags.includes(tag);
                     return (
                       <span key={tag} onClick={() => {
@@ -1798,37 +1257,39 @@ export default function App() {
                 </div>
               </div>
 
-              <button className="btn btn-primary w-100" onClick={handleBulkEdit} disabled={serverLoading}>
-                {serverLoading ? <LoadingSpinner size={18} /> : <Check className="h-4 w-4" />} اعمال به {selected.size} رکورد
+              <button className="btn btn-primary w-100" onClick={handleBulkEdit} disabled={ws.serverLoading}>
+                {ws.serverLoading ? <LoadingSpinner size={18} /> : <Check className="h-4 w-4" />} اعمال به {list.selected.size} رکورد
               </button>
             </div>
           </div>
         )}
 
-        {showScanner && (
-          <QRScanner
-            onScan={handleQRScan}
-            onClose={() => setShowScanner(false)}
-          />
+        {ws.showScanner && (
+          <Suspense fallback={null}>
+            <QRScanner
+              onScan={handleQRScan}
+              onClose={() => ws.setShowScanner(false)}
+            />
+          </Suspense>
         )}
 
-        {showPrintQueue && (
+        {ws.showPrintQueue && (
           <Suspense fallback={null}>
             <PrintQueue
               records={currentRecords}
               selectedRecords={selectedRecords}
               addToast={addToast}
-              onClose={() => setShowPrintQueue(false)}
+              onClose={() => ws.setShowPrintQueue(false)}
             />
           </Suspense>
         )}
 
-        {versionHistoryRecord && (
+        {ws.versionHistoryRecord && (
           <Suspense fallback={null}>
             <RecordHistoryModal
-              recordId={versionHistoryRecord.id}
-              recordCode={versionHistoryRecord.code}
-              onClose={() => setVersionHistoryRecord(null)}
+              recordId={ws.versionHistoryRecord.id}
+              recordCode={ws.versionHistoryRecord.code}
+              onClose={() => ws.setVersionHistoryRecord(null)}
               onRestore={handleRestoreVersion}
               addToast={addToast}
             />

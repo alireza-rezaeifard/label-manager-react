@@ -14,3 +14,8 @@ try {
   };
   Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, configurable: true });
 }
+
+// jsdom doesn't support scrollIntoView — mock it
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {};
+}

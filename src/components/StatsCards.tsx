@@ -1,8 +1,9 @@
 import { memo, useMemo } from 'react';
 import { getTotalAmount } from '../utils/formatters';
 import { Files, CheckSquare, Filter, DollarSign } from 'lucide-react';
+import type { RecordItem } from '../types';
 
-const StatsCards = memo(function StatsCards({ records, selected, filtered }: { records: any[]; selected: Set<number>; filtered: any[] }) {
+const StatsCards = memo(function StatsCards({ records, selected, filtered }: { records: RecordItem[]; selected: Set<number>; filtered: RecordItem[] }) {
   const selectedRecords = useMemo(
     () => records.filter((_, i) => selected.has(i)),
     [records, selected]

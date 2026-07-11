@@ -177,13 +177,16 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace_id ON workspace_members(workspace_id);
   CREATE INDEX IF NOT EXISTS idx_workspace_members_user_id ON workspace_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_custom_fields_workspace_id ON custom_fields(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_records_deleted_at ON records(deleted_at);
 `);
 
-const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(adminUsername);
 if (!existingUser) {
-  const hash = bcrypt.hashSync('admin123', 10);
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', hash, 'admin');
-  console.log('Default admin user created (username: admin, password: admin123)');
+  const hash = bcrypt.hashSync(adminPassword, 10);
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(adminUsername, hash, 'admin');
+  console.log(`Default admin user created (username: ${adminUsername})`);
   console.log('IMPORTANT: Change the password immediately after first login.');
 }
 
