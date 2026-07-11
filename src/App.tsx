@@ -1207,6 +1207,25 @@ export default function App() {
   const currentWsRole = currentWs?.member_role;
   const isViewer = serverMode && currentWsRole === 'viewer';
 
+  const fieldSuggestions = useMemo(() => {
+    const textKeys = ['project', 'type', 'party'];
+    customFields.forEach((f: any) => {
+      if (!f.fieldType || f.fieldType === 'text' || f.fieldType === 'string') {
+        if (!textKeys.includes(f.key)) textKeys.push(f.key);
+      }
+    });
+    const map: Record<string, string[]> = {};
+    for (const key of textKeys) {
+      const vals = new Set<string>();
+      for (const r of currentRecords) {
+        const v = r[key];
+        if (v && typeof v === 'string' && v.trim()) vals.add(v.trim());
+      }
+      if (vals.size > 0) map[key] = [...vals].sort();
+    }
+    return map;
+  }, [currentRecords, customFields]);
+
   if (!serverMode && !authUser && !getAuthUser() && !localMode) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -1466,6 +1485,7 @@ export default function App() {
                   allTags={tags}
                   loading={serverLoading}
                   onFormChange={(data: any) => { formDraftRef.current = data; }}
+                  fieldSuggestions={fieldSuggestions}
                 />
               </>
             )}

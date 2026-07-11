@@ -9,6 +9,7 @@ import { api } from "../utils/api";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import SearchableSelect from "./SearchableSelect";
 import LoadingSpinner from "./LoadingSpinner";
+import AutocompleteInput from "./AutocompleteInput";
 import type { RecordItem } from "../types";
 import { useDebounce } from "../hooks/useDebounce";
 import {
@@ -64,9 +65,10 @@ interface RecordFormProps {
   allTags?: string[];
   onFormChange?: (form: RecordFormState) => void;
   loading?: boolean;
+  fieldSuggestions?: Record<string, string[]>;
 }
 
-export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, checkDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading }: RecordFormProps) {
+export default function RecordForm({ editRecord, editIndex, availableLabels, isDuplicateCode, checkDuplicateCode, onSubmit, onCancel, addToast, customFields = [], serverMode, allTags = [], onFormChange, loading, fieldSuggestions }: RecordFormProps) {
   const allFields: FormField[] = [...FIELDS.filter((f: FormField) => !f.isRelated), ...customFields];
   const relatedField = FIELDS.find((f: FormField) => f.isRelated);
 
@@ -345,10 +347,24 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                       )}
                     </div>
                   ) : (
-                    <input type="text" className={`rf-input ${formErrors[f.key] ? 'error' : ''}`}
-                      value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
-                      onBlur={() => handleBlur(f.key)}
-                      placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
+                    fieldSuggestions?.[f.key]?.length ? (
+                      <AutocompleteInput
+                        value={form[f.key] as string}
+                        onChange={v => setField(f.key, v)}
+                        onBlur={() => handleBlur(f.key)}
+                        suggestions={fieldSuggestions[f.key]}
+                        placeholder={f.placeholder || f.fa}
+                        error={formErrors[f.key] ? 'true' : undefined}
+                        className={`rf-input`}
+                        dir="ltr"
+                      />
+                    ) : (
+                      <input type="text" className={`rf-input ${formErrors[f.key] ? 'error' : ''}`}
+                        value={form[f.key] as string} onChange={e => setField(f.key, e.target.value)}
+                        onBlur={() => handleBlur(f.key)}
+                        placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }}
+                        autoComplete="off" />
+                    )
                   )}
 
                   {formErrors[f.key] && <span className="rf-error">{formErrors[f.key]}</span>}
