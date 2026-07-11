@@ -51,7 +51,7 @@ router.get('/', asyncHandler((req, res) => {
   } = req.query;
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
+  const limitNum = Math.min(10000, Math.max(1, parseInt(limit, 10) || 50));
   const offset = (pageNum - 1) * limitNum;
 
   const allowedSortFields = ['code', 'project', 'type', 'date', 'party', 'amount', 'created_at', 'updated_at', 'sort_order'];

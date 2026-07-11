@@ -12,7 +12,7 @@ import LoadingSpinner from "./LoadingSpinner";
 import type { RecordItem } from "../types";
 import { useDebounce } from "../hooks/useDebounce";
 import {
-  Grid3X3, Calendar, Palette, ImageIcon, Link2, Tags, Trash2, Check, Plus,
+  Grid3X3, Calendar, Palette, ImageIcon, Link2, Tags, Trash2, Check, Plus, Pencil,
   FileText, Hash, Building2, Type, CalendarDays, Users, DollarSign,
 } from 'lucide-react';
 

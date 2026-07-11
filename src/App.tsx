@@ -195,6 +195,7 @@ export default function App() {
   const [templateName, setTemplateName] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateData, setTemplateData] = useState<any>(null);
+  const [templateKey, setTemplateKey] = useState(0);
   const formDraftRef = useRef<any>(null);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
@@ -348,6 +349,8 @@ export default function App() {
       setTab(t);
       setEditIndex(null);
       setTemplateData(null);
+      setShowTemplates(false);
+      setTemplateKey(k => k + 1);
     });
   }, [setTab]);
 
@@ -877,12 +880,10 @@ export default function App() {
   const handleLoadTemplate = (tmpl: any) => {
     setShowTemplates(false);
     if (tmpl.fields && tmpl.fields.code) {
-      if (editIndex !== null) {
-        updateRecord(editIndex, tmpl.fields);
-      } else {
-        setTemplateData(tmpl.fields);
-        setTab('add');
-      }
+      setTemplateData(tmpl.fields);
+      setTemplateKey(k => k + 1);
+      setEditIndex(null);
+      setTab('add');
       addToast(`الگوی "${tmpl.name}" اعمال شد`, 'success');
     } else {
       addToast('این الگو معتبر نیست (قدیمی یا خالی). لطفا حذف کنید و دوباره ذخیره نمایید', 'error');
@@ -1426,10 +1427,15 @@ export default function App() {
                     </div>
                   </div>
                 )}
-                {showTemplates && templates.length > 0 && (
+                {showTemplates && (
                   <div className="form-card mb-4">
                     <h4 style={{ marginBottom: '1rem' }}>الگوهای ذخیره شده</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {templates.length === 0 ? (
+                      <p style={{ opacity: 0.5, textAlign: 'center', padding: '1rem 0' }}>
+                        هنوز الگویی ذخیره نشده. ابتدا فیلدها را پر کنید و "ذخیره به عنوان الگو" را بزنید.
+                      </p>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                       {templates.map((tmpl: any, i: number) => (
                         <div key={i} className="template-card" onClick={() => handleLoadTemplate(tmpl)}>
                           <LayoutTemplate className="h-6 w-6" style={{ color: tmpl.fields?.code ? 'var(--primary)' : 'var(--danger)' }} />
@@ -1441,10 +1447,12 @@ export default function App() {
                             onClick={(e) => { e.stopPropagation(); handleDeleteTemplate(tmpl.name); }} />
                         </div>
                       ))}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 <RecordForm
+                  key={editIndex !== null ? `edit-${editIndex}` : `add-${templateKey}`}
                   editRecord={editRecord}
                   editIndex={editIndex}
                   availableLabels={availLabels}
