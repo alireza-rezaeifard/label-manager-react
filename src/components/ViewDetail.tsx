@@ -1,14 +1,16 @@
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
-import type { CustomField } from '../types';
+import type { RecordItem, CustomField } from '../types';
 
-export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [], onShowHistory }: {
-  record: any;
-  relatedRecords: any[];
+export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateToRelated, customFields = [], onShowHistory, onLock, onUnlock }: {
+  record: RecordItem;
+  relatedRecords: RecordItem[];
   onEdit: () => void;
-  onNavigateToRelated: (rel: any) => void;
+  onNavigateToRelated: (rel: RecordItem) => void;
   customFields?: CustomField[];
   onShowHistory?: () => void;
+  onLock?: () => void;
+  onUnlock?: () => void;
 }) {
   return (
     <div className="form-card fade-in">
@@ -34,6 +36,19 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               <button className="btn btn-outline" onClick={onShowHistory}>
                 <i className="ti ti-history"></i> تاریخچه
               </button>
+            )}
+            {record.locked_by ? (
+              onUnlock && (
+                <button className="btn btn-outline" onClick={onUnlock} title={`قفل شده توسط ${record.locked_by}`}>
+                  <i className="ti ti-lock-open"></i> باز کردن قفل
+                </button>
+              )
+            ) : (
+              onLock && (
+                <button className="btn btn-outline" onClick={onLock}>
+                  <i className="ti ti-lock"></i> قفل کردن
+                </button>
+              )
             )}
             <button className="btn btn-outline" onClick={onEdit}>
               <i className="ti ti-edit"></i> ویرایش
@@ -75,7 +90,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
               برچسب‌های مرتبط ({relatedRecords.length})
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {relatedRecords.map((rel: any) => (
+              {relatedRecords.map((rel: RecordItem) => (
                 <div
                   key={rel.code}
                   onClick={() => onNavigateToRelated(rel)}

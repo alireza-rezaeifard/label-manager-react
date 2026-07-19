@@ -1,19 +1,20 @@
 import { useCallback } from 'react';
 import { api } from '../utils/api';
+import type { Workspace, AuthUserOrNull } from '../types';
 
 interface WorkspaceDeps {
   serverMode: boolean;
   currentWorkspaceId: number | null;
-  workspaces: any[];
+  workspaces: Workspace[];
   setServerMode: (m: boolean) => void;
-  setAuthUser: (u: any) => void;
+  setAuthUser: (u: AuthUserOrNull) => void;
   setLocalMode: (m: boolean) => void;
-  setWorkspaces: (ws: any[] | ((prev: any[]) => any[])) => void;
+  setWorkspaces: (ws: Workspace[] | ((prev: Workspace[]) => Workspace[])) => void;
   setCurrentWorkspaceId: (id: number | null) => void;
   setServerLoading: (l: boolean) => void;
   setSelected: (s: Set<number>) => void;
   setTab: (t: string) => void;
-  addToast: (...args: any[]) => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
   invalidateCache: (pattern?: string) => void;
   fetchedRef: React.MutableRefObject<boolean>;
 }
@@ -26,7 +27,7 @@ export function useWorkspace(deps: WorkspaceDeps) {
     invalidateCache, fetchedRef,
   } = deps;
 
-  const handleLogin = useCallback((user: any) => {
+  const handleLogin = useCallback((user: AuthUserOrNull) => {
     if (user === null) {
       setLocalMode(true);
       localStorage.setItem('local_mode', 'true');
@@ -86,11 +87,11 @@ export function useWorkspace(deps: WorkspaceDeps) {
   const handleCreateWorkspace = useCallback(async (name: string, description: string) => {
     try {
       const ws = await api.createWorkspace(name, description);
-      setWorkspaces((prev: any[]) => [...prev, ws]);
+      setWorkspaces((prev: Workspace[]) => [...prev, ws]);
       handleWorkspaceSwitch(ws.id);
       addToast(`فضای کاری "${name}" ایجاد شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : 'خطا در ایجاد فضای کاری', 'error');
     }
   }, [setWorkspaces, handleWorkspaceSwitch, addToast]);
 
@@ -98,38 +99,38 @@ export function useWorkspace(deps: WorkspaceDeps) {
     try {
       await api.inviteToWorkspace(wsId, username);
       addToast(`کاربر "${username}" دعوت شد`, 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : 'خطا در دعوت کاربر', 'error');
     }
   }, [addToast]);
 
   const handleLeaveWorkspace = useCallback(async (wsId: number) => {
     try {
       await api.leaveWorkspace(wsId);
-      setWorkspaces((prev: any[]) => prev.filter((w: any) => w.id !== wsId));
-      const remaining = workspaces.filter((w: any) => w.id !== wsId);
+      setWorkspaces((prev: Workspace[]) => prev.filter((w: Workspace) => w.id !== wsId));
+      const remaining = workspaces.filter((w: Workspace) => w.id !== wsId);
       if (remaining.length > 0) {
         handleWorkspaceSwitch(remaining[0].id);
       }
       addToast('خروج از فضای کاری با موفقیت انجام شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : 'خطا در خروج از فضای کاری', 'error');
     }
   }, [workspaces, setWorkspaces, handleWorkspaceSwitch, addToast]);
 
   const handleDeleteWorkspace = useCallback(async (wsId: number) => {
     try {
       await api.deleteWorkspace(wsId);
-      setWorkspaces((prev: any[]) => prev.filter((w: any) => w.id !== wsId));
-      const remaining = workspaces.filter((w: any) => w.id !== wsId);
+      setWorkspaces((prev: Workspace[]) => prev.filter((w: Workspace) => w.id !== wsId));
+      const remaining = workspaces.filter((w: Workspace) => w.id !== wsId);
       if (remaining.length > 0) {
         handleWorkspaceSwitch(remaining[0].id);
       } else {
         setCurrentWorkspaceId(null);
       }
       addToast('فضای کاری حذف شد', 'success');
-    } catch (err: any) {
-      addToast(err.message, 'error');
+    } catch (err: unknown) {
+      addToast(err instanceof Error ? err.message : 'خطا در حذف فضای کاری', 'error');
     }
   }, [workspaces, setWorkspaces, handleWorkspaceSwitch, setCurrentWorkspaceId, addToast]);
 

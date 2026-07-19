@@ -3,6 +3,9 @@ import db from '../db.js';
 import { authMiddleware, requireWorkspaceRole, requireRecordWorkspaceRole } from '../middleware/auth.js';
 import { broadcastToWorkspace } from '../ws.js';
 import { AppError, asyncHandler } from '../errors.js';
+import { sanitize, sanitizeObject } from '../utils/sanitize.js';
+import { triggerWebhooks } from '../utils/webhooks.js';
+import { notifyWorkspace } from '../utils/notifications.js';
 
 const ROLE_HIERARCHY = { owner: 10, admin: 8, editor: 5, viewer: 1 };
 
@@ -37,7 +40,7 @@ function saveRecordVersion(userId, record, workspaceId, summary) {
 
 router.get('/', asyncHandler((req, res) => {
   const {
-    page = 1,
+    cursor,
     limit = 50,
     search = '',
     sortBy = 'created_at',
@@ -47,9 +50,7 @@ router.get('/', asyncHandler((req, res) => {
     workspace_id: filterWorkspace = '',
   } = req.query;
 
-  const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.min(200, Math.max(1, parseInt(limit, 10) || 50));
-  const offset = (pageNum - 1) * limitNum;
+  const limitNum = Math.min(10000, Math.max(1, parseInt(limit, 10) || 50));
 
   const allowedSortFields = ['code', 'project', 'type', 'date', 'party', 'amount', 'created_at', 'updated_at', 'sort_order'];
   const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
@@ -65,20 +66,28 @@ router.get('/', asyncHandler((req, res) => {
     ).all(wsId).map(m => m.user_id);
 
     if (memberIds.length > 0) {
-      where = `WHERE workspace_id = ? AND user_id IN (${memberIds.map(() => '?').join(',')})`;
+      where = `WHERE workspace_id = ? AND user_id IN (${memberIds.map(() => '?').join(',')}) AND deleted_at IS NULL`;
       params.push(wsId, ...memberIds);
     } else {
       where = 'WHERE 1=0';
     }
   } else {
-    where = 'WHERE user_id = ?';
+    where = 'WHERE user_id = ? AND deleted_at IS NULL';
     params.push(req.user.id);
   }
 
   if (search) {
-    where += ' AND (code LIKE ? OR project LIKE ? OR type LIKE ? OR party LIKE ? OR amount LIKE ?)';
-    const q = `%${search}%`;
-    params.push(q, q, q, q, q);
+    try {
+      const ftsQ = search.replace(/['"]/g, '').trim();
+      if (ftsQ) {
+        where += ' AND records.id IN (SELECT rowid FROM records_fts WHERE records_fts MATCH ?)';
+        params.push(ftsQ);
+      }
+    } catch {
+      where += ' AND (code LIKE ? OR project LIKE ? OR type LIKE ? OR party LIKE ? OR amount LIKE ?)';
+      const q = `%${search}%`;
+      params.push(q, q, q, q, q);
+    }
   }
 
   if (filterType) {
@@ -91,19 +100,35 @@ router.get('/', asyncHandler((req, res) => {
     params.push(filterParty);
   }
 
+  // Cursor-based pagination (keyset pagination on created_at)
+  if (cursor) {
+    where += ' AND created_at < ?';
+    params.push(cursor);
+  }
+
+  // Default sort: sort_order ASC, created_at DESC for stable listing
+  let orderClause;
+  if (sortBy === 'created_at' && sortOrder === 'desc') {
+    orderClause = 'sort_order ASC, created_at DESC';
+  } else {
+    orderClause = `${safeSortBy} ${safeSortOrder}`;
+  }
+
   const countResult = db.prepare(`SELECT COUNT(*) as total FROM records ${where}`).get(...params);
   const total = countResult.total;
 
   const records = db.prepare(
-    `SELECT * FROM records ${where} ORDER BY ${safeSortBy} ${safeSortOrder} LIMIT ? OFFSET ?`
-  ).all(...params, limitNum, offset);
+    `SELECT * FROM records ${where} ORDER BY ${orderClause} LIMIT ?`
+  ).all(...params, limitNum);
+
+  const nextCursor = records.length > 0 ? records[records.length - 1].created_at : null;
 
   res.json({
     records: records.map(parseRecord),
     total,
-    page: pageNum,
+    nextCursor,
+    page: 1,
     limit: limitNum,
-    totalPages: Math.ceil(total / limitNum),
   });
 }));
 
@@ -117,11 +142,11 @@ router.get('/all', asyncHandler((req, res) => {
   let total;
   if (workspace_id) {
     const wsId = parseInt(workspace_id, 10);
-    total = db.prepare('SELECT COUNT(*) as c FROM records WHERE workspace_id = ?').get(wsId).c;
-    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(wsId, limitNum, offset);
+    total = db.prepare('SELECT COUNT(*) as c FROM records WHERE workspace_id = ? AND deleted_at IS NULL').get(wsId).c;
+    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(wsId, limitNum, offset);
   } else {
-    total = db.prepare('SELECT COUNT(*) as c FROM records WHERE user_id = ?').get(req.user.id).c;
-    records = db.prepare('SELECT * FROM records WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?').all(req.user.id, limitNum, offset);
+    total = db.prepare('SELECT COUNT(*) as c FROM records WHERE user_id = ? AND deleted_at IS NULL').get(req.user.id).c;
+    records = db.prepare('SELECT * FROM records WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(req.user.id, limitNum, offset);
   }
   res.json({ records: records.map(parseRecord), total, page: pageNum, limit: limitNum, totalPages: Math.ceil(total / limitNum) });
 }));
@@ -132,16 +157,17 @@ router.get('/check-code', asyncHandler((req, res) => {
 
   let existing;
   if (excludeId) {
-    existing = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND user_id = ?').get(code, excludeId, req.user.id);
+    existing = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND user_id = ? AND deleted_at IS NULL').get(code, excludeId, req.user.id);
   } else {
-    existing = db.prepare('SELECT id FROM records WHERE code = ? AND user_id = ?').get(code, req.user.id);
+    existing = db.prepare('SELECT id FROM records WHERE code = ? AND user_id = ? AND deleted_at IS NULL').get(code, req.user.id);
   }
 
   res.json({ exists: !!existing, code });
 }));
 
 router.post('/', asyncHandler((req, res) => {
-  const { code, project, type, date, party, amount, related, tags, image, color, workspace_id } = req.body;
+  const body = sanitizeObject(req.body);
+  const { code, project, type, date, party, amount, related, tags, image, color, workspace_id } = body;
   if (!code || !code.trim()) throw new AppError('Code is required', 400, 'MISSING_CODE');
   if (!project || !project.trim()) throw new AppError('Project is required', 400, 'MISSING_PROJECT');
 
@@ -176,12 +202,15 @@ router.post('/', asyncHandler((req, res) => {
   saveRecordVersion(req.user.id, record, wsId, `ایجاد رکورد ${code}`);
   logActivity(req.user.id, 'create', `Created record ${code}`, record.id, wsId);
   broadcastToWorkspace(wsId, 'record:created', parseRecord(record));
+  triggerWebhooks(wsId, 'record:created', parseRecord(record));
+  notifyWorkspace(wsId, 'record:created', parseRecord(record), req.user.id);
   res.status(201).json(parseRecord(record));
 }));
 
 router.put('/:id', asyncHandler((req, res) => {
   const { id } = req.params;
-  const { code, project, type, date, party, amount, related, tags, image, color } = req.body;
+  const body = sanitizeObject(req.body);
+  const { code, project, type, date, party, amount, related, tags, image, color, notes } = body;
 
   const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
   if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
@@ -205,7 +234,7 @@ router.put('/:id', asyncHandler((req, res) => {
   db.prepare(
     `UPDATE records SET
       code=?, project=?, type=?, date=?, party=?, amount=?,
-      related=?, tags=?, image=?, color=?, updated_at=datetime('now')
+      related=?, tags=?, image=?, color=?, notes=?, updated_at=datetime('now')
      WHERE id=?`
   ).run(
     code ?? existing.code,
@@ -218,12 +247,15 @@ router.put('/:id', asyncHandler((req, res) => {
     JSON.stringify(tags ?? JSON.parse(existing.tags || '[]')),
     image ?? existing.image,
     color ?? existing.color,
+    notes ?? existing.notes ?? '',
     id
   );
 
   const record = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
   logActivity(req.user.id, 'update', `Updated record ${record.code}`, record.id);
   broadcastToWorkspace(record.workspace_id, 'record:updated', parseRecord(record));
+  triggerWebhooks(record.workspace_id, 'record:updated', parseRecord(record));
+  notifyWorkspace(record.workspace_id, 'record:updated', parseRecord(record), req.user.id);
   res.json(parseRecord(record));
 }));
 
@@ -247,14 +279,160 @@ router.delete('/batch', asyncHandler((req, res) => {
 
   const placeholders = ids.map(() => '?').join(',');
   const result = db.prepare(
-    `DELETE FROM records WHERE id IN (${placeholders})`
+    `UPDATE records SET deleted_at = datetime('now') WHERE id IN (${placeholders}) AND deleted_at IS NULL`
   ).run(...ids);
 
-  logActivity(req.user.id, 'delete', `Deleted ${result.changes} records`);
+  logActivity(req.user.id, 'trash', `Moved ${result.changes} records to trash`);
   for (const r of records) {
     broadcastToWorkspace(r.workspace_id, 'record:deleted', { id: r.id, code: r.code });
+    triggerWebhooks(r.workspace_id, 'record:deleted', { id: r.id, code: r.code });
+    notifyWorkspace(r.workspace_id, 'record:deleted', { id: r.id, code: r.code }, req.user.id);
   }
   res.json({ deleted: result.changes });
+}));
+
+router.get('/trash', asyncHandler((req, res) => {
+  const { workspace_id } = req.query;
+  let records;
+  if (workspace_id) {
+    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC').all(workspace_id);
+  } else {
+    records = db.prepare('SELECT * FROM records WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC').all(req.user.id);
+  }
+  res.json(records.map(parseRecord));
+}));
+
+router.post('/trash/restore', asyncHandler((req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new AppError('ids array required', 400, 'MISSING_IDS');
+  }
+
+  const placeholders = ids.map(() => '?').join(',');
+  const result = db.prepare(
+    `UPDATE records SET deleted_at = NULL WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL`
+  ).run(...ids);
+
+  logActivity(req.user.id, 'restore', `Restored ${result.changes} records from trash`);
+  res.json({ restored: result.changes });
+}));
+
+router.delete('/trash/permanent', asyncHandler((req, res) => {
+  const { ids } = req.body;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    throw new AppError('ids array required', 400, 'MISSING_IDS');
+  }
+
+  const records = db.prepare(`SELECT * FROM records WHERE id IN (${ids.map(() => '?').join(',')}) AND deleted_at IS NOT NULL`).all(...ids);
+
+  const placeholders = ids.map(() => '?').join(',');
+  const result = db.prepare(
+    `DELETE FROM records WHERE id IN (${placeholders}) AND deleted_at IS NOT NULL`
+  ).run(...ids);
+
+  logActivity(req.user.id, 'permanent_delete', `Permanently deleted ${result.changes} records`);
+  for (const r of records) {
+    broadcastToWorkspace(r.workspace_id, 'record:deleted', { id: r.id, code: r.code });
+    triggerWebhooks(r.workspace_id, 'record:deleted', { id: r.id, code: r.code });
+    notifyWorkspace(r.workspace_id, 'record:deleted', { id: r.id, code: r.code }, req.user.id);
+  }
+  res.json({ deleted: result.changes });
+}));
+
+router.post('/import-url', asyncHandler(async (req, res) => {
+  const { url, workspace_id } = req.body;
+  if (!url || typeof url !== 'string') throw new AppError('URL is required', 400, 'MISSING_URL');
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    throw new AppError('Invalid URL format', 400, 'INVALID_URL');
+  }
+
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new AppError('Only http and https URLs are allowed', 400, 'INVALID_URL');
+  }
+
+  const wsId = workspace_id || 1;
+  const roleInfo = db.prepare(
+    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
+  ).get(wsId, req.user.id);
+
+  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
+  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
+    throw new AppError('Importing requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
+  }
+
+  let response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(30000) });
+  } catch {
+    throw new AppError('Failed to fetch URL', 400, 'FETCH_FAILED');
+  }
+
+  if (!response.ok) {
+    throw new AppError(`Remote server returned ${response.status}`, 400, 'REMOTE_ERROR');
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+
+  if (contentType.includes('sheet') || contentType.includes('excel') || url.match(/\.xlsx?$/i)) {
+    throw new AppError('Excel import from URL is not supported yet. Please download the file and upload it directly.', 400, 'EXCEL_NOT_SUPPORTED');
+  }
+
+  const text = await response.text();
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) throw new AppError('File is empty', 400, 'EMPTY_FILE');
+
+  function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (inQuotes) {
+        if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+        else if (ch === '"') { inQuotes = false; }
+        else { current += ch; }
+      } else {
+        if (ch === '"') { inQuotes = true; }
+        else if (ch === ',') { result.push(current); current = ''; }
+        else { current += ch; }
+      }
+    }
+    result.push(current);
+    return result;
+  }
+
+  const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+  const fieldMap = { code: 'code', project: 'project', type: 'type', date: 'date', party: 'party', amount: 'amount', related: 'related', tags: 'tags' };
+
+  const records = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCSVLine(lines[i]);
+    const row = {};
+    headers.forEach((h, idx) => {
+      const field = fieldMap[h] || h;
+      row[field] = (values[idx] || '').trim();
+    });
+
+    if (!row.code && !row.project) continue;
+
+    records.push({
+      code: row.code || '',
+      project: row.project || '',
+      type: row.type || '',
+      date: row.date || '',
+      party: row.party || '',
+      amount: row.amount || '',
+      related: row.related ? row.related.split(';').map(s => s.trim()).filter(Boolean) : [],
+      tags: row.tags ? row.tags.split(';').map(s => s.trim()).filter(Boolean) : [],
+    });
+  }
+
+  logActivity(req.user.id, 'import_url', `Imported ${records.length} records from URL`, null, wsId);
+  res.json({ records, total: records.length });
 }));
 
 router.post('/reorder', asyncHandler((req, res) => {
@@ -326,9 +504,9 @@ router.get('/backup', asyncHandler((req, res) => {
   const { workspace_id } = req.query;
   let records;
   if (workspace_id) {
-    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? ORDER BY created_at ASC').all(workspace_id);
+    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at ASC').all(workspace_id);
   } else {
-    records = db.prepare('SELECT * FROM records WHERE user_id = ? ORDER BY created_at ASC').all(req.user.id);
+    records = db.prepare('SELECT * FROM records WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC').all(req.user.id);
   }
   res.json(records.map(parseRecord));
 }));
@@ -368,6 +546,50 @@ router.post('/restore', asyncHandler((req, res) => {
   logActivity(req.user.id, 'restore', `Restored ${records.length} records`, null, wsId);
   broadcastToWorkspace(wsId, 'records:restored', { workspace_id: wsId });
   res.json({ ok: true, count: records.length });
+}));
+
+router.post('/:id/favorite', asyncHandler((req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
+
+  const newFav = existing.is_favorite ? 0 : 1;
+  db.prepare('UPDATE records SET is_favorite = ?, updated_at = datetime(\'now\') WHERE id = ?').run(newFav, id);
+
+  const record = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  broadcastToWorkspace(record.workspace_id, 'record:updated', parseRecord(record));
+  res.json(parseRecord(record));
+}));
+
+router.post('/:id/lock', asyncHandler((req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
+
+  if (existing.locked_by && existing.locked_by !== req.user.id) {
+    const locker = db.prepare('SELECT username FROM users WHERE id = ?').get(existing.locked_by);
+    throw new AppError(`Record is locked by ${locker?.username || 'another user'}`, 409, 'RECORD_LOCKED');
+  }
+
+  db.prepare('UPDATE records SET locked_by = ?, locked_at = datetime(\'now\') WHERE id = ?').run(req.user.id, id);
+  const record = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  broadcastToWorkspace(record.workspace_id, 'record:locked', { id: record.id, locked_by: req.user.id });
+  res.json(parseRecord(record));
+}));
+
+router.post('/:id/unlock', asyncHandler((req, res) => {
+  const { id } = req.params;
+  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
+
+  if (existing.locked_by && existing.locked_by !== req.user.id) {
+    throw new AppError('Only the lock owner can unlock', 403, 'FORBIDDEN');
+  }
+
+  db.prepare('UPDATE records SET locked_by = NULL, locked_at = NULL WHERE id = ?').run(id);
+  const record = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
+  broadcastToWorkspace(record.workspace_id, 'record:unlocked', { id: record.id });
+  res.json(parseRecord(record));
 }));
 
 router.get('/:id/versions', asyncHandler((req, res) => {

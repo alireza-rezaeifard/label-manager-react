@@ -1,20 +1,13 @@
 import { memo, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
+import SearchHighlight from '../utils/SearchHighlight';
 import type { RecordItem, CustomField } from '../types';
-
-interface CheckboxProps {
-  checked: boolean;
-  onChange: () => void;
-}
-
-function Checkbox({ checked, onChange }: CheckboxProps) {
-  return (
-    <div className={`custom-checkbox ${checked ? 'checked' : ''}`} onClick={onChange}>
-      {checked && <i className="ti ti-check" style={{ fontSize: 12 }}></i>}
-    </div>
-  );
-}
+import { Eye, Pencil, Star, Lock } from 'lucide-react';
 
 interface RecordCardProps {
   record: RecordItem;
@@ -22,6 +15,7 @@ interface RecordCardProps {
   onToggle: () => void;
   onEdit: () => void;
   onView: () => void;
+  onToggleFavorite?: () => void;
   getRelatedLabels?: (related: string[]) => { code: string }[];
   index: number;
   onDragStart?: (e: React.DragEvent) => void;
@@ -30,9 +24,10 @@ interface RecordCardProps {
   onDrop?: (e: React.DragEvent) => void;
   onInlineEdit?: (index: number, field: string, value: string) => void;
   customFields?: CustomField[];
+  searchQuery?: string;
 }
 
-function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [] }: RecordCardProps) {
+function RecordCard({ record, selected, onToggle, onEdit, onView, onToggleFavorite, getRelatedLabels, index, onDragStart, onDragOver, onDragEnd, onDrop, onInlineEdit, customFields = [], searchQuery = '' }: RecordCardProps) {
   const relatedLabels = getRelatedLabels ? getRelatedLabels(record.related) : [];
   const [editField, setEditField] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
@@ -45,7 +40,12 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
   }, [editField, editValue, index, onInlineEdit]);
 
   return (
-    <div
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.2 }}
+      whileHover={{ y: -4 }}
       className={`label-card ${selected ? 'selected' : ''} fade-in`}
       onClick={onToggle}
       draggable
@@ -58,12 +58,34 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
         <div style={{ height: 4, background: record.color }} />
       )}
       <div className="label-card-header">
-        <div className="d-flex align-items-center gap-2">
-          <Checkbox checked={selected} onChange={onToggle} />
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={selected}
+            onCheckedChange={onToggle}
+          />
           <span className={`code-badge ${selected ? '' : 'bg-light text-muted'}`} style={record.color && !selected ? { borderLeft: `3px solid ${record.color}` } : {}}>
-            {record.code || '—'}
+            {record.code ? <SearchHighlight text={record.code} query={searchQuery} /> : '—'}
           </span>
+          {record.locked_by && (
+            <Lock className="h-3.5 w-3.5 text-warning" title={`قفل شده توسط ${record.locked_by}`} />
+          )}
         </div>
+        {onToggleFavorite && (
+          <button
+            onClick={(e: React.MouseEvent) => { e.stopPropagation(); onToggleFavorite(); }}
+            title={record.is_favorite ? 'حذف از علاقهمندیها' : 'افزودن به علاقهمندیها'}
+            className="bg-transparent border-none p-1 cursor-pointer transition-transform hover:scale-110"
+          >
+            <Star
+              className="h-4.5 w-4.5"
+              fill={record.is_favorite ? '#f59e0b' : 'none'}
+              style={{
+                color: record.is_favorite ? '#f59e0b' : 'var(--text-color)',
+                opacity: record.is_favorite ? 1 : 0.3,
+              }}
+            />
+          </button>
+        )}
       </div>
       <div className="label-card-body">
         <div className="label-fields-grid">
@@ -79,56 +101,46 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, getRelatedLabe
                   onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 />
               ) : (
-                <span className="label-field-value">{f.key === 'amount' ? formatAmount((record as any)[f.key]) : ((record as any)[f.key] || '—')}</span>
+                <span className="label-field-value">{f.key === 'amount' ? formatAmount((record as any)[f.key]) : (f.key === 'project' || f.key === 'party' ? <SearchHighlight text={((record as any)[f.key] || '—')} query={searchQuery} /> : ((record as any)[f.key] || '—'))}</span>
               )}
             </div>
           ))}
         </div>
         {relatedLabels.length > 0 && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-            <span className="label-field-key" style={{ display: 'block', marginBottom: '0.5rem' }}>مرتبط با:</span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+          <div className="mt-4 pt-4 border-t border-border">
+            <span className="label-field-key block mb-2">مرتبط با:</span>
+            <div className="flex flex-wrap gap-1.5">
               {relatedLabels.map(label => (
-                <span
-                  key={label.code}
-                  style={{
-                    padding: '0.25rem 0.6rem', background: 'rgba(115, 103, 240, 0.1)',
-                    color: 'var(--primary)', borderRadius: 6, fontSize: '0.75rem',
-                    fontFamily: 'monospace',
-                  }}
-                >
+                <Badge key={label.code} variant="default" className="font-mono text-xs">
                   {label.code}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
         )}
         {record.tags && record.tags.length > 0 && (
-          <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+          <div className="mt-4 pt-4 border-t border-border">
+            <div className="flex flex-wrap gap-1.5">
               {record.tags.map(tag => (
-                <span key={tag} style={{
-                  padding: '0.2rem 0.6rem', background: 'rgba(40, 199, 111, 0.12)',
-                  color: 'var(--success)', borderRadius: 12, fontSize: '0.7rem',
-                }}>
+                <Badge key={tag} variant="success" className="text-xs">
                   {tag}
-                </span>
+                </Badge>
               ))}
             </div>
           </div>
         )}
       </div>
       <div className="label-card-footer">
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); onView(); }}>
-            <i className="ti ti-eye"></i> مشاهده
-          </button>
-          <button className="btn btn-outline btn-sm" style={{ flex: 1 }} onClick={(e: React.MouseEvent) => { e.stopPropagation(); onEdit(); }}>
-            <i className="ti ti-edit"></i> ویرایش
-          </button>
+        <div className="label-card-actions">
+          <Button variant="outline" className="label-card-btn" onClick={(e: React.MouseEvent) => { e.stopPropagation(); onView(); }}>
+            <Eye /> مشاهده
+          </Button>
+          <Button variant="default" className="label-card-btn" onClick={(e: React.MouseEvent) => { e.stopPropagation(); onEdit(); }}>
+            <Pencil /> ویرایش
+          </Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

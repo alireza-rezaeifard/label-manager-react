@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as exportUtils from '../utils/exporters';
 import { FIELDS } from '../data/fields';
 import type { Record } from '../types';
+import { Printer, Plus, X, Play, Loader2, Check, AlertCircle, Trash2, PrinterOff } from 'lucide-react';
 
 const QUEUE_KEY = 'label-studio-print-queue';
 
@@ -104,7 +105,7 @@ export default function PrintQueue({
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: 550 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <i className="ti ti-printer"></i> صف چاپ
+            <Printer className="h-5 w-5" /> صف چاپ
             {pendingCount > 0 && (
               <span style={{ background: 'var(--primary)', color: 'white', fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: 10 }}>
                 {pendingCount}
@@ -114,16 +115,16 @@ export default function PrintQueue({
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             {hasSelected && (
               <button className="btn btn-primary btn-sm" onClick={addToQueue}>
-                <i className="ti ti-plus"></i> افزودن به صف
+                <Plus className="h-3.5 w-3.5" /> افزودن به صف
               </button>
             )}
-            <i className="ti ti-x" style={{ cursor: 'pointer', fontSize: '1.5rem' }} onClick={onClose}></i>
+            <X className="h-5 w-5 cursor-pointer" onClick={onClose} />
           </div>
         </div>
 
         {queue.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>
-            <i className="ti ti-printer-off" style={{ fontSize: '2rem', marginBottom: '1rem', display: 'block' }}></i>
+            <PrinterOff className="h-8 w-8 mx-auto mb-3" />
             <p>صف چاپ خالی است</p>
             <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>رکوردها را انتخاب کنید و به صف اضافه نمایید</p>
           </div>
@@ -137,12 +138,12 @@ export default function PrintQueue({
                   border: '1px solid var(--border-color)', borderRadius: 12,
                 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{job.name}</div>
-                    <div style={{ fontSize: '0.8rem', opacity: 0.6, marginTop: '0.25rem' }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{job.name}</div>
+                    <div style={{ fontSize: '0.75rem', opacity: 0.6, marginTop: '0.25rem' }}>
                       {job.count} رکورد • {job.createdAt}
                     </div>
                     {job.status === 'error' && job.error && (
-                      <div style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '0.25rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: '0.25rem' }}>
                         {job.error}
                       </div>
                     )}
@@ -150,26 +151,26 @@ export default function PrintQueue({
                   <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                     {job.status === 'pending' && (
                       <button className="btn btn-primary btn-sm" onClick={() => processJob(job.id)}>
-                        <i className="ti ti-player-play"></i> چاپ
+                        <Play className="h-3.5 w-3.5" /> چاپ
                       </button>
                     )}
                     {job.status === 'processing' && (
-                      <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>
-                        <i className="ti ti-loader" style={{ animation: 'spin 1s linear infinite' }}></i> در حال چاپ...
+                      <span style={{ fontSize: '0.85rem', opacity: 0.6 }} className="flex items-center gap-1">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> در حال چاپ...
                       </span>
                     )}
                     {job.status === 'complete' && (
-                      <span style={{ color: 'var(--success)', fontSize: '0.85rem' }}>
-                        <i className="ti ti-check"></i> انجام شد
+                      <span style={{ color: 'var(--success)', fontSize: '0.85rem' }} className="flex items-center gap-1">
+                        <Check className="h-3.5 w-3.5" /> انجام شد
                       </span>
                     )}
                     {job.status === 'error' && (
-                      <span style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>
-                        <i className="ti ti-alert-circle"></i> خطا
+                      <span style={{ color: 'var(--danger)', fontSize: '0.85rem' }} className="flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5" /> خطا
                       </span>
                     )}
-                    <i className="ti ti-trash" style={{ cursor: 'pointer', opacity: 0.4, fontSize: '1.1rem' }}
-                      onClick={() => removeJob(job.id)}></i>
+                    <Trash2 className="h-4 w-4 cursor-pointer opacity-40 hover:opacity-80 transition-opacity"
+                      onClick={() => removeJob(job.id)} />
                   </div>
                 </div>
               ))}
@@ -178,7 +179,7 @@ export default function PrintQueue({
               <span style={{ fontSize: '0.85rem', opacity: 0.6 }}>مجموع: {queue.length} کار</span>
               {queue.some(j => j.status === 'complete' || j.status === 'error') && (
                 <button className="btn btn-outline btn-sm" onClick={clearCompleted}>
-                  <i className="ti ti-trash"></i> پاک کردن انجام شده‌ها
+                  <Trash2 className="h-3.5 w-3.5" /> پاک کردن انجام شدهها
                 </button>
               )}
             </div>

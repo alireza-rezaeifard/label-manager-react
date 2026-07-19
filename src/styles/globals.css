@@ -1,0 +1,124 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Tailwind v4 theme tokens — mapped to the existing CSS custom properties
+ * defined in src/styles/main.css so all legacy classes continue to work
+ * while new shadcn/ui components get proper Tailwind colour utilities.
+ */
+
+@theme {
+  /* ── Colors ─────────────────────────────────────────────────────── */
+  --color-background: var(--bg-body);
+  --color-foreground: var(--text-color);
+
+  --color-card: var(--card-bg);
+  --color-card-foreground: var(--text-color);
+
+  --color-popover: var(--card-bg);
+  --color-popover-foreground: var(--text-color);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: #ffffff;
+  --color-primary-hover: var(--primary-hover);
+
+  --color-secondary: var(--hover-bg);
+  --color-secondary-foreground: var(--text-color);
+
+  --color-muted: var(--hover-bg);
+  --color-muted-foreground: var(--text-color);
+
+  --color-accent: var(--hover-bg);
+  --color-accent-foreground: var(--text-color);
+
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: #ffffff;
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+
+  --color-border: var(--border-color);
+  --color-input: var(--border-color);
+  --color-ring: var(--primary);
+
+  --color-sidebar: var(--sidebar-bg);
+  --color-sidebar-foreground: var(--text-color);
+  --color-sidebar-border: var(--border-color);
+
+  /* ── Radius ─────────────────────────────────────────────────────── */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  /* ── Font families ───────────────────────────────────────────────── */
+  --font-sans: 'Vazirmatn', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+
+  /* ── Animations ──────────────────────────────────────────────────── */
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+}
+
+@keyframes accordion-down {
+  from { height: 0; }
+  to { height: var(--radix-accordion-content-height); }
+}
+
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); }
+  to { height: 0; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin {
+  animation: spin 0.8s linear infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+
+/* Smooth scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}

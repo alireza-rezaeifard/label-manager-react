@@ -98,6 +98,17 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    key TEXT UNIQUE NOT NULL,
+    name TEXT DEFAULT '',
+    workspace_id INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    expires_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
   CREATE TABLE IF NOT EXISTS custom_fields (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     workspace_id INTEGER DEFAULT 1,
@@ -110,6 +121,26 @@ db.exec(`
     sort_order INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     UNIQUE(workspace_id, key),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
+  );
+  CREATE TABLE IF NOT EXISTS notification_preferences (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER UNIQUE NOT NULL,
+    email TEXT DEFAULT '',
+    on_create INTEGER DEFAULT 0,
+    on_update INTEGER DEFAULT 0,
+    on_delete INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS webhooks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workspace_id INTEGER,
+    url TEXT NOT NULL,
+    events TEXT DEFAULT '["record:created","record:updated","record:deleted"]',
+    secret TEXT DEFAULT '',
+    active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id)
   );
 `);
@@ -125,12 +156,74 @@ function ensureColumn(table, column, definition) {
 ensureColumn('records', 'workspace_id', 'workspace_id INTEGER DEFAULT 1');
 ensureColumn('records', 'tags', "tags TEXT DEFAULT '[]'");
 ensureColumn('records', 'sort_order', 'sort_order INTEGER DEFAULT 0');
+ensureColumn('records', 'deleted_at', "deleted_at TEXT DEFAULT NULL");
+ensureColumn('records', 'is_favorite', "is_favorite INTEGER DEFAULT 0");
+ensureColumn('records', 'notes', "notes TEXT DEFAULT ''");
+ensureColumn('records', 'locked_by', "locked_by INTEGER DEFAULT NULL");
+ensureColumn('records', 'locked_at', "locked_at TEXT DEFAULT NULL");
 
-const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_records_code ON records(code);
+  CREATE INDEX IF NOT EXISTS idx_records_project ON records(project);
+  CREATE INDEX IF NOT EXISTS idx_records_type ON records(type);
+  CREATE INDEX IF NOT EXISTS idx_records_date ON records(date);
+  CREATE INDEX IF NOT EXISTS idx_records_party ON records(party);
+  CREATE INDEX IF NOT EXISTS idx_records_workspace_id ON records(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_records_user_id ON records(user_id);
+  CREATE INDEX IF NOT EXISTS idx_records_sort_order ON records(sort_order);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_workspace_id ON activity_log(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON activity_log(user_id);
+  CREATE INDEX IF NOT EXISTS idx_record_versions_record_id ON record_versions(record_id);
+  CREATE INDEX IF NOT EXISTS idx_workspace_members_workspace_id ON workspace_members(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_workspace_members_user_id ON workspace_members(user_id);
+  CREATE INDEX IF NOT EXISTS idx_custom_fields_workspace_id ON custom_fields(workspace_id);
+  CREATE INDEX IF NOT EXISTS idx_records_deleted_at ON records(deleted_at);
+`);
+
+// ── FTS5 full-text search ──
+try {
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
+      code, project, type, party, amount,
+      content='records',
+      content_rowid='id',
+      tokenize='unicode61 remove_diacritics 2'
+    );
+    CREATE TRIGGER IF NOT EXISTS records_fts_insert AFTER INSERT ON records BEGIN
+      INSERT INTO records_fts(rowid, code, project, type, party, amount)
+      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+    END;
+    CREATE TRIGGER IF NOT EXISTS records_fts_update AFTER UPDATE ON records BEGIN
+      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+      INSERT INTO records_fts(rowid, code, project, type, party, amount)
+      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+    END;
+    CREATE TRIGGER IF NOT EXISTS records_fts_delete AFTER DELETE ON records BEGIN
+      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+    END;
+  `);
+  const ftsCount = db.prepare('SELECT COUNT(*) as c FROM records_fts').get().c;
+  const rowCount = db.prepare('SELECT COUNT(*) as c FROM records WHERE deleted_at IS NULL').get().c;
+  if (ftsCount === 0 && rowCount > 0) {
+    console.log('Populating FTS index...');
+    db.exec(`INSERT INTO records_fts(rowid, code, project, type, party, amount)
+             SELECT id, code, project, type, party, amount FROM records WHERE deleted_at IS NULL`);
+    console.log(`  ✓ FTS populated with ${rowCount} records`);
+  }
+  console.log('  ✓ FTS5 enabled');
+} catch (err) {
+  console.warn('  ⚠ FTS5 unavailable, LIKE fallback:', err.message);
+}
+
+const adminUsername = process.env.ADMIN_USERNAME || 'admin';
+const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(adminUsername);
 if (!existingUser) {
-  const hash = bcrypt.hashSync('admin123', 10);
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run('admin', hash, 'admin');
-  console.log('Default admin user created (username: admin, password: admin123)');
+  const hash = bcrypt.hashSync(adminPassword, 10);
+  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(adminUsername, hash, 'admin');
+  console.log(`Default admin user created (username: ${adminUsername})`);
   console.log('IMPORTANT: Change the password immediately after first login.');
 }
 

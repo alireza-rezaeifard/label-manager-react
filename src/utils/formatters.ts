@@ -27,19 +27,33 @@ export const getTotalAmount = (records: RecordItem[]) => {
   return total.toLocaleString('fa-IR');
 };
 
-export function parseCode(code: string): { projectNum: number; type: string; year: string; sequence: number } | null {
-  const match = code.match(/^PROJ(\d+)-([A-Za-z]+)-(\d{4})-(\d+)$/);
-  if (!match) return null;
-  return {
-    projectNum: parseInt(match[1], 10),
-    type: match[2],
-    year: match[3],
-    sequence: parseInt(match[4], 10),
-  };
+export function parseCode(code: string): { projectNum: number | null; type: string; year: string; sequence: number } | null {
+  const projMatch = code.match(/^PROJ(\d+)-([A-Za-z]+)-(\d{4})-(\d+)$/);
+  if (projMatch) {
+    return {
+      projectNum: parseInt(projMatch[1], 10),
+      type: projMatch[2],
+      year: projMatch[3],
+      sequence: parseInt(projMatch[4], 10),
+    };
+  }
+  const simpleMatch = code.match(/^([A-Za-z]+)-(\d{4})-(\d+)$/);
+  if (simpleMatch) {
+    return {
+      projectNum: null,
+      type: simpleMatch[1],
+      year: simpleMatch[2],
+      sequence: parseInt(simpleMatch[3], 10),
+    };
+  }
+  return null;
 }
 
-export function formatCode(projectNum: number, type: string, year: string, sequence: number): string {
-  const proj = String(projectNum).padStart(3, '0');
+export function formatCode(projectNum: number | null, type: string, year: string, sequence: number): string {
   const seq = String(sequence).padStart(3, '0');
-  return `PROJ${proj}-${type}-${year}-${seq}`;
+  if (projectNum !== null) {
+    const proj = String(projectNum).padStart(3, '0');
+    return `PROJ${proj}-${type}-${year}-${seq}`;
+  }
+  return `${type}-${year}-${seq}`;
 }

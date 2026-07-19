@@ -1,23 +1,24 @@
 import { useCallback } from 'react';
 import * as exportUtils from '../utils/exporters';
 import { estimatePaperCount } from '../utils/printHelpers';
+import type { RecordItem, FieldDef, CustomField, PrintHistoryEntry } from '../types';
 
 interface PrintExportDeps {
-  currentRecords: any[];
-  sortedRecords: any[];
+  currentRecords: RecordItem[];
+  sortedRecords: RecordItem[];
   selected: Set<number>;
-  allExportFields: any[];
+  allExportFields: (FieldDef | CustomField)[];
   printCols: number;
   printWidth: number;
   printHeight: number;
   printTemplate: string;
   printQr: boolean;
   printBarcode: boolean;
-  printHistory: any[];
-  sortByCode: (records: any[]) => any[];
-  setPrintHistory: (h: any[]) => void;
-  saveHistory: (h: any[]) => void;
-  addToast: (...args: any[]) => void;
+  printHistory: PrintHistoryEntry[];
+  sortByCode: (records: RecordItem[]) => RecordItem[];
+  setPrintHistory: (h: PrintHistoryEntry[]) => void;
+  saveHistory: (h: PrintHistoryEntry[]) => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 export function usePrintExport(deps: PrintExportDeps) {
@@ -27,7 +28,7 @@ export function usePrintExport(deps: PrintExportDeps) {
     printHistory, sortByCode, setPrintHistory, saveHistory, addToast,
   } = deps;
 
-  const withPrint = useCallback((entry: any) => {
+  const withPrint = useCallback((entry: PrintHistoryEntry) => {
     const updated = [entry, ...printHistory].slice(0, 50);
     setPrintHistory(updated);
     saveHistory(updated);
