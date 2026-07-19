@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import SearchableSelect from './SearchableSelect';
 import {
-  Server, Palette, Tags, ListDetails, Zap, Plus, Trash2, Pencil, Check, X,
+  Server, Palette, Tags, ListChecks, Zap, Plus, Trash2, Pencil, Check, X,
   ChevronDown, Merge, Sun, Moon, Droplet, Contrast,
 } from 'lucide-react';
 
@@ -245,7 +245,7 @@ export default function SettingsTab({
 
       {/* ── Custom Fields ── */}
       <div className="st-panel">
-        <SectionHeader numeral="IV" title="فیلدهای سفارشی" icon={ListDetails} />
+        <SectionHeader numeral="IV" title="فیلدهای سفارشی" icon={ListChecks} />
 
         {customFields.length > 0 && (
           <div className="st-fields">
