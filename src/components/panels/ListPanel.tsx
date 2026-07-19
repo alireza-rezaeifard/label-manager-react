@@ -1,6 +1,6 @@
 import React from 'react';
 import RecordsPage from '../RecordsPage';
-import type { RecordItem, CustomField } from '../../types';
+import type { RecordItem, CustomField, FilterState } from '../../types';
 
 interface ListPanelProps {
   currentRecords: RecordItem[];
@@ -48,7 +48,7 @@ interface ListPanelProps {
   onSetDragIndex: (i: number | null) => void;
   onInlineEdit: (index: number, field: string, value: string) => void;
   onToggleFavorite: (index: number) => void;
-  onApplyPreset: (filters: any) => void;
+  onApplyPreset: (filters: FilterState) => void;
   onTabChange: (t: string) => void;
   onSetViewMode: (m: string) => void;
   onSetUseVirtualScroll: (v: boolean) => void;

@@ -338,10 +338,24 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                       placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left' }} />
                   ) : f.key === "code" ? (
                     <div className="rf-code-wrap">
-                      <input type="text" className={`rf-input ${formErrors[f.key] || codeDuplicate ? 'error' : ''} ${codeChecking ? 'warning' : ''}`}
-                        value={form[f.key] as string} onChange={e => { setField(f.key, e.target.value); setCodeDuplicate(false); }}
-                        onBlur={() => handleBlur(f.key)}
-                        placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left', paddingRight: codeChecking ? '2rem' : undefined }} />
+                      {fieldSuggestions?.[f.key]?.length ? (
+                        <AutocompleteInput
+                          value={form[f.key] as string}
+                          onChange={v => { setField(f.key, v); setCodeDuplicate(false); }}
+                          onBlur={() => handleBlur(f.key)}
+                          suggestions={fieldSuggestions[f.key]}
+                          placeholder={f.placeholder || f.fa}
+                          error={(formErrors[f.key] || codeDuplicate) ? 'true' : undefined}
+                          className={`rf-input ${codeChecking ? 'warning' : ''}`}
+                          dir="ltr"
+                          style={{ paddingRight: codeChecking ? '2rem' : undefined }}
+                        />
+                      ) : (
+                        <input type="text" className={`rf-input ${formErrors[f.key] || codeDuplicate ? 'error' : ''} ${codeChecking ? 'warning' : ''}`}
+                          value={form[f.key] as string} onChange={e => { setField(f.key, e.target.value); setCodeDuplicate(false); }}
+                          onBlur={() => handleBlur(f.key)}
+                          placeholder={f.placeholder || f.fa} style={{ direction: 'ltr', textAlign: 'left', paddingRight: codeChecking ? '2rem' : undefined }} />
+                      )}
                       {codeChecking && (
                         <div className="rf-code-spinner"><LoadingSpinner size={16} /></div>
                       )}

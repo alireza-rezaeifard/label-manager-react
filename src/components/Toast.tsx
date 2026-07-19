@@ -3,8 +3,10 @@
  * Toasts are rendered by Sonner's <Toaster /> in main.tsx.
  * Kept for backward compatibility with App.tsx which still renders <Toast />.
  */
+import type { ToastType } from '../types';
+
 export default function Toast(_props: {
-  toasts: any[];
+  toasts: ToastType[];
   onRemove: (id: number) => void;
 }) {
   return null;

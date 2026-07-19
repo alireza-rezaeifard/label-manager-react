@@ -72,7 +72,7 @@ export function useRecordForm(deps: UseRecordFormDeps) {
     : currentRecords;
 
   const fieldSuggestions = useMemo(() => {
-    const textKeys = ['project', 'type', 'party'];
+    const textKeys = ['code', 'project', 'type', 'party'];
     customFields.forEach((f: CustomField) => {
       if (!f.fieldType || f.fieldType === 'text' || f.fieldType === 'string') {
         if (!textKeys.includes(f.key)) textKeys.push(f.key);

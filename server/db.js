@@ -180,6 +180,43 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_records_deleted_at ON records(deleted_at);
 `);
 
+// ── FTS5 full-text search ──
+try {
+  db.exec(`
+    CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
+      code, project, type, party, amount,
+      content='records',
+      content_rowid='id',
+      tokenize='unicode61 remove_diacritics 2'
+    );
+    CREATE TRIGGER IF NOT EXISTS records_fts_insert AFTER INSERT ON records BEGIN
+      INSERT INTO records_fts(rowid, code, project, type, party, amount)
+      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+    END;
+    CREATE TRIGGER IF NOT EXISTS records_fts_update AFTER UPDATE ON records BEGIN
+      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+      INSERT INTO records_fts(rowid, code, project, type, party, amount)
+      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+    END;
+    CREATE TRIGGER IF NOT EXISTS records_fts_delete AFTER DELETE ON records BEGIN
+      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+    END;
+  `);
+  const ftsCount = db.prepare('SELECT COUNT(*) as c FROM records_fts').get().c;
+  const rowCount = db.prepare('SELECT COUNT(*) as c FROM records WHERE deleted_at IS NULL').get().c;
+  if (ftsCount === 0 && rowCount > 0) {
+    console.log('Populating FTS index...');
+    db.exec(`INSERT INTO records_fts(rowid, code, project, type, party, amount)
+             SELECT id, code, project, type, party, amount FROM records WHERE deleted_at IS NULL`);
+    console.log(`  ✓ FTS populated with ${rowCount} records`);
+  }
+  console.log('  ✓ FTS5 enabled');
+} catch (err) {
+  console.warn('  ⚠ FTS5 unavailable, LIKE fallback:', err.message);
+}
+
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(adminUsername);

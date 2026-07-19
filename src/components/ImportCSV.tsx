@@ -14,7 +14,7 @@ interface ImportRow {
 }
 
 export default function ImportCSV({ onImport, addToast, existingRecords = [], customFields = [] }: {
-  onImport: (records: any[]) => void;
+  onImport: (records: RecordItem[]) => void;
   addToast: (msg: string, type?: ToastType['type'], duration?: number) => void;
   existingRecords: RecordItem[];
   customFields?: { key: string; fa?: string; label?: string }[];
@@ -25,7 +25,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   const [importing, setImporting] = useState(false);
   const [fileName, setFileName] = useState('');
 
-  function buildColumnMap(firstRow: Record<string, any>): Record<string, string> {
+  function buildColumnMap(firstRow: Record<string, string>): Record<string, string> {
     const map: Record<string, string> = {};
     const lookup: Record<string, string> = {};
 
@@ -48,9 +48,9 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
     return map;
   }
 
-  function remapKeys(data: any[], colMap: Record<string, string>): any[] {
+  function remapKeys(data: Record<string, string>[], colMap: Record<string, string>): Record<string, string>[] {
     return data.map(row => {
-      const mapped: Record<string, any> = {};
+      const mapped: Record<string, string> = {};
       for (const [orig, canonical] of Object.entries(colMap)) {
         if (orig in row) {
           mapped[canonical] = row[orig];
@@ -62,7 +62,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
 
   const FIELD_KEYS = new Set(FIELDS.map(f => f.key));
 
-  function validateRows(data: any[]): ImportRow[] {
+  function validateRows(data: Record<string, string>[]): ImportRow[] {
     const codesInFile = new Set<string>();
     const existingCodes = new Set(existingRecords.map(r => r.code));
     const customFieldKeys = customFields.map(f => f.key);
@@ -123,7 +123,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   function parseFile(file: File) {
     setFileName(file.name);
 
-    const onData = (raw: any[]) => {
+    const onData = (raw: Record<string, string>[]) => {
       if (raw.length === 0) {
         addToast('فایل خالی است', 'error');
         return;

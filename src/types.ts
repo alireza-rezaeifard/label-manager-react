@@ -73,9 +73,32 @@ export interface Workspace {
   description?: string;
   created_by?: number;
   member_role?: string;
+  member_count?: number;
   created_at?: string;
 }
 
+export interface AuthUser {
+  id: number;
+  username: string;
+  role?: string;
+}
+
+export interface WorkspaceMember {
+  id: number;
+  username: string;
+  user_role?: string;
+  member_role?: string;
+  joined_at?: string;
+}
+
+export type AuthUserOrNull = AuthUser | null;
+
+export interface PrintHistoryEntry {
+  date: string;
+  time: string;
+  count: number;
+  codes: string[];
+}
 export interface FilterPreset {
   id: string;
   name: string;

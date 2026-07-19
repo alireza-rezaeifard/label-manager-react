@@ -76,12 +76,12 @@ export default function ReportsTab({ records, onFilter }: Props) {
 
   const isPie = reportType !== 'monthly' && reportType !== 'amount';
 
-  const handleChartClick = useCallback((entry: any) => {
+  const handleChartClick = useCallback((entry: { name?: string; value?: number }) => {
     if (!onFilter || !entry || !entry.name) return;
     onFilter(reportType, entry.name);
   }, [onFilter, reportType]);
 
-  const handleDataPointSelection = useCallback((e: any, chartContext: any, config: any) => {
+  const handleDataPointSelection = useCallback((_e: unknown, _ctx: unknown, config: { dataPointIndex: number }) => {
     const idx = config.dataPointIndex;
     if (idx >= 0 && idx < currentData.length) {
       handleChartClick(currentData[idx]);

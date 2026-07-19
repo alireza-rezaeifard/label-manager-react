@@ -1,12 +1,13 @@
 import { useCallback } from 'react';
 import { api } from '../utils/api';
+import type { CustomField } from '../types';
 
 export function useCustomFields(
   serverMode: boolean,
   currentWorkspaceId: number | null,
-  customFields: any[],
-  setCustomFields: (f: any[] | ((prev: any[]) => any[])) => void,
-  saveCustomFields: (f: any[]) => void,
+  customFields: CustomField[],
+  setCustomFields: (f: CustomField[] | ((prev: CustomField[]) => CustomField[])) => void,
+  saveCustomFields: (f: CustomField[]) => void,
   tags: string[],
   setTags: (t: string[] | ((prev: string[]) => string[])) => void,
   saveTags: (t: string[]) => void,
@@ -17,7 +18,7 @@ export function useCustomFields(
   newFieldType: string,
   setNewFieldType: (t: string) => void,
   setSelectedTagFilter: React.Dispatch<React.SetStateAction<string | null>>,
-  addToast: (...args: any[]) => void,
+  addToast: (msg: string, type?: string) => void,
   _invalidateCache: (pattern?: string) => void,
 ) {
   const handleToggleCustomField = useCallback((key: string) => {
@@ -31,8 +32,8 @@ export function useCustomFields(
   const handleAddCustomField = useCallback(() => {
     if (!newFieldName.trim()) return;
     const key = newFieldName.trim().toLowerCase().replace(/\s+/g, '_');
-    if (customFields.some((f: any) => f.key === key)) { addToast('این فیلد قبلا اضافه شده', 'error'); return; }
-    const field: any = { key, label: newFieldName.trim(), fa: newFieldName.trim(), placeholder: '', isCustom: true, fieldType: newFieldType, options: newFieldType === 'dropdown' ? [] : undefined };
+    if (customFields.some((f) => f.key === key)) { addToast('این فیلد قبلا اضافه شده', 'error'); return; }
+    const field: CustomField = { key, label: newFieldName.trim(), fa: newFieldName.trim(), type: newFieldType, options: newFieldType === 'dropdown' ? [] : undefined };
     const updated = [...customFields, field];
     setCustomFields(updated);
     saveCustomFields(updated);
@@ -45,7 +46,7 @@ export function useCustomFields(
   }, [newFieldName, customFields, newFieldType, serverMode, currentWorkspaceId, setCustomFields, saveCustomFields, setNewFieldName, setNewFieldType, addToast]);
 
   const handleRemoveCustomField = useCallback((key: string) => {
-    const updated = customFields.filter((f: any) => f.key !== key);
+    const updated = customFields.filter((f) => f.key !== key);
     setCustomFields(updated);
     saveCustomFields(updated);
     if (serverMode) {
@@ -54,8 +55,8 @@ export function useCustomFields(
     addToast('فیلد حذف شد', 'success');
   }, [customFields, serverMode, currentWorkspaceId, setCustomFields, saveCustomFields, addToast]);
 
-  const handleEditCustomField = useCallback((key: string, updatedField: any) => {
-    const updated = customFields.map((f: any) => f.key === key ? { ...f, ...updatedField, key } : f);
+  const handleEditCustomField = useCallback((key: string, updatedField: Partial<CustomField>) => {
+    const updated = customFields.map((f) => f.key === key ? { ...f, ...updatedField, key } : f);
     setCustomFields(updated);
     saveCustomFields(updated);
     if (serverMode) {

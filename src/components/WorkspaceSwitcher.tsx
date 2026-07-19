@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { api } from '../utils/api';
+import type { Workspace, WorkspaceMember } from '../types';
 
 const ROLE_LABELS = { owner: 'مالک', admin: 'مدیر', editor: 'ویرایشگر', viewer: 'بیننده' };
 const ROLE_HIERARCHY = { owner: 10, admin: 8, editor: 5, viewer: 1 };
@@ -14,7 +15,7 @@ export default function WorkspaceSwitcher({
   onDeleteWorkspace,
   currentRole,
 }: {
-  workspaces: any[];
+  workspaces: Workspace[];
   currentWorkspaceId: number | null;
   onSwitch: (id: number) => void;
   onCreateWorkspace: (name: string, desc: string) => void;
@@ -27,7 +28,7 @@ export default function WorkspaceSwitcher({
   const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showMembers, setShowMembers] = useState(false);
-  const [members, setMembers] = useState<any[]>([]);
+  const [members, setMembers] = useState<WorkspaceMember[]>([]);
   const [membersLoading, setMembersLoading] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');

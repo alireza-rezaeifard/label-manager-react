@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, Loader2, Shield, Award, Star, BadgeCheck } from 'lucide-react';
 
 export default function LoginPage({ onLogin }: {
-  onLogin: (user: any) => void;
+  onLogin: (user: Record<string, unknown> | null) => void;
 }) {
   const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');

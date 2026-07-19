@@ -77,9 +77,17 @@ router.get('/', asyncHandler((req, res) => {
   }
 
   if (search) {
-    where += ' AND (code LIKE ? OR project LIKE ? OR type LIKE ? OR party LIKE ? OR amount LIKE ?)';
-    const q = `%${search}%`;
-    params.push(q, q, q, q, q);
+    try {
+      const ftsQ = search.replace(/['"]/g, '').trim();
+      if (ftsQ) {
+        where += ' AND records.id IN (SELECT rowid FROM records_fts WHERE records_fts MATCH ?)';
+        params.push(ftsQ);
+      }
+    } catch {
+      where += ' AND (code LIKE ? OR project LIKE ? OR type LIKE ? OR party LIKE ? OR amount LIKE ?)';
+      const q = `%${search}%`;
+      params.push(q, q, q, q, q);
+    }
   }
 
   if (filterType) {
