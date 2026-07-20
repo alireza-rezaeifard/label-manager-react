@@ -14,16 +14,16 @@
     {
       "binding": "DB",
       "database_name": "label-manager-db",
-      "database_id": "<YOUR_D1_DATABASE_ID>"
+      "database_id": "0dc06691-fe1a-4d72-a058-249a1e73d7cd"
     }
   ],
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "<YOUR_KV_NAMESPACE_ID>"
+      "id": "8b173419aa7d4700a190aa6a62a809e8"
     }
   ],
   "vars": {
-    "JWT_SECRET": "CHANGE THIS TO A STRONG SECRET"
+    "JWT_SECRET": "ff6184132238621647da1ee38688df75cf1c31e4f5937f12dd184ca391de789d"
   }
 }
