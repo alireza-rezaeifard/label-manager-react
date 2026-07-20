@@ -15,8 +15,8 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY --from=frontend-build /app/dist ./dist
-COPY --from=backend-deps /app/server/node_modules ./server/node_modules
 COPY server/ ./server/
+COPY --from=backend-deps /app/server/node_modules ./server/node_modules
 
 ENV NODE_ENV=production
 ENV PORT=3001
