@@ -97,9 +97,12 @@ docker-compose up --build
 | Variable | Default | Description |
 |---|---|---|
 | `VITE_SOCKET_URL` | `http://localhost:3001` | WebSocket server URL (frontend) |
-| `JWT_SECRET` | _(required)_ | Secret key for JWT signing (server) |
+| `JWT_SECRET` | _(required)_ | Secret key for JWT signing (server). Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `DB_PATH` | `data.db` | SQLite database file path (server) |
 | `PORT` | `3001` | Express server port (server) |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:4173` | Comma-separated CORS origins (server). Set to your domain in production. |
+| `ADMIN_USERNAME` | `admin` | Default admin username created on first run (server) |
+| `ADMIN_PASSWORD` | `admin123` | Default admin password created on first run (server). **Change immediately in production.** |
 
 ## Commands
 
