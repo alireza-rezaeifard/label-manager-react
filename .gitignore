@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .env
+server/.env
 
 # Editor directories and files
 .vscode/*
@@ -24,7 +25,20 @@ dist-ssr
 *.sln
 *.sw?
 
-# SQLite WAL/SHM test artifacts
+# Database files
+*.db
 *.db-wal
 *.db-shm
 *.db.bak
+server/data/
+
+# Temp files
+tmp/
+
+# AI/IDE tool directories (personal, not for public)
+.mimocode/
+.playwright-mcp/
+.kiro/
+
+# Stale directories
+path/

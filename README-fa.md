@@ -96,9 +96,12 @@ docker-compose up --build
 | متغیر | پیش‌فرض | توضیحات |
 |---|---|---|
 | `VITE_SOCKET_URL` | `http://localhost:3001` | آدرس سرور WebSocket (رابط کاربری) |
-| `JWT_SECRET` | _(الزامی)_ | کلید مخفی برای امضای JWT (سرور) |
+| `JWT_SECRET` | _(الزامی)_ | کلید مخفی برای امضای JWT (سرور). تولید با: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `DB_PATH` | `data.db` | مسیر فایل پایگاه داده SQLite (سرور) |
 | `PORT` | `3001` | پورت سرور Express (سرور) |
+| `ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:4173` | مبدأهای CORS جدا شده با کاما (سرور). در تولید دامنه خود را تنظیم کنید. |
+| `ADMIN_USERNAME` | `admin` | نام کاربری مدیر پیش‌فرض که در اجرا اول ایجاد می‌شود (سرور) |
+| `ADMIN_PASSWORD` | `admin123` | رمز عبور مدیر پیش‌فرض که در اجرا اول ایجاد می‌شود (سرور). **فوراً در تولید تغییر دهید.** |
 
 ## دستورات
 
