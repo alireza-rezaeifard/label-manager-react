@@ -10,7 +10,10 @@
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "preview": "node node_modules/vite/bin/vite.js preview",
     "test": "node node_modules/vitest/vitest.mjs run",
-    "test:watch": "node node_modules/vitest/vitest.mjs"
+    "test:watch": "node node_modules/vitest/vitest.mjs",
+    "preview:workers": "wrangler dev",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:quick": "npm run build && wrangler deploy"
   },
   "dependencies": {
     "@daypicker/persian": "^10.0.0",
@@ -68,6 +71,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4",
     "vite": "^8.0.10",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.6",
+    "wrangler": "^3.105.0",
+    "@cloudflare/workers-types": "^4.20260115.0"
   }
 }

@@ -42,3 +42,6 @@ tmp/
 
 # Stale directories
 path/
+
+# Cloudflare Workers
+.wrangler/
