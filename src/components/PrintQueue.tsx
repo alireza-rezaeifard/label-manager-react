@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import * as exportUtils from '../utils/exporters';
 import { FIELDS } from '../data/fields';
 import type { Record } from '../types';
-import { Printer, Plus, X, Play, Loader2, Check, AlertCircle, Trash2, PrinterOff } from 'lucide-react';
+import { Printer, Plus, X, Play, Loader2, Check, AlertCircle, Trash2, PrinterX } from 'lucide-react';
 
 const QUEUE_KEY = 'label-studio-print-queue';
 
@@ -124,7 +124,7 @@ export default function PrintQueue({
 
         {queue.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', opacity: 0.5 }}>
-            <PrinterOff className="h-8 w-8 mx-auto mb-3" />
+            <PrinterX className="h-8 w-8 mx-auto mb-3" />
             <p>صف چاپ خالی است</p>
             <p style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>رکوردها را انتخاب کنید و به صف اضافه نمایید</p>
           </div>
