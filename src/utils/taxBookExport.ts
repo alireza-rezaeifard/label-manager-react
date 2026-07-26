@@ -130,7 +130,7 @@ export async function fetchAvailableModels(apiUrl: string, apiKey: string): Prom
 }
 
 // ── AI Agent: converts raw records to proper accounting entries ──
-const BATCH_SIZE = 25;
+const BATCH_SIZE = 15;
 
 function buildPrompt(recordsJson: string, batchNum: number, totalBatches: number, totalRecords: number): string {
   return `You are an expert Iranian accounting agent. Convert these business records into double-entry journal entries for دفاتر قانونی الکترونیکی.
@@ -255,7 +255,7 @@ export async function convertWithAIAgent(
         { role: 'user', content: prompt },
       ],
       temperature: 0,
-      max_tokens: 32000,
+      max_tokens: 64000,
     });
 
     let response: Response;
@@ -279,37 +279,80 @@ export async function convertWithAIAgent(
 
     const rawText = await response.text();
 
-    // Handle SSE format: "data: {...}\n\ndata: [DONE]"
-    let jsonStr = rawText;
-    if (rawText.startsWith('data: ')) {
-      const lines = rawText.split('\n');
-      const dataLines = lines.filter(l => l.startsWith('data: ') && !l.includes('[DONE]'));
-      // Use last data line (contains full response)
+    // Handle SSE format: "data: {...}\n\ndata: [DONE]" or plain JSON
+    let jsonStr = rawText.trim();
+
+    // Strip invisible chars (BOM, null bytes, etc.)
+    jsonStr = jsonStr.replace(/[\x00-\x1f\x7f]/g, (ch) => {
+      // Keep newlines and tabs for SSE detection
+      if (ch === '\n' || ch === '\r' || ch === '\t') return ch;
+      return '';
+    }).trim();
+
+    if (jsonStr.includes('data: ')) {
+      const lines = jsonStr.split('\n');
+      const dataLines = lines.filter(l => l.trim().startsWith('data: ') && !l.includes('[DONE]'));
       if (dataLines.length > 0) {
-        jsonStr = dataLines[dataLines.length - 1].replace(/^data: /, '');
+        jsonStr = dataLines[dataLines.length - 1].replace(/^\s*data:\s*/, '').trim();
       }
+    }
+    // Find the outermost JSON object { ... }
+    const firstBrace = jsonStr.indexOf('{');
+    const lastBrace = jsonStr.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
     }
 
     let data: Record<string, unknown>;
     try { data = JSON.parse(jsonStr); } catch {
-      throw new Error(`پاسخ JSON نیست (دسته ${bi + 1}):\n${rawText.slice(0, 500) || '(خالی)'}`);
+      // Try to repair truncated JSON (model ran out of tokens mid-response)
+      let repaired = jsonStr;
+      // Close any unclosed strings
+      const quoteCount = (repaired.match(/"/g) || []).length;
+      if (quoteCount % 2 !== 0) repaired += '"';
+      // Close any unclosed brackets/braces
+      const openBrackets = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
+      const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
+      for (let i = 0; i < openBrackets; i++) repaired += ']';
+      for (let i = 0; i < openBraces; i++) repaired += '}';
+      try { data = JSON.parse(repaired); } catch {
+        throw new Error(`پاسخ JSON نیست (دسته ${bi + 1}):\n${rawText.slice(0, 500) || '(خالی)'}`);
+      }
     }
 
     const content = String((data as any)?.choices?.[0]?.message?.content || '');
     if (!content) throw new Error(`پاسخ AI خالی است (دسته ${bi + 1})`);
 
-    // content might be a JSON string like "[{...}]" — parse it
+    // content might be markdown ```json [...] ``` or raw JSON string
     let parsed: unknown[] | null = null;
+
+    // Try direct parse first
     const trimmed = content.trim();
     if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
       try {
         const inner = JSON.parse(trimmed);
         parsed = Array.isArray(inner) ? inner : [inner];
-      } catch { /* not JSON, try extractEntries */ }
+      } catch { /* incomplete JSON, try extraction */ }
     }
+
+    // Try extraction from markdown blocks or partial JSON
     if (!parsed) {
       parsed = extractEntries(content);
     }
+
+    // Last resort: try to extract individual objects from truncated text
+    if (!parsed) {
+      const objects: unknown[] = [];
+      const objMatches = content.match(/\{[^{}]*\}/g) || [];
+      for (const m of objMatches) {
+        try {
+          const obj = JSON.parse(m);
+          if (obj && obj.genCode) objects.push(obj);
+        } catch { continue; }
+      }
+      if (objects.length > 0) parsed = objects;
+    }
+
     if (!parsed) throw new Error(`پاسخ AI قابل پارس نیست (دسته ${bi + 1}):\n${content.slice(0, 300)}`);
 
     for (const entry of parsed) {
