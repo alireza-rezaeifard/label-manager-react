@@ -56,6 +56,7 @@ const BackupModal = lazy(() => import('./components/BackupModal'));
 const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
 const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
+const TaxBookExportModal = lazy(() => import('./components/TaxBookExportModal'));
 
 export default function App() {
   // ========== TOAST (needed by many hooks) ==========
@@ -128,6 +129,7 @@ export default function App() {
 
   // ========== VIEW STATE ==========
   const [viewIndex, setViewIndex] = useState<number | null>(null);
+  const [showTaxBookModal, setShowTaxBookModal] = useState(false);
 
   useEffect(() => {
     if (!viewCode || currentRecords.length === 0) return;
@@ -839,6 +841,9 @@ export default function App() {
                 <button className="btn btn-outline btn-sm" onClick={() => ws.setShowBackupModal(true)}>
                   <CloudDownload className="h-4 w-4" /> پشتیبان
                 </button>
+                <button className="btn btn-outline btn-sm" onClick={() => setShowTaxBookModal(true)}>
+                  <FileSpreadsheet className="h-4 w-4" /> خروجی دفتر مالی
+                </button>
                 <button className="btn btn-outline btn-sm" onClick={ws.serverMode ? handleLogout : handleLoginGoToServer}>
                   <i className={`ti ${ws.serverMode ? 'ti-logout' : 'ti-server'}`}></i>
                   {ws.serverMode ? 'خروج' : 'ورود به سرور'}
@@ -944,6 +949,18 @@ export default function App() {
                   handleLoadTemplate={formState.handleLoadTemplate}
                   handleDeleteTemplate={formState.handleDeleteTemplate}
                   templateKey={formState.templateKey}
+                  onAddTemplateCustomFields={(fields) => {
+                    fields.forEach(f => {
+                      if (!ws.customFields.find((cf: CustomField) => cf.key === f.key)) {
+                        const cf: CustomField = { key: f.key, label: f.label, fa: f.fa, type: f.type, options: f.type === 'dropdown' ? [] : undefined };
+                        ws.setCustomFields((prev: CustomField[]) => [...prev, cf]);
+                        ws.saveCustomFields([...ws.customFields, cf]);
+                        if (ws.serverMode) {
+                          api.createCustomField({ ...cf, workspace_id: ws.currentWorkspaceId }).catch(() => {});
+                        }
+                      }
+                    });
+                  }}
                 />
               )}
 
@@ -970,6 +987,8 @@ export default function App() {
                     } : undefined}
                     onLock={ws.serverMode ? handleLockRecord : undefined}
                     onUnlock={ws.serverMode ? handleUnlockRecord : undefined}
+                    serverMode={ws.serverMode}
+                    currentUserName={ws.authUser?.username}
                   />
                 </Suspense>
               )}
@@ -1024,7 +1043,7 @@ export default function App() {
 
               {tab === 'settings' && (
                 <Suspense fallback={<SettingsSkeleton />}>
-                  <SettingsTab
+                   <SettingsTab
                     customFields={ws.customFields}
                     onAddField={handleAddCustomField}
                     onRemoveField={handleRemoveCustomField}
@@ -1042,6 +1061,13 @@ export default function App() {
                     onToggleVirtualScroll={() => list.setUseVirtualScroll(p => !p)}
                     theme={ws.theme}
                     onThemeChange={ws.setTheme}
+                    aiApiUrl={ws.aiApiUrl}
+                    onAiApiUrlChange={ws.setAiApiUrl}
+                    aiApiKey={ws.aiApiKey}
+                    onAiApiKeyChange={ws.setAiApiKey}
+                    aiModel={ws.aiModel}
+                    onAiModelChange={ws.setAiModel}
+                    addToast={addToast}
                   />
                 </Suspense>
               )}
@@ -1291,6 +1317,24 @@ export default function App() {
               recordCode={ws.versionHistoryRecord.code}
               onClose={() => ws.setVersionHistoryRecord(null)}
               onRestore={handleRestoreVersion}
+              addToast={addToast}
+            />
+          </Suspense>
+        )}
+
+        {showTaxBookModal && (
+          <Suspense fallback={null}>
+            <TaxBookExportModal
+              open={showTaxBookModal}
+              onClose={() => setShowTaxBookModal(false)}
+              allRecords={currentRecords}
+              selectedRecords={selectedRecords}
+              sortedRecords={list.sortedRecords}
+              customFields={ws.customFields}
+              enabledCustomFieldKeys={ws.enabledCustomFieldKeys}
+              aiApiUrl={ws.aiApiUrl}
+              aiApiKey={ws.aiApiKey}
+              aiModel={ws.aiModel}
               addToast={addToast}
             />
           </Suspense>

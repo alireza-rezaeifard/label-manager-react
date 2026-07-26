@@ -391,22 +391,52 @@ export default function RecordsPage({
           )}
         </div>
       ) : viewMode === 'table' ? (
-        <Suspense fallback={<TableSkeleton rows={8} />}>
-          <div className="rpg-table-wrap">
-            <TableView
-              records={sortedRecords}
-              recordToIndex={recordToIndex}
-              selected={selected}
-              onToggle={onToggleSelect}
-              onEdit={onEdit}
-              onView={onView}
-              onSort={onSort}
-              sortBy={sortBy}
-              sortOrder={sortOrder}
-              customFields={visibleCustomFields}
-            />
-          </div>
-        </Suspense>
+        <>
+          <Suspense fallback={<TableSkeleton rows={8} />}>
+            <div className="rpg-table-wrap">
+              <TableView
+                records={viewMode === 'table' ? pagedRecords : sortedRecords}
+                recordToIndex={recordToIndex}
+                selected={selected}
+                onToggle={onToggleSelect}
+                onEdit={onEdit}
+                onView={onView}
+                onSort={onSort}
+                sortBy={sortBy}
+                sortOrder={sortOrder}
+                customFields={visibleCustomFields}
+              />
+            </div>
+          </Suspense>
+
+          {/* ── Pagination for table ── */}
+          {totalPages > 1 && (
+            <div className="rpg-pagination">
+              <div className="rpg-pager">
+                <button className="rpg-pg-btn" disabled={safePage <= 1}
+                  onClick={() => onSetPage(p => Math.max(1, p - 1))}>
+                  <ChevronRight className="rpg-pg-icon" />
+                </button>
+                {Array.from({ length: Math.min(totalPages, 20) }, (_, i) => i + 1).map(p => (
+                  <button key={p} className={`rpg-pg-btn ${p === safePage ? 'active' : ''}`}
+                    onClick={() => onSetPage(p)}>
+                    <span className="rpg-pg-num">{p}</span>
+                  </button>
+                ))}
+                {totalPages > 20 && <span style={{ opacity: 0.5 }}>...</span>}
+                <button className="rpg-pg-btn" disabled={safePage >= totalPages}
+                  onClick={() => onSetPage(p => Math.min(totalPages, p + 1))}>
+                  <ChevronLeft className="rpg-pg-icon" />
+                </button>
+              </div>
+              <span className="rpg-pg-info">
+                {sortedRecords.length > 0
+                  ? `${(safePage - 1) * PAGE_SIZE + 1}–${Math.min(safePage * PAGE_SIZE, sortedRecords.length)} از ${sortedRecords.length.toLocaleString('fa-IR')}`
+                  : '۰ رکورد'}
+              </span>
+            </div>
+          )}
+        </>
       ) : serverLoading ? (
         <div className="rpg-cards">
           {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}

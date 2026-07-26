@@ -11,7 +11,7 @@ export const FIELDS = [
 export const LABEL_PRINT_COLS = 3;
 export const LABEL_WIDTH = 180;
 export const LABEL_HEIGHT = 130;
-export const PAGE_SIZE = 12;
+export const PAGE_SIZE = 50;
 
 export const EMPTY_FORM = Object.fromEntries(
   FIELDS.map(f => [f.key, f.key === 'related' ? [] : ''])

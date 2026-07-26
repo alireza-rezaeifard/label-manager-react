@@ -31,6 +31,12 @@ export interface RecordItem {
   [key: string]: unknown;
 }
 
+export interface ValidationRule {
+  type: 'regex' | 'min' | 'max' | 'required' | 'minLength' | 'maxLength' | 'email';
+  value?: string | number;
+  message?: string;
+}
+
 export interface CustomField {
   key: string;
   label: string;
@@ -38,6 +44,20 @@ export interface CustomField {
   type: string;
   options?: string[];
   required?: boolean;
+  validationRules?: ValidationRule[];
+}
+
+export interface Comment {
+  id: string;
+  recordId: string;
+  recordCode?: string;
+  userId?: number;
+  userName: string;
+  text: string;
+  mentions: string[];
+  parentId?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Snapshot {
@@ -137,4 +157,34 @@ export interface ActivityLogEntry {
   created_at?: string;
   workspace_id?: number;
   record_id?: number;
+}
+
+export interface TaxBookMapping {
+  row: null;
+  date: string | null;
+  genCode: null;
+  genTitle: string | null;
+  subCode: null;
+  subTitle: string | null;
+  desc: string | null;
+  debit: string | null;
+  credit: string | null;
+}
+
+export interface TaxBookColumn {
+  key: keyof TaxBookMapping;
+  fa: string;
+  auto: boolean;
+}
+
+export interface TaxBookEntry {
+  genCode: string;
+  genTitle: string;
+  subCode: string;
+  subTitle: string;
+  desc: string;
+  debit: number;
+  credit: number;
+  date: string;
+  sourceRecord?: RecordItem;
 }

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import SearchableSelect from './SearchableSelect';
+import ValidationRuleEditor from './ValidationRuleEditor';
+import type { ValidationRule as ValidationRuleType } from '../types';
 import {
   Server, Palette, Tags, ListChecks, Zap, Plus, Trash2, Pencil, Check, X,
-  ChevronDown, Merge, Sun, Moon, Droplet, Contrast,
+  ChevronDown, Merge, Sun, Moon, Droplet, Contrast, Shield, Bot, Eye, EyeOff,
 } from 'lucide-react';
 
 const FIELD_TYPES = [
@@ -34,13 +36,14 @@ interface CustomFieldSettings {
   fa: string;
   fieldType: string;
   options?: string[];
+  validationRules?: ValidationRuleType[];
 }
 
 interface Props {
   customFields: CustomFieldSettings[];
   onAddField: () => void;
   onRemoveField: (key: string) => void;
-  onEditField: (key: string, updatedField: { label: string; fa: string; fieldType: string; options?: string[] }) => void;
+  onEditField: (key: string, updatedField: { label: string; fa: string; fieldType: string; options?: string[]; validationRules?: ValidationRuleType[] }) => void;
   newFieldName: string;
   onNewFieldNameChange: (value: string) => void;
   newFieldType: string;
@@ -54,6 +57,13 @@ interface Props {
   onToggleVirtualScroll: () => void;
   theme: string;
   onThemeChange: (theme: string) => void;
+  aiApiUrl: string;
+  onAiApiUrlChange: (value: string) => void;
+  aiApiKey: string;
+  onAiApiKeyChange: (value: string) => void;
+  aiModel: string;
+  onAiModelChange: (value: string) => void;
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
 function SectionHeader({ numeral, title, icon: Icon }: {
@@ -78,23 +88,54 @@ export default function SettingsTab({
   tags, onAddTag, onRemoveTag,
   useVirtualScroll, onToggleVirtualScroll,
   theme, onThemeChange,
+  aiApiUrl, onAiApiUrlChange, aiApiKey, onAiApiKeyChange,
+  aiModel, onAiModelChange,
+  addToast,
 }: Props) {
   const [newTag, setNewTag] = useState('');
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editType, setEditType] = useState('text');
   const [editOptions, setEditOptions] = useState<string[]>([]);
+  const [editValidationRules, setEditValidationRules] = useState<ValidationRuleType[]>([]);
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [editTagValue, setEditTagValue] = useState('');
   const [mergeMode, setMergeMode] = useState(false);
   const [mergeSource, setMergeSource] = useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = useState('');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  const fetchModels = async () => {
+    if (!aiApiUrl || !aiApiKey) {
+      addToast('ابتدا API URL و API Key را وارد کنید', 'error');
+      return;
+    }
+    setModelsLoading(true);
+    try {
+      const { fetchAvailableModels } = await import('../utils/taxBookExport');
+      const models = await fetchAvailableModels(aiApiUrl, aiApiKey);
+      setAvailableModels(models);
+      if (models.length > 0) {
+        addToast(`${models.length} مدل یافت شد`, 'success');
+      } else {
+        addToast('مدلی یافت نشد — نام مدل را دستی تایپ کنید', 'warning');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'خطای ناشناخته';
+      addToast('خطا در دریافت مدل‌ها: ' + msg, 'error');
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   const startEdit = (f: CustomFieldSettings) => {
     setEditingKey(f.key);
     setEditName(f.fa || f.label || '');
     setEditType(f.fieldType || 'text');
     setEditOptions(f.options || []);
+    setEditValidationRules(f.validationRules || []);
   };
 
   const cancelEdit = () => {
@@ -102,12 +143,17 @@ export default function SettingsTab({
     setEditName('');
     setEditType('text');
     setEditOptions([]);
+    setEditValidationRules([]);
   };
 
   const saveEdit = () => {
     if (!editName.trim() || editingKey == null) return;
     const options = editType === 'dropdown' ? editOptions : undefined;
-    onEditField(editingKey, { label: editName.trim(), fa: editName.trim(), fieldType: editType, options });
+    onEditField(editingKey, {
+      label: editName.trim(), fa: editName.trim(),
+      fieldType: editType, options,
+      validationRules: editValidationRules.length > 0 ? editValidationRules : undefined,
+    });
     cancelEdit();
   };
 
@@ -292,6 +338,14 @@ export default function SettingsTab({
                           }} />
                       </div>
                     )}
+                    <div className="vre-section">
+                      <label className="vre-section-label"><Shield className="h-3.5 w-3.5" /> اعتبارسنجی</label>
+                      <ValidationRuleEditor
+                        rules={editValidationRules}
+                        onChange={setEditValidationRules}
+                        fieldType={editType}
+                      />
+                    </div>
                     <div className="st-field-edit-actions">
                       <button className="st-btn-sm primary" onClick={saveEdit}><Check className="h-3.5 w-3.5" /> ذخیره</button>
                       <button className="st-btn-sm" onClick={cancelEdit}><X className="h-3.5 w-3.5" /> لغو</button>
@@ -307,6 +361,9 @@ export default function SettingsTab({
                     <span className="st-field-badge" style={{ background: badge.color }}>{badge.label}</span>
                     {f.fieldType === 'dropdown' && f.options && f.options.length > 0 && (
                       <span className="st-field-opts-count">({f.options.length} گزینه)</span>
+                    )}
+                    {f.validationRules && f.validationRules.length > 0 && (
+                      <span className="st-field-badge" style={{ background: '#10b981' }}>{f.validationRules.length} قانون</span>
                     )}
                   </div>
                   <div className="st-field-actions">
@@ -351,6 +408,105 @@ export default function SettingsTab({
             <input type="checkbox" checked={useVirtualScroll} onChange={onToggleVirtualScroll} />
             <span className="toggle-slider"></span>
           </label>
+        </div>
+      </div>
+
+      {/* ── AI Configuration ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="VI" title="پیکربندی AI (هوش مصنوعی)" icon={Bot} />
+        <p style={{ fontSize: '0.8125rem', opacity: 0.6, margin: '0 0 1rem 0' }}>
+          برای تبدیل هوشمند رکوردها به قالب دفاتر قانونی الکترونیکی، اطلاعات API را وارد کنید.
+        </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div>
+            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>API URL</label>
+            <input
+              type="url"
+              className="st-input"
+              value={aiApiUrl}
+              onChange={e => onAiApiUrlChange(e.target.value)}
+              placeholder="https://openrouter.ai/api/v1/chat/completions"
+              dir="ltr"
+            />
+            <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.25rem', direction: 'ltr', textAlign: 'left' }}>
+              نمونه: openrouter.ai/api/v1/chat/completions | api.openai.com/v1/chat/completions | localhost:20128/v1/chat/completions
+            </div>
+          </div>
+          <div>
+            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>API Key</label>
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showApiKey ? 'text' : 'password'}
+                className="st-input"
+                value={aiApiKey}
+                onChange={e => onAiApiKeyChange(e.target.value)}
+                placeholder="sk-..."
+                dir="ltr"
+                style={{ paddingRight: '2.5rem' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey(!showApiKey)}
+                style={{
+                  position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)',
+                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5,
+                  padding: '0.25rem',
+                }}
+              >
+                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>مدل</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ flex: 1 }}>
+                <input
+                  type="text"
+                  className="st-input"
+                  value={aiModel}
+                  onChange={e => onAiModelChange(e.target.value)}
+                  placeholder="gpt-4o / deepseek-chat / ..."
+                  dir="ltr"
+                  list="ai-models-list"
+                />
+                <datalist id="ai-models-list">
+                  {availableModels.map(m => (
+                    <option key={m} value={m} />
+                  ))}
+                </datalist>
+              </div>
+              <button
+                className="st-btn"
+                onClick={fetchModels}
+                disabled={modelsLoading || !aiApiUrl || !aiApiKey}
+                title="دریافت خودکار مدل‌ها از API"
+                style={{ flexShrink: 0 }}
+              >
+                {modelsLoading ? (
+                  <span className="spinner-border spinner-border-sm" role="status" />
+                ) : (
+                  'دریافت مدل‌ها'
+                )}
+              </button>
+            </div>
+            {availableModels.length > 0 && (
+              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginTop: '0.25rem' }}>
+                {availableModels.length} مدل موجود
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+            <button className="st-btn primary" onClick={() => addToast('تنظیمات AI ذخیره شد', 'success')}>
+              <Check className="h-4 w-4" /> ذخیره
+            </button>
+            {aiApiUrl && aiApiKey && aiModel && (
+              <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
+                پیکربندی شده
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -716,6 +872,25 @@ export default function SettingsTab({
         .st-field-edit-actions {
           display: flex;
           gap: 0.5rem;
+        }
+
+        .vre-section {
+          margin: 0.75rem 0;
+          padding: 0.625rem;
+          background: var(--bg-body);
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+        }
+
+        .vre-section-label {
+          display: flex;
+          align-items: center;
+          gap: 0.375rem;
+          font-size: 0.75rem;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+          color: var(--text-color);
+          opacity: 0.7;
         }
 
         /* ── Toggle Row ── */

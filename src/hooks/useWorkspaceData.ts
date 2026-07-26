@@ -208,6 +208,15 @@ export function useWorkspaceData() {
   const [showPrintQueue, setShowPrintQueue] = useState(false);
   const [newFieldName, setNewFieldName] = useState('');
   const [newFieldType, setNewFieldType] = useState('text');
+
+  // AI config for tax book export
+  const [aiApiUrl, setAiApiUrl] = useState(() => localStorage.getItem('tax-book-ai-url') || '');
+  const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem('tax-book-ai-key') || '');
+  const [aiModel, setAiModel] = useState(() => localStorage.getItem('tax-book-ai-model') || '');
+
+  useEffect(() => { localStorage.setItem('tax-book-ai-url', aiApiUrl); }, [aiApiUrl]);
+  useEffect(() => { localStorage.setItem('tax-book-ai-key', aiApiKey); }, [aiApiKey]);
+  useEffect(() => { localStorage.setItem('tax-book-ai-model', aiModel); }, [aiModel]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCompact, setSidebarCompact] = useState(() => {
     try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
@@ -273,5 +282,8 @@ export function useWorkspaceData() {
     showScanner, setShowScanner,
     versionHistoryRecord, setVersionHistoryRecord,
     showPrintQueue, setShowPrintQueue,
+    aiApiUrl, setAiApiUrl,
+    aiApiKey, setAiApiKey,
+    aiModel, setAiModel,
   };
 }

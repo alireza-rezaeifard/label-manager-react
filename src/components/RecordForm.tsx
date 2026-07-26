@@ -6,15 +6,16 @@ import "@daypicker/react/style.css";
 import { FIELDS } from "../data/fields";
 import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
+import { extractTextFromImage } from "../utils/ocr";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import SearchableSelect from "./SearchableSelect";
 import LoadingSpinner from "./LoadingSpinner";
 import AutocompleteInput from "./AutocompleteInput";
-import type { RecordItem } from "../types";
+import type { RecordItem, ValidationRule } from "../types";
 import { useDebounce } from "../hooks/useDebounce";
 import {
   Grid3X3, Calendar, Palette, ImageIcon, Link2, Tags, Trash2, Check, Plus, Pencil,
-  FileText, Hash, Building2, Type, CalendarDays, Users, DollarSign,
+  FileText, Hash, Building2, Type, CalendarDays, Users, DollarSign, ScanText, Shield,
 } from 'lucide-react';
 
 interface RecordFormState {
@@ -40,6 +41,7 @@ interface FormField {
   isCustom?: boolean;
   fieldType?: string;
   options?: string[];
+  validationRules?: ValidationRule[];
 }
 
 const FIELD_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -101,6 +103,8 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
   const [imageUploading, setImageUploading] = useState(false);
   const [codeDuplicate, setCodeDuplicate] = useState(false);
   const [codeChecking, setCodeChecking] = useState(false);
+  const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [ocrResult, setOcrResult] = useState<string | null>(null);
   const datePickerRef = useRef<HTMLDivElement>(null);
   const prevEditKey = useRef<string | number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +165,27 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (key === 'code' && !currentForm.code.trim()) return "فیلد ضروری است";
     if (key === 'code' && currentForm.code.trim() && isDuplicateCode(currentForm.code.trim(), editIndex)) return "این کد تکراری است";
     if (key === 'project' && !currentForm.project.trim()) return "فیلد ضروری است";
+    const field = allFields.find(f => f.key === key);
+    if (field?.validationRules) {
+      const value = String(currentForm[key] || '');
+      for (const rule of field.validationRules) {
+        if (rule.type === 'required' && !value.trim()) return rule.message || 'این فیلد ضروری است';
+        if (rule.type === 'min' && Number(value) < Number(rule.value)) return rule.message || `حداقل مقدار ${rule.value} است`;
+        if (rule.type === 'max' && Number(value) > Number(rule.value)) return rule.message || `حداکثر مقدار ${rule.value} است`;
+        if (rule.type === 'minLength' && value.length < Number(rule.value)) return rule.message || `حداقل ${rule.value} کاراکتر`;
+        if (rule.type === 'maxLength' && value.length > Number(rule.value)) return rule.message || `حداکثر ${rule.value} کاراکتر`;
+        if (rule.type === 'regex' && rule.value) {
+          try {
+            const regex = new RegExp(String(rule.value));
+            if (!regex.test(value)) return rule.message || 'فرت نامعتبر است';
+          } catch { /* skip invalid regex */ }
+        }
+        if (rule.type === 'email') {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (value && !emailRegex.test(value)) return rule.message || 'فرمت ایمیل نامعتبر است';
+        }
+      }
+    }
     return "";
   };
 
@@ -176,6 +201,12 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (form.code.trim() && isDuplicateCode(form.code.trim(), editIndex)) {
       errors.code = "این کد تکراری است";
       addToast("کد تکراری است. لطفا کد دیگری وارد کنید.", "error");
+    }
+    for (const field of allFields) {
+      if (field.validationRules) {
+        const error = validateField(field.key, form);
+        if (error) errors[field.key] = error;
+      }
     }
     return errors;
   };
@@ -207,6 +238,30 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     };
     reader.readAsDataURL(file);
     e.target.value = "";
+  };
+
+  const handleOcrExtract = async () => {
+    const input = fileInputRef.current;
+    if (!input?.files?.length) { addToast("ابتدا یک تصویر انتخاب کنید", "error"); return; }
+    const file = input.files[0];
+    setOcrProcessing(true);
+    setOcrResult(null);
+    try {
+      const result = await extractTextFromImage(file);
+      setOcrResult(result.text);
+      if (result.fields.code) setField("code", result.fields.code);
+      if (result.fields.party) setField("party", result.fields.party);
+      if (result.fields.amount) setField("amount", result.fields.amount);
+      if (result.fields.project) setField("project", result.fields.project);
+      if (result.fields.date) setField("date", result.fields.date);
+      if (result.fields.type) setField("type", result.fields.type);
+      const filled = Object.keys(result.fields).filter(k => result.fields[k]).length;
+      addToast(`${filled} فیلد از تصویر استخراج شد`, "success");
+    } catch (err: any) {
+      addToast("خطا در پردازش تصویر: " + (err.message || "خطای ناشناخته"), "error");
+    } finally {
+      setOcrProcessing(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -417,8 +472,15 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                 <span>تصویر</span>
                 <span className="rf-label-fa">(اختیاری)</span>
               </label>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="rf-input" style={{ padding: '0.75rem' }} />
+              <div className="rf-image-row">
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} className="rf-input" style={{ padding: '0.75rem', flex: 1 }} />
+                <button className="rf-btn ocr" onClick={handleOcrExtract} disabled={ocrProcessing} title="استخراج متن از تصویر">
+                  {ocrProcessing ? <LoadingSpinner size={16} /> : <ScanText className="h-4 w-4" />}
+                  {ocrProcessing ? 'در حال پردازش...' : 'استخراج'}
+                </button>
+              </div>
               {imageUploading && <span className="rf-info">در حال آپلود...</span>}
+              {ocrResult && <span className="rf-info" style={{ color: 'var(--success)' }}>متن استخراج شد: {ocrResult.slice(0, 100)}{ocrResult.length > 100 ? '...' : ''}</span>}
               {form.image && (
                 <div className="rf-image-preview">
                   <img src={form.image} alt="preview" className="rf-image" />
@@ -748,6 +810,40 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         }
 
         /* ── Image ── */
+        .rf-image-row {
+          display: flex;
+          gap: 0.5rem;
+          align-items: center;
+        }
+
+        .rf-btn.ocr {
+          white-space: nowrap;
+          padding: 0.5rem 1rem;
+          font-size: 0.75rem;
+          background: linear-gradient(135deg, var(--primary), #818cf8);
+          color: white;
+          border: none;
+          border-radius: 8px;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 0.375rem;
+          font-family: inherit;
+          font-weight: 600;
+          transition: all 0.15s;
+          flex-shrink: 0;
+        }
+
+        .rf-btn.ocr:hover:not(:disabled) {
+          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          transform: translateY(-1px);
+        }
+
+        .rf-btn.ocr:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+
         .rf-image-preview {
           margin-top: 0.75rem;
           display: flex;
