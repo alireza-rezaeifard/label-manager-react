@@ -213,10 +213,12 @@ export function useWorkspaceData() {
   const [aiApiUrl, setAiApiUrl] = useState(() => localStorage.getItem('tax-book-ai-url') || '');
   const [aiApiKey, setAiApiKey] = useState(() => localStorage.getItem('tax-book-ai-key') || '');
   const [aiModel, setAiModel] = useState(() => localStorage.getItem('tax-book-ai-model') || '');
+  const [aiCorsProxy, setAiCorsProxy] = useState(() => localStorage.getItem('tax-book-ai-proxy') || '');
 
   useEffect(() => { localStorage.setItem('tax-book-ai-url', aiApiUrl); }, [aiApiUrl]);
   useEffect(() => { localStorage.setItem('tax-book-ai-key', aiApiKey); }, [aiApiKey]);
   useEffect(() => { localStorage.setItem('tax-book-ai-model', aiModel); }, [aiModel]);
+  useEffect(() => { localStorage.setItem('tax-book-ai-proxy', aiCorsProxy); }, [aiCorsProxy]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCompact, setSidebarCompact] = useState(() => {
     try { return localStorage.getItem('sidebar-compact') === 'true'; } catch { return false; }
@@ -285,5 +287,6 @@ export function useWorkspaceData() {
     aiApiUrl, setAiApiUrl,
     aiApiKey, setAiApiKey,
     aiModel, setAiModel,
+    aiCorsProxy, setAiCorsProxy,
   };
 }

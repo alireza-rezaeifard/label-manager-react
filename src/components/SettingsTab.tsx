@@ -63,6 +63,8 @@ interface Props {
   onAiApiKeyChange: (value: string) => void;
   aiModel: string;
   onAiModelChange: (value: string) => void;
+  aiCorsProxy: string;
+  onAiCorsProxyChange: (value: string) => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
@@ -90,6 +92,7 @@ export default function SettingsTab({
   theme, onThemeChange,
   aiApiUrl, onAiApiUrlChange, aiApiKey, onAiApiKeyChange,
   aiModel, onAiModelChange,
+  aiCorsProxy, onAiCorsProxyChange,
   addToast,
 }: Props) {
   const [newTag, setNewTag] = useState('');
@@ -495,6 +498,20 @@ export default function SettingsTab({
                 {availableModels.length} مدل موجود
               </div>
             )}
+          </div>
+          <div>
+            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>CORS Proxy (اختیاری)</label>
+            <input
+              type="text"
+              className="st-input"
+              value={aiCorsProxy}
+              onChange={e => onAiCorsProxyChange(e.target.value)}
+              placeholder="http://localhost:3002/"
+              dir="ltr"
+            />
+            <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.25rem', direction: 'ltr', textAlign: 'left' }}>
+              اگر خطای CORS دارید: proxy-server.cjs را اجرا کنید و http://localhost:3002/ را اینجا وارد کنید. API URL را تغییر ندهید.
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
             <button className="st-btn primary" onClick={() => addToast('تنظیمات AI ذخیره شد', 'success')}>

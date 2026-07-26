@@ -19,6 +19,7 @@ interface Props {
   aiApiUrl: string;
   aiApiKey: string;
   aiModel: string;
+  aiCorsProxy: string;
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
@@ -26,13 +27,14 @@ type Step = 'config' | 'processing' | 'result' | 'error';
 
 export default function TaxBookExportModal({
   open, onClose, allRecords, selectedRecords, sortedRecords,
-  customFields, enabledCustomFieldKeys, aiApiUrl, aiApiKey, aiModel, addToast,
+  customFields, enabledCustomFieldKeys, aiApiUrl, aiApiKey, aiModel, aiCorsProxy, addToast,
 }: Props) {
   const [step, setStep] = useState<Step>('config');
   const [scope, setScope] = useState<'selected' | 'all'>('selected');
   const [entries, setEntries] = useState<TaxBookEntry[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState('');
+  const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
 
   const enabledCustomFields = useMemo(
     () => customFields.filter(f => enabledCustomFieldKeys.includes(f.key)),
@@ -77,14 +79,13 @@ export default function TaxBookExportModal({
       let result: TaxBookEntry[];
 
       if (aiApiUrl && aiApiKey && aiModel) {
-        setProgress('در حال ارسال به عامل هوش مصنوعی...');
         result = await convertWithAIAgent(
-          targetRecords, fieldDefs, enabledCustomFields, aiApiUrl, aiApiKey, aiModel,
+          targetRecords, fieldDefs, enabledCustomFields, aiApiUrl, aiApiKey, aiModel, aiCorsProxy,
+          (current, total, msg) => { setProgress(msg); setBatchProgress({ current, total }); },
         );
       } else {
         setProgress('در حال تبدیل با روش خودکار...');
-        // Small delay to show the progress
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 300));
         result = convertHeuristic(targetRecords, fieldDefs, enabledCustomFields);
       }
 
@@ -114,6 +115,7 @@ export default function TaxBookExportModal({
     setEntries([]);
     setErrorMessage('');
     setProgress('');
+    setBatchProgress({ current: 0, total: 0 });
   }, []);
 
   const handleClose = useCallback(() => {
@@ -201,6 +203,31 @@ export default function TaxBookExportModal({
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem' }}>
             <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--primary)' }} />
             <div style={{ fontWeight: 600 }}>{progress}</div>
+
+            {/* Progress bar */}
+            {batchProgress.total > 0 && (
+              <div style={{ width: '100%', maxWidth: 400 }}>
+                <div style={{
+                  height: 8, borderRadius: 99, overflow: 'hidden',
+                  background: 'var(--border-color)',
+                }}>
+                  <div style={{
+                    height: '100%', borderRadius: 99,
+                    background: 'linear-gradient(90deg, var(--primary), #6366f1)',
+                    width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                    transition: 'width 0.5s ease',
+                  }} />
+                </div>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between',
+                  fontSize: '0.75rem', opacity: 0.6, marginTop: '0.375rem',
+                }}>
+                  <span>{batchProgress.current} از {batchProgress.total} دسته</span>
+                  <span>{Math.round((batchProgress.current / batchProgress.total) * 100)}%</span>
+                </div>
+              </div>
+            )}
+
             <div style={{ fontSize: '0.8125rem', opacity: 0.5 }}>
               لطفا صبر کنید...
             </div>

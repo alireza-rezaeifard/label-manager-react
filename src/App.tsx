@@ -1067,6 +1067,8 @@ export default function App() {
                     onAiApiKeyChange={ws.setAiApiKey}
                     aiModel={ws.aiModel}
                     onAiModelChange={ws.setAiModel}
+                    aiCorsProxy={ws.aiCorsProxy}
+                    onAiCorsProxyChange={ws.setAiCorsProxy}
                     addToast={addToast}
                   />
                 </Suspense>
@@ -1335,6 +1337,7 @@ export default function App() {
               aiApiUrl={ws.aiApiUrl}
               aiApiKey={ws.aiApiKey}
               aiModel={ws.aiModel}
+              aiCorsProxy={ws.aiCorsProxy}
               addToast={addToast}
             />
           </Suspense>
