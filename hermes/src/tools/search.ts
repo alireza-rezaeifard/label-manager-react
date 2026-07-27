@@ -82,14 +82,23 @@ export const getProjectInfoTool = tool({
       info.tsconfig = { target: tsconfig.compilerOptions?.target, jsx: tsconfig.compilerOptions?.jsx };
     } catch { /* no tsconfig */ }
 
-    // Directory structure (top 2 levels)
+    // Directory structure (top 2 levels) - cross-platform
     try {
-      const output = execSync('find . -maxdepth 2 -type f -not -path "*/node_modules/*" -not -path "*/.git/*" -not -path "*/dist/*" | head -100', {
-        cwd: WORKSPACE,
-        encoding: 'utf-8',
-        timeout: 5000,
-      });
-      info.topFiles = output.split('\n').filter(Boolean);
+      const entries: string[] = [];
+      async function walk(dir: string, prefix: string, depth: number) {
+        if (depth > 2) return;
+        const items = await fs.readdir(dir, { withFileTypes: true });
+        for (const item of items) {
+          if (item.name === 'node_modules' || item.name === '.git' || item.name === 'dist') continue;
+          const rel = prefix ? `${prefix}/${item.name}` : item.name;
+          entries.push(rel);
+          if (item.isDirectory() && depth < 2) {
+            await walk(path.join(dir, item.name), rel, depth + 1);
+          }
+        }
+      }
+      await walk(WORKSPACE, '', 1);
+      info.topFiles = entries.slice(0, 100);
     } catch { /* fallback */ }
 
     return info;

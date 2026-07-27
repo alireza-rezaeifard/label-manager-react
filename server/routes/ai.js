@@ -153,6 +153,7 @@ router.post('/chat', async (req, res) => {
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
         res.write(chunk);
+        res.flush?.();
       }
     } catch (streamErr) {
       logger.error({ error: streamErr.message }, 'Stream error');

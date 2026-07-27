@@ -207,6 +207,11 @@ export const api = {
         }
       }
     }
+    if (buffer.trim()) {
+      try {
+        yield JSON.parse(buffer.trim().replace(/^data: /, ''));
+      } catch { /* skip malformed trailing buffer */ }
+    }
   },
 
   fetchAIModels: (apiEndpoint: string, apiKey: string) =>

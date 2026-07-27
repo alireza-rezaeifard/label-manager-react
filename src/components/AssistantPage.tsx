@@ -23,6 +23,7 @@ type Action =
   | { type: 'ADD_MESSAGE'; message: AIChatMessage }
   | { type: 'SET_STREAMING'; value: boolean }
   | { type: 'APPEND_TEXT'; text: string }
+  | { type: 'CLEAR_STREAMING_TEXT' }
   | { type: 'ADD_TOOL_CALL'; name: string; args: Record<string, unknown> }
   | { type: 'ADD_TOOL_RESULT'; toolCallId: string; result: unknown }
   | { type: 'SET_ERROR'; error: string | null }
@@ -36,6 +37,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, streaming: action.value };
     case 'APPEND_TEXT':
       return { ...state, streamingText: state.streamingText + action.text };
+    case 'CLEAR_STREAMING_TEXT':
+      return { ...state, streamingText: '' };
     case 'ADD_TOOL_CALL':
       return {
         ...state,
@@ -66,7 +69,12 @@ const INITIAL_CONFIG: AIProviderConfig = {
 
 export default function AssistantPage() {
   const [state, dispatch] = useReducer(reducer, {
-    messages: [],
+    messages: (() => {
+      try {
+        const saved = localStorage.getItem('hermes_messages');
+        return saved ? JSON.parse(saved) : [];
+      } catch { return []; }
+    })(),
     streaming: false,
     streamingText: '',
     currentToolCalls: [],
@@ -90,6 +98,13 @@ export default function AssistantPage() {
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [state.messages, state.streamingText, scrollToBottom]);
+
+  // Persist messages to localStorage
+  useEffect(() => {
+    if (state.messages.length > 0) {
+      localStorage.setItem('hermes_messages', JSON.stringify(state.messages));
+    }
+  }, [state.messages]);
 
   const saveConfig = (newConfig: AIProviderConfig) => {
     setConfig(newConfig);
@@ -126,7 +141,8 @@ export default function AssistantPage() {
     dispatch({ type: 'ADD_MESSAGE', message: userMsg });
     setInput('');
     dispatch({ type: 'SET_STREAMING', value: true });
-    dispatch({ type: 'APPEND_TEXT', text: '' });
+    dispatch({ type: 'CLEAR_STREAMING_TEXT' });
+    dispatch({ type: 'SET_ERROR', error: null });
 
     const apiMessages = [...state.messages, userMsg].map(m => ({
       role: m.role,
@@ -170,7 +186,7 @@ export default function AssistantPage() {
       };
       dispatch({ type: 'ADD_MESSAGE', message: assistantMsg });
       dispatch({ type: 'SET_STREAMING', value: false });
-      dispatch({ type: 'APPEND_TEXT', text: '' });
+      dispatch({ type: 'CLEAR_STREAMING_TEXT' });
 
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Request failed';
@@ -306,7 +322,7 @@ export default function AssistantPage() {
           <button className="ap-btn-icon" onClick={() => setShowConfig(true)} title="Configure AI">
             <Settings size={16} />
           </button>
-          <button className="ap-btn-icon" onClick={() => dispatch({ type: 'CLEAR' })} title="Clear conversation">
+          <button className="ap-btn-icon" onClick={() => { dispatch({ type: 'CLEAR' }); localStorage.removeItem('hermes_messages'); }} title="Clear conversation">
             <Trash2 size={16} />
           </button>
         </div>

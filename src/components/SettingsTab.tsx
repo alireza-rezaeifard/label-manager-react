@@ -191,9 +191,73 @@ export default function SettingsTab({
 
   return (
     <div className="st fade-in">
+      {/* ── Account Settings ── */}
+      <div className="st-panel">
+        <SectionHeader numeral="I" title="تنظیمات حساب کاربری" icon={Shield} />
+        <div className="st-account-settings">
+          <div className="st-account-field">
+            <label className="st-account-label">نام کاربری</label>
+            <input
+              type="text"
+              className="st-input"
+              value={authUser?.username || ''}
+              readOnly
+              dir="rtl"
+            />
+          </div>
+          <div className="st-account-field">
+            <label className="st-account-label">ایمیل</label>
+            <input
+              type="email"
+              className="st-input"
+              placeholder="example@email.com"
+              dir="rtl"
+            />
+          </div>
+          <div className="st-account-field">
+            <label className="st-account-label">شماره تلفن</label>
+            <input
+              type="tel"
+              className="st-input"
+              placeholder="09123456789"
+              dir="rtl"
+            />
+          </div>
+          <div className="st-account-field">
+            <label className="st-account-label">تغییر رمز عبور</label>
+            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
+              <input
+                type="password"
+                className="st-input"
+                placeholder="رمز عبور فعلی"
+                dir="rtl"
+              />
+              <input
+                type="password"
+                className="st-input"
+                placeholder="رمز عبور جدید"
+                dir="rtl"
+              />
+              <input
+                type="password"
+                className="st-input"
+                placeholder="تکرار رمز عبور جدید"
+                dir="rtl"
+              />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <button className="st-btn primary" onClick={() => addToast('تغییرات ذخیره شدند', 'success')}>
+              ذخیره تغییرات
+            </button>
+            <button className="st-btn" onClick={() => addToast('لغو شد', 'info')}>لغو</button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Server Connection ── */}
       <div className="st-panel">
-        <SectionHeader numeral="I" title="اتصال به سرور" icon={Server} />
+        <SectionHeader numeral="II" title="اتصال به سرور" icon={Server} />
         <div className="st-server-status">
           <div className="st-server-info">
             <span className="st-server-dot" style={{ background: serverMode ? 'var(--success)' : 'var(--text-color)' }} />
@@ -206,7 +270,7 @@ export default function SettingsTab({
 
       {/* ── Theme ── */}
       <div className="st-panel">
-        <SectionHeader numeral="II" title="پوسته (Theme)" icon={Palette} />
+        <SectionHeader numeral="III" title="پوسته (Theme)" icon={Palette} />
         <div className="st-themes">
           {THEME_OPTIONS.map(t => {
             const Icon = t.icon;
@@ -225,7 +289,7 @@ export default function SettingsTab({
 
       {/* ── Tags ── */}
       <div className="st-panel">
-        <SectionHeader numeral="III" title="برچسب‌ها (Tags)" icon={Tags} />
+        <SectionHeader numeral="IV" title="برچسب‌ها (Tags)" icon={Tags} />
 
         {tags.length > 0 && (
           <div className="st-tags">
@@ -294,7 +358,7 @@ export default function SettingsTab({
 
       {/* ── Custom Fields ── */}
       <div className="st-panel">
-        <SectionHeader numeral="IV" title="فیلدهای سفارشی" icon={ListChecks} />
+        <SectionHeader numeral="V" title="فیلدهای سفارشی" icon={ListChecks} />
 
         {customFields.length > 0 && (
           <div className="st-fields">
@@ -401,7 +465,7 @@ export default function SettingsTab({
 
       {/* ── Performance ── */}
       <div className="st-panel">
-        <SectionHeader numeral="V" title="عملکرد (Performance)" icon={Zap} />
+        <SectionHeader numeral="VI" title="عملکرد (Performance)" icon={Zap} />
         <div className="st-toggle-row">
           <div>
             <div className="st-toggle-label">نمایش مجازی (Virtual Scroll)</div>
@@ -416,7 +480,7 @@ export default function SettingsTab({
 
       {/* ── AI Configuration ── */}
       <div className="st-panel">
-        <SectionHeader numeral="VI" title="پیکربندی AI (هوش مصنوعی)" icon={Bot} />
+        <SectionHeader numeral="VII" title="پیکربندی AI (هوش مصنوعی)" icon={Bot} />
         <p style={{ fontSize: '0.8125rem', opacity: 0.6, margin: '0 0 1rem 0' }}>
           برای تبدیل هوشمند رکوردها به قالب دفاتر قانونی الکترونیکی، اطلاعات API را وارد کنید.
         </p>
@@ -593,6 +657,25 @@ export default function SettingsTab({
           flex: 1;
           height: 1px;
           background: var(--border-color);
+        }
+
+        /* ── Account Settings ── */
+        .st-account-settings {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .st-account-field {
+          display: flex;
+          flex-direction: column;
+          gap: 0.375rem;
+        }
+
+        .st-account-label {
+          font-weight: 600;
+          font-size: 0.875rem;
+          color: var(--text-color);
         }
 
         /* ── Server Status ── */

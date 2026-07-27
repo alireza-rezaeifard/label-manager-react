@@ -137,6 +137,79 @@ export const renameFileTool = tool({
   },
 });
 
+export const copyFileTool = tool({
+  description: 'Copy a file from one path to another within the workspace.',
+  parameters: z.object({
+    from: z.string().describe('Source relative path'),
+    to: z.string().describe('Destination relative path'),
+  }),
+  execute: async ({ from, to }) => {
+    const absFrom = resolveSafe(from);
+    const absTo = resolveSafe(to);
+    const dir = path.dirname(absTo);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.copyFile(absFrom, absTo);
+    return { from, to, copied: true };
+  },
+});
+
+export const appendFileTool = tool({
+  description: 'Append content to the end of an existing file.',
+  parameters: z.object({
+    path: z.string().describe('Relative path from workspace root'),
+    content: z.string().describe('Content to append'),
+  }),
+  execute: async ({ path: filePath, content }) => {
+    const abs = resolveSafe(filePath);
+    await fs.appendFile(abs, content, 'utf-8');
+    return { path: filePath, appended: true, bytesAppended: Buffer.byteLength(content, 'utf-8') };
+  },
+});
+
+export const getFileInfoTool = tool({
+  description: 'Get metadata about a file: size, creation time, modification time, permissions.',
+  parameters: z.object({
+    path: z.string().describe('Relative path from workspace root'),
+  }),
+  execute: async ({ path: filePath }) => {
+    const abs = resolveSafe(filePath);
+    const stat = await fs.stat(abs);
+    return {
+      path: filePath,
+      size: stat.size,
+      isDirectory: stat.isDirectory(),
+      isFile: stat.isFile(),
+      created: stat.birthtime.toISOString(),
+      modified: stat.mtime.toISOString(),
+      permissions: stat.mode.toString(8),
+    };
+  },
+});
+
+export const searchInFileTool = tool({
+  description: 'Search for a pattern within a specific file. Returns matching lines with line numbers.',
+  parameters: z.object({
+    path: z.string().describe('Relative path from workspace root'),
+    pattern: z.string().describe('Text or regex pattern to search for'),
+    maxResults: z.number().optional().describe('Max matching lines to return (default: 50)'),
+  }),
+  execute: async ({ path: filePath, pattern, maxResults }) => {
+    const abs = resolveSafe(filePath);
+    const content = await fs.readFile(abs, 'utf-8');
+    const lines = content.split('\n');
+    const regex = new RegExp(pattern, 'gi');
+    const max = maxResults || 50;
+    const matches: Array<{ line: number; text: string }> = [];
+    for (let i = 0; i < lines.length && matches.length < max; i++) {
+      if (regex.test(lines[i])) {
+        matches.push({ line: i + 1, text: lines[i] });
+      }
+      regex.lastIndex = 0;
+    }
+    return { path: filePath, matches, totalMatches: matches.length, totalLines: lines.length };
+  },
+});
+
 export const listDirectoryTool = tool({
   description: 'List files and directories at the given path within the workspace',
   parameters: z.object({

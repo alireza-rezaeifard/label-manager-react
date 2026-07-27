@@ -71,37 +71,28 @@ app.post('/chat', async (req, res) => {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
-    const result = streamChatResponse({ messages, config, conversationId });
+    // Collect tool calls/results via callbacks (non-blocking)
+    const toolCallsList: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const toolResultsList: Array<{ toolCallId: string; result: unknown }> = [];
+
+    const result = streamChatResponse({ messages, config, conversationId }, {
+      onToolCall: (toolName, args) => {
+        toolCallsList.push({ name: toolName, args });
+        res.write(`data: ${JSON.stringify({ type: 'tool-call', toolName, args })}\n\n`);
+      },
+      onToolResult: (toolCallId, result) => {
+        toolResultsList.push({ toolCallId, result });
+        res.write(`data: ${JSON.stringify({ type: 'tool-result', toolCallId, result })}\n\n`);
+      },
+    });
 
     // Stream text deltas
+    let deltaCount = 0;
     for await (const delta of result.textStream) {
+      deltaCount++;
       res.write(`data: ${JSON.stringify({ type: 'text-delta', text: delta })}\n\n`);
     }
-
-    // Get final result for tool calls info
-    const finalResult = await result;
-
-    // Stream tool call results from steps
-    for (const step of (finalResult as any).steps || []) {
-      if (step.toolCalls) {
-        for (const tc of step.toolCalls) {
-          res.write(`data: ${JSON.stringify({
-            type: 'tool-call',
-            toolName: tc.toolName,
-            args: tc.args,
-          })}\n\n`);
-        }
-      }
-      if (step.toolResults) {
-        for (const tr of step.toolResults) {
-          res.write(`data: ${JSON.stringify({
-            type: 'tool-result',
-            toolCallId: tr.toolCallId,
-            result: tr.result,
-          })}\n\n`);
-        }
-      }
-    }
+    log.info({ deltaCount }, 'Text stream iteration done');
 
     const elapsed = Date.now() - startTime;
     log.info({ elapsed, model: config.model }, 'Chat request completed');
