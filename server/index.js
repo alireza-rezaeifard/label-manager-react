@@ -11,9 +11,11 @@ import fs from 'fs';
 import swaggerUi from 'swagger-ui-express';
 import { authMiddleware } from './middleware/auth.js';
 import { apiKeyAuth } from './middleware/apiKeyAuth.js';
-import { errorHandler, notFoundHandler } from './errors.js';
+import { errorHandler, notFoundHandler, setFTS5Rebuilder, setDB } from './errors.js';
 import { runMigrations } from './migrate.js';
 import { initWebSocket } from './ws.js';
+import db, { rebuildFTS5 } from './db.js';
+import { createBackup, checkIntegrity, getDbPath, performCheckpoint } from './db-recovery.js';
 import authRoutes from './routes/auth.js';
 import recordRoutes from './routes/records.js';
 import workspaceRoutes from './routes/workspaces.js';
@@ -25,6 +27,10 @@ import swaggerSpec from './swagger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Wire up FTS5 auto-rebuild for error handler
+setDB(db);
+setFTS5Rebuilder(() => rebuildFTS5());
 
 const app = express();
 const server = http.createServer(app);
@@ -141,11 +147,27 @@ app.post('/api/upload-image', apiKeyAuth, authMiddleware, handleFileUpload);
 
 app.get('/api/health', (req, res) => {
   const memUsage = process.memoryUsage();
+  let dbStatus = 'ok';
+  let dbIntegrity = true;
+
+  try {
+    const result = db.pragma('integrity_check');
+    dbIntegrity = result[0]?.integrity_check === 'ok';
+    dbStatus = dbIntegrity ? 'ok' : 'corrupted';
+  } catch (err) {
+    dbStatus = 'error';
+    dbIntegrity = false;
+  }
+
   res.json({
-    status: 'ok',
+    status: dbStatus === 'ok' ? 'ok' : 'degraded',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     version: '2.1.0',
+    database: {
+      status: dbStatus,
+      integrity: dbIntegrity,
+    },
     memory: {
       rss: Math.round(memUsage.rss / 1024 / 1024) + 'MB',
       heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024) + 'MB',
@@ -153,6 +175,16 @@ app.get('/api/health', (req, res) => {
     },
     nodeEnv: process.env.NODE_ENV || 'development',
   });
+});
+
+app.post('/api/health/checkpoint', (req, res) => {
+  try {
+    const dbPath = getDbPath();
+    const ok = performCheckpoint(dbPath);
+    res.json({ ok, message: ok ? 'Checkpoint completed' : 'Checkpoint failed' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 const apiDoc = swaggerSpec;
@@ -939,6 +971,24 @@ app.use(errorHandler);
 
 runMigrations();
 
+// Create backup on startup
+try {
+  const backupPath = createBackup('pre-start');
+  if (backupPath) console.log(`Backup created: ${backupPath}`);
+} catch (err) {
+  console.warn('Backup creation failed:', err.message);
+}
+
+// Periodic WAL checkpoint every 5 minutes to prevent WAL growth
+const CHECKPOINT_INTERVAL = 5 * 60 * 1000;
+const checkpointTimer = setInterval(() => {
+  try {
+    performCheckpoint(getDbPath());
+  } catch {
+    // Non-critical
+  }
+}, CHECKPOINT_INTERVAL);
+
 const ws = initWebSocket(server, allowedOrigins);
 
 if (process.env.NODE_ENV !== 'test') {
@@ -948,6 +998,13 @@ if (process.env.NODE_ENV !== 'test') {
 
   const gracefulShutdown = (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
+    clearInterval(checkpointTimer);
+
+    // Final checkpoint before shutdown
+    try {
+      performCheckpoint(getDbPath());
+    } catch {}
+
     server.close(() => {
       console.log('HTTP server closed.');
       process.exit(0);

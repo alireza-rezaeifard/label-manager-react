@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
+    "recover": "node recover-db.js",
     "test": "node node_modules/vitest/vitest.mjs run",
     "test:watch": "node node_modules/vitest/vitest.mjs"
   },

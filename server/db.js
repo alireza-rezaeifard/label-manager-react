@@ -1,16 +1,142 @@
 import Database from 'better-sqlite3';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { existsSync, copyFileSync, renameSync } from 'fs';
 import bcrypt from 'bcryptjs';
+import {
+  getDbPath,
+  createBackup,
+  checkIntegrity,
+  recoverFromCorruption,
+  truncateWAL,
+  performCheckpoint,
+} from './db-recovery.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dbPath = process.env.DB_PATH || join(__dirname, 'data.db');
-const db = new Database(dbPath);
+let dbPath = getDbPath();
+let db;
 
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+// ── Recovery flow ──
+function initializeDatabase() {
+  const walPath = dbPath + '-wal';
+  const shmPath = dbPath + '-shm';
+
+  // Step 1: If main DB doesn't exist but backup does, restore from backup
+  if (!existsSync(dbPath)) {
+    const bakPath = dbPath + '.bak';
+    if (existsSync(bakPath)) {
+      console.log('Main database missing, restoring from backup...');
+      copyFileSync(bakPath, dbPath);
+      if (existsSync(bakPath + '-wal')) copyFileSync(bakPath + '-wal', dbPath + '-wal');
+      if (existsSync(bakPath + '-shm')) copyFileSync(bakPath + '-shm', dbPath + '-shm');
+    }
+  }
+
+  // Step 2: Try opening normally
+  try {
+    db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+
+    // Step 3: Check integrity
+    const integrity = db.pragma('integrity_check');
+    if (integrity[0]?.integrity_check === 'ok') {
+      // Step 4: Checkpoint WAL if it's large
+      try {
+        db.pragma('wal_checkpoint(TRUNCATE)');
+      } catch {
+        // Non-critical
+      }
+      return db;
+    }
+
+    // Integrity failed
+    console.error('Database integrity check failed!');
+    db.close();
+  } catch (err) {
+    console.error('Failed to open database:', err.message);
+    if (db) {
+      try { db.close(); } catch {}
+    }
+  }
+
+  // Step 5: Try recovery
+  console.log('Attempting automatic recovery...');
+
+  // Create backup of the corrupted DB before attempting recovery
+  try {
+    createBackup('corrupted');
+  } catch {}
+
+  const recoveredPath = recoverFromCorruption(dbPath);
+  if (recoveredPath) {
+    // Verify recovered DB
+    if (checkIntegrity(recoveredPath)) {
+      console.log('Recovery successful! Replacing corrupted database...');
+
+      // Replace corrupted DB with recovered one
+      const corruptedPath = dbPath + '.corrupted';
+      if (existsSync(corruptedPath)) {
+        try { renameSync(dbPath, dbPath + '.' + Date.now()); } catch {}
+      } else {
+        try { renameSync(dbPath, corruptedPath); } catch {}
+      }
+
+      renameSync(recoveredPath, dbPath);
+
+      // Clean up WAL/SHM since we have a fresh DB
+      truncateWAL(dbPath);
+
+      db = new Database(dbPath);
+      db.pragma('journal_mode = WAL');
+      db.pragma('foreign_keys = ON');
+
+      console.log('Database recovered successfully.');
+      return db;
+    } else {
+      console.error('Recovered database also failed integrity check');
+      try { renameSync(recoveredPath, recoveredPath + '.bad'); } catch {}
+    }
+  }
+
+  // Step 6: Try truncating WAL and reopening (last resort)
+  console.log('Trying WAL truncation as last resort...');
+  truncateWAL(dbPath);
+
+  try {
+    db = new Database(dbPath);
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+
+    const integrity = db.pragma('integrity_check');
+    if (integrity[0]?.integrity_check === 'ok') {
+      console.log('Database restored after WAL truncation.');
+      return db;
+    }
+    db.close();
+  } catch (err) {
+    console.error('Last resort failed:', err.message);
+  }
+
+  // Step 7: All recovery attempts failed - create fresh database
+  console.error('All recovery attempts failed. Creating fresh database...');
+  console.error('Your data may be in the backup directory or in the .corrupted file.');
+
+  const freshPath = dbPath + '.' + Date.now();
+  if (existsSync(dbPath)) {
+    try { renameSync(dbPath, freshPath); } catch {}
+  }
+
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+
+  return db;
+}
+
+db = initializeDatabase();
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -181,41 +307,87 @@ db.exec(`
 `);
 
 // ── FTS5 full-text search ──
-try {
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
-      code, project, type, party, amount,
-      content='records',
-      content_rowid='id',
-      tokenize='unicode61 remove_diacritics 2'
-    );
-    CREATE TRIGGER IF NOT EXISTS records_fts_insert AFTER INSERT ON records BEGIN
-      INSERT INTO records_fts(rowid, code, project, type, party, amount)
-      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
-    END;
-    CREATE TRIGGER IF NOT EXISTS records_fts_update AFTER UPDATE ON records BEGIN
-      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
-      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
-      INSERT INTO records_fts(rowid, code, project, type, party, amount)
-      VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
-    END;
-    CREATE TRIGGER IF NOT EXISTS records_fts_delete AFTER DELETE ON records BEGIN
-      INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
-      VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
-    END;
-  `);
-  const ftsCount = db.prepare('SELECT COUNT(*) as c FROM records_fts').get().c;
-  const rowCount = db.prepare('SELECT COUNT(*) as c FROM records WHERE deleted_at IS NULL').get().c;
-  if (ftsCount === 0 && rowCount > 0) {
-    console.log('Populating FTS index...');
-    db.exec(`INSERT INTO records_fts(rowid, code, project, type, party, amount)
-             SELECT id, code, project, type, party, amount FROM records WHERE deleted_at IS NULL`);
-    console.log(`  ✓ FTS populated with ${rowCount} records`);
+export function rebuildFTS5(targetDb = db) {
+  console.log('Rebuilding FTS5 index...');
+
+  // Step 1: Drop triggers (these don't depend on FTS5 data)
+  for (const t of ['records_fts_insert', 'records_fts_update', 'records_fts_delete']) {
+    try { targetDb.exec(`DROP TRIGGER IF EXISTS ${t}`); } catch {}
   }
-  console.log('  ✓ FTS5 enabled');
-} catch (err) {
-  console.warn('  ⚠ FTS5 unavailable, LIKE fallback:', err.message);
+
+  // Step 2: Drop FTS5 table — try normally, then force via writable_schema
+  let dropped = false;
+  try {
+    targetDb.exec(`DROP TABLE IF EXISTS records_fts`);
+    dropped = true;
+  } catch (err) {
+    console.warn('  Normal DROP failed, trying force:', err.message);
+  }
+
+  if (!dropped) {
+    try {
+      targetDb.pragma('writable_schema = ON');
+      targetDb.exec(`DELETE FROM sqlite_master WHERE name = 'records_fts'`);
+      targetDb.pragma('writable_schema = OFF');
+      console.log('  ✓ Force-removed FTS5 from sqlite_master');
+    } catch (err) {
+      console.error('  ✗ Force removal failed:', err.message);
+    }
+  }
+
+  // Step 3: Recreate FTS5 table
+  try {
+    targetDb.exec(`
+      CREATE VIRTUAL TABLE records_fts USING fts5(
+        code, project, type, party, amount,
+        content='records',
+        content_rowid='id',
+        tokenize='unicode61 remove_diacritics 2'
+      );
+    `);
+  } catch (err) {
+    console.error('  ✗ FTS5 table creation failed:', err.message);
+    return;
+  }
+
+  // Step 4: Populate from records
+  try {
+    targetDb.exec(`INSERT INTO records_fts(rowid, code, project, type, party, amount)
+                   SELECT id, code, project, type, party, amount FROM records WHERE deleted_at IS NULL`);
+  } catch (err) {
+    console.warn('  ⚠ FTS5 populate failed:', err.message);
+  }
+
+  // Step 5: Create triggers AFTER populating (triggers don't fire on direct FTS5 inserts)
+  try {
+    targetDb.exec(`
+      CREATE TRIGGER records_fts_insert AFTER INSERT ON records BEGIN
+        INSERT INTO records_fts(rowid, code, project, type, party, amount)
+        VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+      END;
+      CREATE TRIGGER records_fts_update AFTER UPDATE ON records BEGIN
+        INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+        VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+        INSERT INTO records_fts(rowid, code, project, type, party, amount)
+        VALUES (new.id, new.code, new.project, new.type, new.party, new.amount);
+      END;
+      CREATE TRIGGER records_fts_delete AFTER DELETE ON records BEGIN
+        INSERT INTO records_fts(records_fts, rowid, code, project, type, party, amount)
+        VALUES('delete', old.id, old.code, old.project, old.type, old.party, old.amount);
+      END;
+    `);
+  } catch (err) {
+    console.warn('  ⚠ FTS5 trigger creation failed:', err.message);
+  }
+
+  try {
+    const ftsCount = targetDb.prepare('SELECT COUNT(*) as c FROM records_fts').get().c;
+    console.log(`  ✓ FTS5 rebuilt with ${ftsCount} records`);
+  } catch {}
 }
+
+// Always rebuild FTS5 on startup to ensure it's healthy
+rebuildFTS5();
 
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';

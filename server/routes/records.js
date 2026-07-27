@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import db from '../db.js';
+import db, { rebuildFTS5 } from '../db.js';
 import { authMiddleware, requireWorkspaceRole, requireRecordWorkspaceRole } from '../middleware/auth.js';
 import { broadcastToWorkspace } from '../ws.js';
 import { AppError, asyncHandler } from '../errors.js';
@@ -527,6 +527,17 @@ router.post('/restore', asyncHandler((req, res) => {
     throw new AppError('Restore requires "admin" role or higher', 403, 'INSUFFICIENT_ROLE');
   }
 
+  // Always disable FTS5 triggers before bulk operation to avoid CORRUPT_VTAB
+  for (const t of ['records_fts_insert', 'records_fts_update', 'records_fts_delete']) {
+    try { db.exec(`DROP TRIGGER IF EXISTS ${t}`); } catch {}
+  }
+  try { db.exec(`DROP TABLE IF EXISTS records_fts`); } catch {}
+  try {
+    db.pragma('writable_schema = ON');
+    db.exec(`DELETE FROM sqlite_master WHERE name = 'records_fts'`);
+    db.pragma('writable_schema = OFF');
+  } catch {}
+
   const txn = db.transaction(() => {
     db.prepare('DELETE FROM records WHERE workspace_id = ?').run(wsId);
     const insert = db.prepare(
@@ -542,6 +553,9 @@ router.post('/restore', asyncHandler((req, res) => {
     }
   });
   txn();
+
+  // Always rebuild FTS5 after restore
+  rebuildFTS5();
 
   logActivity(req.user.id, 'restore', `Restored ${records.length} records`, null, wsId);
   broadcastToWorkspace(wsId, 'records:restored', { workspace_id: wsId });
