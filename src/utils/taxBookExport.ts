@@ -36,13 +36,35 @@ function buildFieldOptions(fields: FieldDef[], customFields: CustomField[]): { k
   ];
 }
 
-function recordsToCompactJson(records: RecordItem[], fields: FieldDef[], customFields: CustomField[]): string {
+function recordsToCompactJson(records: RecordItem[], allRecords: RecordItem[], fields: FieldDef[], customFields: CustomField[]): string {
   const options = buildFieldOptions(fields, customFields);
-  const sample = records.slice(0, 30).map(r => {
+
+  // Build lookup map for resolving related records
+  const allRecordsMap = new Map<string, RecordItem>();
+  for (const r of allRecords) {
+    if (r.code) allRecordsMap.set(r.code, r);
+  }
+
+  const sample = records.map(r => {
     const obj: Record<string, string> = {};
     for (const o of options) {
       const val = getFieldValue(r, o.key);
       if (val) obj[o.key] = val;
+    }
+    // Resolve related records: replace codes with details
+    if (Array.isArray(r.related) && r.related.length > 0) {
+      const resolved = r.related.map((code: string) => {
+        const linked = allRecordsMap.get(code);
+        if (linked) {
+          const parts = [linked.code];
+          if (linked.project) parts.push(linked.project);
+          if (linked.party) parts.push(linked.party);
+          if (linked.type) parts.push(linked.type);
+          return parts.join(': ');
+        }
+        return code;
+      });
+      obj['related'] = resolved.join(' | ');
     }
     return obj;
   });
@@ -144,7 +166,7 @@ FIELDS:
 2. genTitle — Persian general account title
 3. subCode — 6-digit subsidiary code
 4. subTitle — MUST BE THE PARTY NAME (نام شخص/شرکت from "party" field). NEVER use transaction type here.
-5. desc — Persian narration (شرح)
+5. desc — Persian narration (شرح). Include related record info if present.
 6. debit — RIALS (exact, e.g. 91653286)
 7. credit — RIALS (exact)
 8. date — YYYY/MM/DD
@@ -156,6 +178,13 @@ RULES:
 - SALE → Dr: حساب‌های دریافتنی (130100) / Cr: فروش (510100)
 - PAYMENT → Dr: صندوق (110100) / Cr: حساب‌های دریافتنی (130100)
 - EXPENSE → Dr: هزینه‌ها (610100) / Cr: صندوق/پرداختنی (110100/310100)
+
+RELATED RECORDS (links to other records):
+- If a record has "related" field, it links to another record by code
+- The related info is already resolved with details like "PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
+- Include the related record description in "desc" field. Example:
+  If related="PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
+  Then desc="قرارداد پروژه - شرکت ملی مناطق نفت خیز جنوب"
 
 RECORDS:
 ${recordsJson}
@@ -244,7 +273,7 @@ export async function convertWithAIAgent(
 
   for (let bi = 0; bi < totalBatches; bi++) {
     const batch = batches[bi];
-    const sampleJson = recordsToCompactJson(batch, fields, customFields);
+    const sampleJson = recordsToCompactJson(batch, records, fields, customFields);
     onProgress?.(bi + 1, totalBatches, `پردازش دسته ${bi + 1} از ${totalBatches}...`);
 
     const prompt = buildPrompt(sampleJson, bi + 1, totalBatches, records.length);
@@ -386,12 +415,32 @@ export function convertHeuristic(
   const partyCodeMap = new Map<string, string>();
   const partySubCounter = new Map<string, number>();
 
+  // Build lookup for resolving related records
+  const allRecordsMap = new Map<string, RecordItem>();
+  for (const r of records) {
+    if (r.code) allRecordsMap.set(r.code, r);
+  }
+
   for (const record of records) {
     const party = getFieldValue(record, 'party') || 'نامشخص';
     const type = getFieldValue(record, 'type') || '';
     const amount = toRials(getFieldValue(record, 'amount'));
     const date = getFieldValue(record, 'date') || '—';
     const project = getFieldValue(record, 'project') || '';
+
+    // Resolve related records
+    let relatedInfo = '';
+    if (Array.isArray(record.related) && record.related.length > 0) {
+      const parts = record.related.map((code: string) => {
+        const linked = allRecordsMap.get(code);
+        if (linked) {
+          const desc = [linked.project, linked.party, linked.type].filter(Boolean).join(' - ');
+          return desc || code;
+        }
+        return code;
+      });
+      relatedInfo = parts.join(' | ');
+    }
 
     // Assign party code
     if (!partyCodeMap.has(party)) {
@@ -407,22 +456,22 @@ export function convertHeuristic(
     let debitGenCode = '130100';
     let debitGenTitle = 'حساب‌های دریافتنی';
     let debitSubTitle = party;
-    let debitDesc = project || `فروش به ${party}`;
+    let debitDesc = [project, relatedInfo].filter(Boolean).join(' - ') || `فروش به ${party}`;
     let creditGenCode = '510100';
     let creditGenTitle = 'فروش';
     let creditSubTitle = 'فروش کالا';
-    let creditDesc = `فروش کالا به ${party}`;
+    let creditDesc = [project, relatedInfo].filter(Boolean).join(' - ') || `فروش کالا به ${party}`;
 
     const typeLower = type.toLowerCase();
     if (typeLower.includes('پرداخت') || typeLower.includes('هزینه') || typeLower.includes('expense')) {
       debitGenCode = '610100';
       debitGenTitle = 'هزینه‌ها';
       debitSubTitle = party;
-      debitDesc = project || type || 'هزینه عمومی';
+      debitDesc = [project, relatedInfo].filter(Boolean).join(' - ') || type || 'هزینه عمومی';
       creditGenCode = '110100';
       creditGenTitle = 'صندوق';
       creditSubTitle = 'صندوق نقد';
-      creditDesc = `پرداخت به ${party} - ${type || 'هزینه'}`;
+      creditDesc = `پرداخت به ${party} - ${[project, relatedInfo, type].filter(Boolean).join(' - ') || 'هزینه'}`;
     } else if (typeLower.includes('دریافت') || typeLower.includes('receipt') || typeLower.includes('collection')) {
       debitGenCode = '110100';
       debitGenTitle = 'صندوق';

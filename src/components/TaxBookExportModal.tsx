@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from './ui/dialog';
@@ -6,7 +6,7 @@ import {
   convertWithAIAgent, convertHeuristic, generateTaxBookExcel, getPreviewData, TAX_BOOK_HEADERS,
 } from '../utils/taxBookExport';
 import type { RecordItem, FieldDef, CustomField, TaxBookEntry } from '../types';
-import { FileSpreadsheet, Bot, Loader2, Zap, Download, RotateCcw, AlertCircle } from 'lucide-react';
+import { FileSpreadsheet, Bot, Loader2, Zap, Download, RotateCcw, AlertCircle, Check } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -25,6 +25,15 @@ interface Props {
 
 type Step = 'config' | 'processing' | 'result' | 'error';
 
+const STEP_LABELS: Record<Step, string> = {
+  config: 'تنظیمات',
+  processing: 'در حال پردازش',
+  result: 'نتیجه',
+  error: 'خطا',
+};
+
+const STEP_ORDER: Step[] = ['config', 'processing', 'result'];
+
 export default function TaxBookExportModal({
   open, onClose, allRecords, selectedRecords, sortedRecords,
   customFields, enabledCustomFieldKeys, aiApiUrl, aiApiKey, aiModel, aiCorsProxy, addToast,
@@ -35,6 +44,7 @@ export default function TaxBookExportModal({
   const [errorMessage, setErrorMessage] = useState('');
   const [progress, setProgress] = useState('');
   const [batchProgress, setBatchProgress] = useState({ current: 0, total: 0 });
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const enabledCustomFields = useMemo(
     () => customFields.filter(f => enabledCustomFieldKeys.includes(f.key)),
@@ -65,6 +75,15 @@ export default function TaxBookExportModal({
 
   const totalDebit = useMemo(() => entries.reduce((s, e) => s + e.debit, 0), [entries]);
   const totalCredit = useMemo(() => entries.reduce((s, e) => s + e.credit, 0), [entries]);
+
+  const currentStepIndex = STEP_ORDER.indexOf(step === 'error' ? 'config' : step);
+  const aiEnabled = !!(aiApiUrl && aiApiKey && aiModel);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [step]);
 
   const handleConvert = useCallback(async () => {
     if (targetRecords.length === 0) {
@@ -125,206 +144,463 @@ export default function TaxBookExportModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
-      <DialogContent className="max-w-3xl" style={{ maxHeight: '90vh', overflow: 'auto' }}>
-        <DialogHeader>
-          <DialogTitle>
-            <FileSpreadsheet className="inline h-5 w-5" style={{ marginLeft: '0.5rem', verticalAlign: 'middle' }} />
-            خروجی دفاتر قانونی الکترونیکی
+      <DialogContent
+        className="max-w-[640px] !p-0 !gap-0"
+        dir="rtl"
+        style={{
+          maxHeight: 'min(90vh, 680px)',
+          display: 'flex',
+          flexDirection: 'column',
+          borderRadius: 'var(--radius-xl, 1rem)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* ── Header ── */}
+        <DialogHeader className="!px-6 !pt-6 !pb-4 !gap-0 border-b" style={{ borderColor: 'var(--border-color)' }}>
+          <DialogTitle className="!text-base !font-semibold !flex !items-center !gap-2.5 !m-0">
+            <div
+              className="flex items-center justify-center shrink-0"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 'var(--radius-md, 0.5rem)',
+                background: 'rgba(99, 102, 241, 0.1)',
+                color: 'var(--primary)',
+              }}
+            >
+              <FileSpreadsheet className="h-[18px] w-[18px]" />
+            </div>
+            <span>خروجی دفاتر قانونی الکترونیکی</span>
           </DialogTitle>
+
+          {/* Step indicator */}
+          {step !== 'error' && (
+            <div className="flex items-center gap-1.5 mt-4">
+              {STEP_ORDER.map((s, i) => {
+                const isActive = i === currentStepIndex;
+                const isDone = i < currentStepIndex;
+                return (
+                  <div key={s} className="flex items-center gap-1.5 flex-1">
+                    <div
+                      className="flex items-center justify-center shrink-0 transition-all duration-200"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: '50%',
+                        fontSize: '0.7rem',
+                        fontWeight: 600,
+                        background: isDone
+                          ? 'var(--primary)'
+                          : isActive
+                            ? 'rgba(99, 102, 241, 0.12)'
+                            : 'var(--hover-bg)',
+                        color: isDone
+                          ? '#fff'
+                          : isActive
+                            ? 'var(--primary)'
+                            : 'var(--text-color)',
+                        opacity: isDone ? 1 : isActive ? 1 : 0.4,
+                      }}
+                    >
+                      {isDone ? <Check className="h-3 w-3" /> : i + 1}
+                    </div>
+                    {i < STEP_ORDER.length - 1 && (
+                      <div
+                        className="flex-1 h-0.5 rounded-full transition-colors duration-200"
+                        style={{
+                          background: i < currentStepIndex ? 'var(--primary)' : 'var(--border-color)',
+                          opacity: i < currentStepIndex ? 0.5 : 0.3,
+                        }}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </DialogHeader>
 
-        {/* ── Step: Config ── */}
-        {step === 'config' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {/* Scope selection */}
-            <div style={{
-              padding: '1rem', borderRadius: '10px',
-              border: '1px solid var(--border-color)', background: 'var(--hover-bg)',
-            }}>
-              <div style={{ fontWeight: 600, marginBottom: '0.75rem', fontSize: '0.875rem' }}>
-                انتخاب رکوردها
-              </div>
-              <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8125rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="scope"
-                    checked={scope === 'selected'}
-                    onChange={() => setScope('selected')}
-                    disabled={selectedRecords.length === 0}
-                  />
-                  <span>رکوردهای انتخاب شده (<b>{selectedRecords.length}</b>)</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="scope"
-                    checked={scope === 'all'}
-                    onChange={() => setScope('all')}
-                  />
-                  <span>همه رکوردها (<b>{allRecords.length}</b>)</span>
-                </label>
-              </div>
-            </div>
-
-            {/* AI info */}
-            <div style={{
-              padding: '1rem', borderRadius: '10px',
-              border: '1px solid var(--border-color)', background: 'var(--hover-bg)',
-            }}>
-              <div style={{ fontWeight: 600, marginBottom: '0.5rem', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Bot className="h-4 w-4" />
-                عامل تبدیل
-              </div>
-              <p style={{ fontSize: '0.8125rem', opacity: 0.7, margin: 0, lineHeight: 1.6 }}>
-                {aiApiUrl && aiApiKey && aiModel ? (
-                  <>با استفاده از هوش مصنوعی، رکوردهای شما به صورت حرفه‌ای به قالب دفاتر قانونی تبدیل می‌شوند. کدهای حساب، عناوین و تقسیم بدهکار/بستانکار توسط هوش مصنوعی تعیین می‌شود.</>
-                ) : (
-                  <>هوش مصنوعی پیکربندی نشده است. تبدیل با روش خودکار انجام می‌شود. برای نتیجه بهتر، API هوش مصنوعی را در تنظیمات پیکربندی کنید.</>
-                )}
-              </p>
-            </div>
-
-            {/* Start button */}
-            <button
-              className="btn btn-primary"
-              onClick={handleConvert}
-              disabled={targetRecords.length === 0}
-              style={{ width: '100%', justifyContent: 'center', padding: '0.75rem' }}
-            >
-              {aiApiUrl && aiApiKey && aiModel ? <Bot className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
-              شروع تبدیل ({targetRecords.length} رکورد)
-            </button>
-          </div>
-        )}
-
-        {/* ── Step: Processing ── */}
-        {step === 'processing' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem' }}>
-            <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--primary)' }} />
-            <div style={{ fontWeight: 600 }}>{progress}</div>
-
-            {/* Progress bar */}
-            {batchProgress.total > 0 && (
-              <div style={{ width: '100%', maxWidth: 400 }}>
-                <div style={{
-                  height: 8, borderRadius: 99, overflow: 'hidden',
-                  background: 'var(--border-color)',
-                }}>
-                  <div style={{
-                    height: '100%', borderRadius: 99,
-                    background: 'linear-gradient(90deg, var(--primary), #6366f1)',
-                    width: `${(batchProgress.current / batchProgress.total) * 100}%`,
-                    transition: 'width 0.5s ease',
-                  }} />
+        {/* ── Scrollable Body ── */}
+        <div
+          ref={scrollRef}
+          className="overflow-y-auto flex-1"
+          style={{ minHeight: 0, padding: '1.25rem 1.5rem' }}
+        >
+          {/* ── Config Step ── */}
+          {step === 'config' && (
+            <div className="flex flex-col gap-5 animate-fade-in">
+              {/* Scope selection */}
+              <fieldset
+                className="rounded-xl p-4 transition-colors duration-200"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--card-bg)',
+                }}
+              >
+                <legend
+                  className="font-semibold text-sm px-2"
+                  style={{ color: 'var(--text-color)' }}
+                >
+                  انتخاب رکوردها
+                </legend>
+                <div className="flex flex-col gap-3 mt-1">
+                  <label
+                    className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg transition-all duration-150"
+                    style={{
+                      background: scope === 'selected' ? 'rgba(99, 102, 241, 0.06)' : 'transparent',
+                      border: `1px solid ${scope === 'selected' ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}`,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="scope"
+                      checked={scope === 'selected'}
+                      onChange={() => setScope('selected')}
+                      disabled={selectedRecords.length === 0}
+                      className="accent-[var(--primary)] shrink-0"
+                      style={{ width: 18, height: 18 }}
+                    />
+                    <span className="text-sm flex-1">
+                      رکوردهای انتخاب شده
+                      <span
+                        className="inline-flex items-center justify-center mr-1.5 text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: 'var(--primary)',
+                          color: '#fff',
+                          minWidth: 24,
+                        }}
+                      >
+                        {selectedRecords.length}
+                      </span>
+                    </span>
+                  </label>
+                  <label
+                    className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg transition-all duration-150"
+                    style={{
+                      background: scope === 'all' ? 'rgba(99, 102, 241, 0.06)' : 'transparent',
+                      border: `1px solid ${scope === 'all' ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}`,
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="scope"
+                      checked={scope === 'all'}
+                      onChange={() => setScope('all')}
+                      className="accent-[var(--primary)] shrink-0"
+                      style={{ width: 18, height: 18 }}
+                    />
+                    <span className="text-sm flex-1">
+                      همه رکوردها
+                      <span
+                        className="inline-flex items-center justify-center mr-1.5 text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: 'var(--hover-bg)',
+                          color: 'var(--text-color)',
+                          minWidth: 24,
+                        }}
+                      >
+                        {allRecords.length}
+                      </span>
+                    </span>
+                  </label>
                 </div>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  fontSize: '0.75rem', opacity: 0.6, marginTop: '0.375rem',
-                }}>
-                  <span>{batchProgress.current} از {batchProgress.total} دسته</span>
-                  <span>{Math.round((batchProgress.current / batchProgress.total) * 100)}%</span>
+              </fieldset>
+
+              {/* AI info card */}
+              <div
+                className="rounded-xl p-4 transition-colors duration-200"
+                style={{
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--card-bg)',
+                }}
+              >
+                <div className="flex items-center gap-2.5 mb-2.5">
+                  <div
+                    className="flex items-center justify-center shrink-0"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 'var(--radius-sm, 0.375rem)',
+                      background: aiEnabled ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                      color: aiEnabled ? 'var(--success)' : 'var(--warning)',
+                    }}
+                  >
+                    {aiEnabled ? <Bot className="h-3.5 w-3.5" /> : <Zap className="h-3.5 w-3.5" />}
+                  </div>
+                  <span className="font-semibold text-sm" style={{ color: 'var(--text-color)' }}>
+                    عامل تبدیل
+                  </span>
                 </div>
+                <p
+                  className="text-sm leading-relaxed m-0"
+                  style={{ color: 'var(--text-color)', opacity: 0.6 }}
+                >
+                  {aiEnabled ? (
+                    <>با استفاده از هوش مصنوعی، رکوردهای شما به صورت حرفه‌ای به قالب دفاتر قانونی تبدیل می‌شوند. کدهای حساب، عناوین و تقسیم بدهکار/بستانکار توسط هوش مصنوعی تعیین می‌شود.</>
+                  ) : (
+                    <>هوش مصنوعی پیکربندی نشده است. تبدیل با روش خودکار انجام می‌شود. برای نتیجه بهتر، API هوش مصنوعی را در تنظیمات پیکربندی کنید.</>
+                  )}
+                </p>
               </div>
-            )}
 
-            <div style={{ fontSize: '0.8125rem', opacity: 0.5 }}>
-              لطفا صبر کنید...
+              {/* Start button */}
+              <button
+                className="btn btn-primary flex items-center justify-center gap-2.5 w-full py-3 text-sm font-medium"
+                onClick={handleConvert}
+                disabled={targetRecords.length === 0}
+                style={{
+                  minHeight: 48,
+                  opacity: targetRecords.length === 0 ? 0.5 : 1,
+                  cursor: targetRecords.length === 0 ? 'not-allowed' : 'pointer',
+                  transition: 'all 150ms ease',
+                }}
+              >
+                {aiEnabled ? <Bot className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
+                <span>شروع تبدیل ({targetRecords.length} رکورد)</span>
+              </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* ── Step: Result ── */}
-        {step === 'result' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {/* Summary */}
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem',
-            }}>
-              <div style={{
-                padding: '0.75rem', borderRadius: '8px', textAlign: 'center',
-                border: '1px solid var(--border-color)', background: 'var(--hover-bg)',
-              }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>{entries.length}</div>
-                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>سطر دفتر روزنامه</div>
+          {/* ── Processing Step ── */}
+          {step === 'processing' && (
+            <div className="flex flex-col items-center gap-5 py-8 animate-fade-in">
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'rgba(99, 102, 241, 0.08)',
+                }}
+              >
+                <Loader2
+                  className="h-8 w-8"
+                  style={{
+                    color: 'var(--primary)',
+                    animation: 'spin 0.8s linear infinite',
+                  }}
+                />
               </div>
-              <div style={{
-                padding: '0.75rem', borderRadius: '8px', textAlign: 'center',
-                border: '1px solid var(--border-color)', background: 'var(--hover-bg)',
-              }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#10b981' }}>{totalDebit.toLocaleString('fa-IR')}</div>
-                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>بدهکار (ریال)</div>
+              <div className="font-semibold text-center text-sm" style={{ color: 'var(--text-color)' }}>
+                {progress}
               </div>
-              <div style={{
-                padding: '0.75rem', borderRadius: '8px', textAlign: 'center',
-                border: '1px solid var(--border-color)', background: 'var(--hover-bg)',
-              }}>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f59e0b' }}>{totalCredit.toLocaleString('fa-IR')}</div>
-                <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>بستانکار (ریال)</div>
+
+              {/* Progress bar */}
+              {batchProgress.total > 0 && (
+                <div className="w-full max-w-xs">
+                  <div
+                    className="h-2 rounded-full overflow-hidden"
+                    style={{ background: 'var(--border-color)' }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-500 ease-out"
+                      style={{
+                        background: 'linear-gradient(90deg, var(--primary), #818cf8)',
+                        width: `${(batchProgress.current / batchProgress.total) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between mt-2 text-xs" style={{ color: 'var(--text-color)', opacity: 0.5 }}>
+                    <span>{batchProgress.current} از {batchProgress.total} دسته</span>
+                    <span>{Math.round((batchProgress.current / batchProgress.total) * 100)}%</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="text-xs" style={{ color: 'var(--text-color)', opacity: 0.4 }}>
+                لطفا صبر کنید...
               </div>
             </div>
+          )}
 
-            {/* Preview table */}
-            <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
-              <table className="import-preview-table" style={{ fontSize: '0.7rem', width: '100%' }}>
-                <thead>
-                  <tr>
-                    {TAX_BOOK_HEADERS.map(h => (
-                      <th key={h} style={{ position: 'sticky', top: 0, background: 'var(--card-bg)', zIndex: 1, whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewData.map((row, i) => (
-                    <tr key={i}>
-                      {TAX_BOOK_HEADERS.map(h => (
-                        <td key={h} style={{ whiteSpace: 'nowrap', textAlign: h.includes('مبلغ') ? 'left' : 'right' }}>
-                          {row[h] || '—'}
-                        </td>
+          {/* ── Result Step ── */}
+          {step === 'result' && (
+            <div className="flex flex-col gap-5 animate-fade-in">
+              {/* Summary cards */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: entries.length, label: 'سطر دفتر روزنامه', color: 'var(--primary)' },
+                  { value: totalDebit.toLocaleString('fa-IR'), label: 'بدهکار (ریال)', color: '#10b981' },
+                  { value: totalCredit.toLocaleString('fa-IR'), label: 'بستانکار (ریال)', color: '#f59e0b' },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-xl p-3 text-center transition-colors duration-200"
+                    style={{
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--card-bg)',
+                    }}
+                  >
+                    <div className="text-xl font-bold" style={{ color: item.color }}>
+                      {item.value}
+                    </div>
+                    <div className="text-[0.7rem] mt-1" style={{ color: 'var(--text-color)', opacity: 0.5 }}>
+                      {item.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview table */}
+              <div
+                className="rounded-xl overflow-hidden"
+                style={{ border: '1px solid var(--border-color)' }}
+              >
+                <div className="overflow-x-auto" style={{ maxHeight: 260, overflowY: 'auto' }}>
+                  <table
+                    className="w-full"
+                    style={{
+                      fontSize: '0.6875rem',
+                      minWidth: 680,
+                      borderCollapse: 'collapse',
+                    }}
+                  >
+                    <thead>
+                      <tr>
+                        {TAX_BOOK_HEADERS.map(h => (
+                          <th
+                            key={h}
+                            className="sticky top-0 z-10 text-right whitespace-nowrap"
+                            style={{
+                              background: 'var(--hover-bg)',
+                              padding: '0.625rem 0.75rem',
+                              borderBottom: '2px solid var(--border-color)',
+                              fontWeight: 600,
+                              color: 'var(--text-color)',
+                              fontSize: '0.6875rem',
+                            }}
+                          >
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.map((row, i) => (
+                        <tr
+                          key={i}
+                          className="transition-colors duration-100"
+                          style={{
+                            borderBottom: '1px solid var(--border-color)',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'var(--hover-bg)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'transparent';
+                          }}
+                        >
+                          {TAX_BOOK_HEADERS.map(h => (
+                            <td
+                              key={h}
+                              className="whitespace-nowrap"
+                              style={{
+                                padding: '0.5rem 0.75rem',
+                                textAlign: h.includes('مبلغ') ? 'left' : 'right',
+                                fontVariantNumeric: 'tabular-nums',
+                                color: 'var(--text-color)',
+                              }}
+                            >
+                              {row[h] || '—'}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {entries.length > 10 && (
-              <div style={{ fontSize: '0.75rem', opacity: 0.5, textAlign: 'center' }}>
-                نمایش ۱۰ ردیف از {entries.length} ردیف
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* ── Step: Error ── */}
-        {step === 'error' && (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', padding: '2rem' }}>
-            <AlertCircle className="h-8 w-8" style={{ color: 'var(--danger)' }} />
-            <div style={{ fontWeight: 600, color: 'var(--danger)' }}>خطا در تبدیل</div>
-            <div style={{
-              fontSize: '0.8125rem', opacity: 0.7, maxWidth: 500, width: '100%',
-              background: 'var(--hover-bg)', padding: '1rem', borderRadius: 8,
-              fontFamily: 'monospace', whiteSpace: 'pre-wrap', textAlign: 'left', direction: 'ltr',
-            }}>
-              {errorMessage}
+              {entries.length > 10 && (
+                <div
+                  className="text-xs text-center py-2 rounded-lg"
+                  style={{
+                    background: 'var(--hover-bg)',
+                    color: 'var(--text-color)',
+                    opacity: 0.5,
+                  }}
+                >
+                  نمایش ۱۰ ردیف از {entries.length} ردیف
+                </div>
+              )}
             </div>
-            <button className="btn btn-outline btn-sm" onClick={handleReset}>
-              <RotateCcw className="h-4 w-4" /> تلاش مجدد
-            </button>
-          </div>
-        )}
+          )}
 
-        <DialogFooter>
-          <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'flex-end' }}>
-            <button className="btn btn-outline btn-sm" onClick={handleClose}>
-              بستن
+          {/* ── Error Step ── */}
+          {step === 'error' && (
+            <div className="flex flex-col items-center gap-5 py-8 animate-fade-in">
+              <div
+                className="flex items-center justify-center"
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: '50%',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                }}
+              >
+                <AlertCircle
+                  className="h-8 w-8"
+                  style={{ color: 'var(--danger)' }}
+                />
+              </div>
+              <div className="font-semibold" style={{ color: 'var(--danger)' }}>
+                خطا در تبدیل
+              </div>
+              <div
+                className="w-full rounded-xl p-4 text-sm"
+                style={{
+                  background: 'var(--hover-bg)',
+                  border: '1px solid var(--border-color)',
+                  fontFamily: 'var(--font-mono, monospace)',
+                  whiteSpace: 'pre-wrap',
+                  textAlign: 'left',
+                  direction: 'ltr',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.7,
+                  color: 'var(--text-color)',
+                }}
+              >
+                {errorMessage}
+              </div>
+              <button
+                className="btn btn-outline btn-sm flex items-center gap-2"
+                onClick={handleReset}
+                style={{ minHeight: 40 }}
+              >
+                <RotateCcw className="h-4 w-4" />
+                <span>تلاش مجدد</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Footer ── */}
+        <DialogFooter className="!px-6 !pb-5 !pt-0 border-t" style={{ borderColor: 'var(--border-color)' }}>
+          <div className="flex gap-2.5 w-full justify-end flex-wrap" style={{ paddingTop: '1rem' }}>
+            <button
+              className="btn btn-outline btn-sm flex items-center gap-2"
+              onClick={handleClose}
+              style={{ minHeight: 40 }}
+            >
+              <span>بستن</span>
             </button>
             {step === 'result' && (
               <>
-                <button className="btn btn-outline btn-sm" onClick={handleReset}>
-                  <RotateCcw className="h-4 w-4" /> تبدیل مجدد
+                <button
+                  className="btn btn-outline btn-sm flex items-center gap-2"
+                  onClick={handleReset}
+                  style={{ minHeight: 40 }}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span>تبدیل مجدد</span>
                 </button>
-                <button className="btn btn-primary btn-sm" onClick={handleDownload}>
-                  <Download className="h-4 w-4" /> دانلود اکسل
+                <button
+                  className="btn btn-primary btn-sm flex items-center gap-2"
+                  onClick={handleDownload}
+                  style={{ minHeight: 40 }}
+                >
+                  <Download className="h-4 w-4" />
+                  <span>دانلود اکسل</span>
                 </button>
               </>
             )}
