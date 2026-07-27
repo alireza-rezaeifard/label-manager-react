@@ -30,7 +30,7 @@ import ListPanel from './components/panels/ListPanel';
 import {
   DashboardSkeleton, ReportsSkeleton, SettingsSkeleton,
   ProfileSkeleton, HistorySkeleton, ViewDetailSkeleton,
-  ImportSkeleton, PreviewSkeleton,
+  ImportSkeleton, PreviewSkeleton, StatsSkeleton,
 } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { RecordItem, Template, Workspace, FilterPreset, FilterState, CustomField, FormField, ActivityLogEntry } from './types';
@@ -57,6 +57,7 @@ const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
 const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 const TaxBookExportModal = lazy(() => import('./components/TaxBookExportModal'));
+const AssistantPage = lazy(() => import('./components/AssistantPage'));
 
 export default function App() {
   // ========== TOAST (needed by many hooks) ==========
@@ -66,7 +67,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
-  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard'];
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard', 'assistant'];
   const initialTab = validTabs.includes(pathTab) ? pathTab : 'records';
 
   const [tab, setTabState] = useState(initialTab);
@@ -773,6 +774,7 @@ export default function App() {
           />
 
           <div className="content-area">
+            {tab !== 'assistant' && (
             <div className="page-header">
               <div>
                 <h1 className="page-title">
@@ -786,6 +788,7 @@ export default function App() {
                   {tab === 'settings' && 'تنظیمات'}
                   {tab === 'reports' && 'گزارش‌ها و آمار'}
                   {tab === 'dashboard' && 'داشبورد'}
+                  {tab === 'assistant' && 'دستیار هوشمند'}
                 </h1>
                 <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
               </div>
@@ -850,9 +853,10 @@ export default function App() {
                 </button>
               </div>
             </div>
+            )}
 
             <TransitionPage tab={tab}>
-              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && (
+              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && tab !== 'assistant' && (
                 <StatsCards records={currentRecords} selected={list.selected} filtered={list.sortedRecords} />
               )}
 
@@ -1024,6 +1028,12 @@ export default function App() {
               {tab === 'dashboard' && (
                 <Suspense fallback={<DashboardSkeleton />}>
                   <DashboardTab records={currentRecords} customFields={ws.customFields} tags={ws.tags} activityLog={ws.activityLog} onTabChange={setTab} />
+                </Suspense>
+              )}
+
+              {tab === 'assistant' && (
+                <Suspense fallback={<StatsSkeleton />}>
+                  <AssistantPage />
                 </Suspense>
               )}
 

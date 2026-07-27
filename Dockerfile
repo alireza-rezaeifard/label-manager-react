@@ -1,11 +1,11 @@
-FROM node:20-alpine AS frontend-build
+FROM docker.arvancloud.ir/library/node:20-alpine AS frontend-build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
 
-FROM node:20-alpine
+FROM docker.arvancloud.ir/library/node:20-alpine
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 

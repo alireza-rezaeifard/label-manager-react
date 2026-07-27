@@ -166,4 +166,54 @@ export const api = {
 
   permanentDelete: (ids: string[]) =>
     apiRequest('/records/trash/permanent', { method: 'DELETE', body: JSON.stringify({ ids }) }),
+
+  // AI Assistant
+  aiChat: async function* (
+    messages: Array<{ role: string; content: string }>,
+    config: { apiEndpoint: string; apiKey: string; model: string; providerName?: string },
+    conversationId?: string,
+  ) {
+    const token = localStorage.getItem('auth_token');
+    const res = await fetch(`${API_BASE}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ messages, config, conversationId }),
+    });
+
+    if (!res.ok) {
+      let msg = 'AI request failed';
+      try { const e = await res.json(); msg = e.error || msg; } catch {}
+      throw new Error(msg);
+    }
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            yield JSON.parse(line.slice(6));
+          } catch { /* skip malformed */ }
+        }
+      }
+    }
+  },
+
+  fetchAIModels: (apiEndpoint: string, apiKey: string) =>
+    apiRequest('/ai/models', {
+      method: 'POST',
+      body: JSON.stringify({ apiEndpoint, apiKey }),
+    }),
+
+  aiHealth: () => apiRequest('/ai/health'),
 };

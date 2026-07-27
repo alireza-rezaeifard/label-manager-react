@@ -1,6 +1,8 @@
 services:
   label-studio:
-    build: .
+    build:
+      context: .
+      network: host
     ports:
       - "3001:3001"
     environment:
@@ -8,14 +10,40 @@ services:
       - PORT=3001
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
       - NODE_ENV=production
+      - HERMES_URL=http://hermes:3002
     volumes:
       - label-studio-data:/app/server
+    depends_on:
+      hermes:
+        condition: service_healthy
+    restart: unless-stopped
+
+  hermes:
+    build:
+      context: .
+      dockerfile: hermes/Dockerfile
+      network: host
+    volumes:
+      - .:/workspace
+      - hermes-config:/app/config
+    environment:
+      - HERMES_PORT=3002
+      - WORKSPACE_PATH=/workspace
+      - NODE_ENV=production
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      network: host
     ports:
       - "3000:80"
     depends_on:
@@ -24,3 +52,4 @@ services:
 
 volumes:
   label-studio-data:
+  hermes-config:

@@ -23,6 +23,7 @@ import {
   ChevronRight,
   Tags,
   Shield,
+  Bot,
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -50,6 +51,7 @@ const SECTIONS = [
     key: 'tools',
     numeral: 'III',
     items: [
+      { tab: 'assistant', icon: Bot, label: 'دستیار هوشمند' },
       { tab: 'preview', icon: Printer, label: 'پیشنمایش برچسب' },
       { tab: 'reports', icon: BarChart3, label: 'گزارشها' },
       { tab: 'history', icon: History, label: 'تاریخچه چاپ' },

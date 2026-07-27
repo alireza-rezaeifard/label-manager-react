@@ -1,20 +1,25 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import { visualizer } from 'rollup-plugin-visualizer'
 import path from 'path'
 
+const plugins = [
+  react(),
+  tailwindcss(),
+]
+
+if (process.env.ANALYZE) {
+  const { visualizer } = await import('rollup-plugin-visualizer')
+  plugins.push(visualizer({
+    open: true,
+    gzipSize: true,
+    brotliSize: true,
+    filename: 'dist/stats.html',
+  }))
+}
+
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    visualizer({
-      open: true,
-      gzipSize: true,
-      brotliSize: true,
-      filename: 'dist/stats.html',
-    }),
-  ],
+  plugins,
   resolve: {
     dedupe: ['react', 'react-dom'],
     alias: {

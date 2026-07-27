@@ -23,6 +23,7 @@ import customFieldRoutes from './routes/custom-fields.js';
 import apiKeyRoutes from './routes/api-keys.js';
 import webhookRoutes from './routes/webhooks.js';
 import notificationRoutes from './routes/notifications.js';
+import aiRoutes from './routes/ai.js';
 import swaggerSpec from './swagger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -951,6 +952,9 @@ app.use('/api/v1/records', recordRoutes);
 app.use('/api/v1/workspaces', workspaceRoutes);
 app.use('/api/v1/custom-fields', customFieldRoutes);
 app.use('/api/v1/api-keys', apiKeyRoutes);
+
+app.use('/api/ai', authMiddleware, aiRoutes);
+app.use('/api/v1/ai', authMiddleware, aiRoutes);
 
 app.get('/api/version', (req, res) => {
   res.json({ version: '2.1.0', apiVersions: ['v1'] });

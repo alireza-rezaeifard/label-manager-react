@@ -9,3 +9,5 @@ server/data.db-shm
 server/data.db-wal
 server/node_modules/
 server/uploads/
+hermes/node_modules/
+hermes/dist/

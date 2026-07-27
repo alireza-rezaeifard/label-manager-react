@@ -188,3 +188,40 @@ export interface TaxBookEntry {
   date: string;
   sourceRecord?: RecordItem;
 }
+
+export interface AIProviderConfig {
+  apiEndpoint: string;
+  apiKey: string;
+  model: string;
+  providerName?: string;
+}
+
+export interface AIChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls?: AIToolCall[];
+  toolResults?: AIToolResult[];
+  timestamp: number;
+}
+
+export interface AIToolCall {
+  toolName: string;
+  args: Record<string, unknown>;
+}
+
+export interface AIToolResult {
+  toolCallId: string;
+  result: unknown;
+}
+
+export interface AISSEEvent {
+  type: 'text-delta' | 'tool-call' | 'tool-result' | 'done' | 'error';
+  text?: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  toolCallId?: string;
+  result?: unknown;
+  error?: string;
+  elapsed?: number;
+}

@@ -181,10 +181,11 @@ RULES:
 
 RELATED RECORDS (links to other records):
 - If a record has "related" field, it links to another record by code
-- The related info is already resolved with details like "PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
-- Include the related record description in "desc" field. Example:
-  If related="PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
-  Then desc="قرارداد پروژه - شرکت ملی مناطق نفت خیز جنوب"
+- The related info is resolved with details like "PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
+- Use the PARTY NAME (third part after second :) from the related record in "desc"
+- Example: If related="PROJ061: قرارداد پروژه: شرکت ملی مناطق نفت خیز جنوب"
+  Then desc="پرداخت - شرکت ملی مناطق نفت خیز جنوب" (USE THE PARTY NAME, NOT the project code)
+- NEVER put "PROJ001" or "قرارداد پروژه PROJ001" in desc — use the party name instead
 
 RECORDS:
 ${recordsJson}
@@ -434,8 +435,10 @@ export function convertHeuristic(
       const parts = record.related.map((code: string) => {
         const linked = allRecordsMap.get(code);
         if (linked) {
-          const desc = [linked.project, linked.party, linked.type].filter(Boolean).join(' - ');
-          return desc || code;
+          // Prefer party name, fallback to project + type
+          const linkedParty = linked.party || '';
+          const linkedType = linked.type || '';
+          return [linkedParty, linkedType].filter(Boolean).join(' - ') || linked.project || code;
         }
         return code;
       });
