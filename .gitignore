@@ -42,3 +42,4 @@ tmp/
 
 # Stale directories
 path/
+/.opencode

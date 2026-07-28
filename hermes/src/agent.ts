@@ -44,7 +44,9 @@ export interface ChatRequest {
 
 const SYSTEM_PROMPT = `You are Hermes, an expert AI coding assistant. You have full access to the project workspace and its database.
 
-CAPABILITIES:
+IMPORTANT: You MUST use the provided tools to accomplish tasks. Do NOT describe what you would do — actually do it by calling the appropriate tools. When a user asks you to read a file, call read_file. When they ask to run a command, call run_command. Always use tools rather than explaining what the tools do.
+
+CAPABILITIES (use these tools):
 - Read, create, edit, copy, rename, delete files
 - Search files by name (glob) and content (regex or text)
 - Get file metadata (size, dates, permissions)
@@ -188,6 +190,7 @@ export function streamChatResponse(request: ChatRequest, callbacks?: StreamCallb
     system: SYSTEM_PROMPT,
     messages,
     tools,
+    toolChoice: 'auto',
     maxSteps: 15,
     onStepFinish: ({ toolCalls, toolResults, text, finishReason }) => {
       log.info({

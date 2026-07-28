@@ -1,14 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useReducer } from 'react';
+import { useState, useRef, useEffect, useCallback, useReducer, memo } from 'react';
 import {
-  ArrowUp, Square, Settings, Plus, MessageSquare, Search,
-  X, Trash2, PanelLeft, ChevronRight, Loader2,
-} from 'lucide-react';
+  Message, MessageContent, MessageResponse, MessageActions, CopyAction,
+  Tool, ToolHeader, ToolContent, ToolInput, ToolOutput,
+  Greeting, SuggestedActions, PromptInput, ThinkingMessage, ScrollToBottom,
+  SparklesIcon,
+} from './chatbot';
 import { api } from '../utils/api';
 import type { AIChatMessage, AIProviderConfig, AISSEEvent } from '../types';
-import { SparklesIcon } from './ai-chatbot/icons';
-import { Messages } from './ai-chatbot/messages';
-import { MultimodalInput } from './ai-chatbot/multimodal-input';
-import './ai-chatbot/chat.css';
+import {
+  PanelLeft, Plus, MessageSquare, X, Trash2, Search, Settings,
+  Loader2, Square,
+} from 'lucide-react';
+import './chatbot/chatbot.css';
 
 // ── Session types ──
 interface ChatSession {
@@ -80,8 +83,8 @@ function reducer(state: State, action: Action): State {
 }
 
 // ── Session helpers ──
-const SESSIONS_KEY = 'hermes_sessions';
-const ACTIVE_SESSION_KEY = 'hermes_active_session';
+const SESSIONS_KEY = 'hermes_chat_sessions';
+const ACTIVE_SESSION_KEY = 'hermes_chat_active';
 
 function loadSessions(): ChatSession[] {
   try {
@@ -125,8 +128,115 @@ const INITIAL_CONFIG: AIProviderConfig = {
   providerName: localStorage.getItem('ai_provider_name') || '',
 };
 
-// ── Main Component ──
-export default function AssistantPage() {
+// ── Tool Card ──
+const ToolCard = memo(function ToolCard({ tc }: { tc: { name: string; args: Record<string, unknown>; result?: unknown } }) {
+  const [expanded, setExpanded] = useState(false);
+  const argsStr = JSON.stringify(tc.args, null, 2);
+  const resultStr = tc.result !== undefined
+    ? (typeof tc.result === 'string' ? tc.result : JSON.stringify(tc.result, null, 2)).slice(0, 500)
+    : null;
+  const hasResult = resultStr !== null;
+
+  return (
+    <Tool defaultOpen={expanded}>
+      <div onClick={() => setExpanded(o => !o)} style={{ cursor: 'pointer' }}>
+        <ToolHeader
+          type={`tool-${tc.name}`}
+          state={hasResult ? 'output-available' : 'input-streaming'}
+          toolName={tc.name}
+        />
+      </div>
+      {expanded && (
+        <ToolContent>
+          <ToolInput input={tc.args} />
+          {hasResult && <ToolOutput output={<pre className="tool-code">{resultStr}</pre>} />}
+        </ToolContent>
+      )}
+    </Tool>
+  );
+});
+
+// ── Preview Message ──
+const PreviewMessage = memo(function PreviewMessage({ msg }: { msg: AIChatMessage }) {
+  const isUser = msg.role === 'user';
+
+  if (isUser) {
+    return (
+      <Message from="user">
+        <MessageContent>
+          <div style={{
+            display: 'inline-block', padding: '10px 14px', borderRadius: '18px 18px 4px 18px',
+            background: 'var(--text-color, #171717)', color: 'var(--card-bg, #ffffff)',
+            fontSize: 14, lineHeight: 1.6, maxWidth: '80%', wordBreak: 'break-word',
+          }}>
+            {msg.content}
+          </div>
+        </MessageContent>
+      </Message>
+    );
+  }
+
+  return (
+    <Message from="assistant">
+      <MessageContent>
+        <MessageResponse>{msg.content}</MessageResponse>
+        {msg.toolCalls && msg.toolCalls.length > 0 && (
+          <div className="message-tools">
+            {msg.toolCalls.map((tc, i) => <ToolCard key={i} tc={tc} />)}
+          </div>
+        )}
+        <MessageActions>
+          <CopyAction text={msg.content} />
+        </MessageActions>
+      </MessageContent>
+    </Message>
+  );
+});
+
+// ── Config Modal ──
+function ConfigModal({ show, onClose, config, onSave }: {
+  show: boolean;
+  onClose: () => void;
+  config: AIProviderConfig;
+  onSave: (c: AIProviderConfig) => void;
+}) {
+  const [local, setLocal] = useState(config);
+  if (!show) return null;
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3 className="modal-title">AI Settings</h3>
+          <button onClick={onClose} className="modal-close" type="button"><X size={15} /></button>
+        </div>
+        <div className="modal-body">
+          <div className="field">
+            <label className="field-label">API Endpoint</label>
+            <input type="url" className="field-input" dir="ltr" placeholder="https://api.openai.com/v1/chat/completions"
+              value={local.apiEndpoint} onChange={e => setLocal({ ...local, apiEndpoint: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field-label">API Key</label>
+            <input type="password" className="field-input" dir="ltr" placeholder="sk-..."
+              value={local.apiKey} onChange={e => setLocal({ ...local, apiKey: e.target.value })} />
+          </div>
+          <div className="field">
+            <label className="field-label">Model</label>
+            <input type="text" className="field-input" dir="ltr" placeholder="gpt-4o / mistral-small / ..."
+              value={local.model} onChange={e => setLocal({ ...local, model: e.target.value })} />
+          </div>
+        </div>
+        <button className="modal-submit" onClick={() => { onSave(local); onClose(); }}
+          disabled={!local.apiEndpoint || !local.model}>
+          Save & Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main ChatPage ──
+export default function ChatPage() {
   // ── Sessions ──
   const [sessions, setSessions] = useState<ChatSession[]>(() => {
     const loaded = loadSessions();
@@ -145,8 +255,6 @@ export default function AssistantPage() {
     return sessions[0].id;
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
 
   // ── Chat ──
   const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
@@ -162,19 +270,25 @@ export default function AssistantPage() {
   const [input, setInput] = useState('');
   const [config, setConfig] = useState<AIProviderConfig>(INITIAL_CONFIG);
   const [showConfig, setShowConfig] = useState(!config.apiEndpoint);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [fetchingModels, setFetchingModels] = useState(false);
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
 
   // ── Auto-scroll ──
+  const scrollToBottom = useCallback((smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' });
+  }, []);
+
   const handleScroll = useCallback(() => {
-    const el = document.querySelector('.ai-chat-messages-scroll');
+    const el = messagesContainerRef.current;
     if (!el) return;
     const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setIsAtBottom(distFromBottom < 120);
   }, []);
+
+  useEffect(() => { scrollToBottom(); }, [state.messages, state.streamingText, scrollToBottom]);
 
   // ── Persist ──
   useEffect(() => {
@@ -190,10 +304,7 @@ export default function AssistantPage() {
     });
   }, [state.messages, activeSessionId]);
 
-  // ── Cleanup ──
-  useEffect(() => {
-    return () => { abortRef.current?.abort(); };
-  }, []);
+  useEffect(() => () => { abortRef.current?.abort(); }, []);
 
   // ── Session management ──
   const switchSession = useCallback((id: string) => {
@@ -226,14 +337,6 @@ export default function AssistantPage() {
     if (id === activeSessionId) switchSession(updated[0].id);
   };
 
-  const handleRenameSession = (id: string) => {
-    if (!editTitle.trim()) { setEditingSessionId(null); return; }
-    const updated = sessions.map(s => s.id === id ? { ...s, title: editTitle.trim() } : s);
-    setSessions(updated);
-    saveSessions(updated);
-    setEditingSessionId(null);
-  };
-
   // ── Config ──
   const saveConfig = (c: AIProviderConfig) => {
     setConfig(c);
@@ -241,21 +344,6 @@ export default function AssistantPage() {
     localStorage.setItem('ai_api_key', c.apiKey);
     localStorage.setItem('ai_model', c.model);
     localStorage.setItem('ai_provider_name', c.providerName || '');
-  };
-
-  const fetchModels = async () => {
-    if (!config.apiEndpoint || !config.apiKey) return;
-    setFetchingModels(true);
-    try {
-      const res = await api.fetchAIModels(config.apiEndpoint, config.apiKey);
-      const data = res as Record<string, unknown>;
-      const models = Array.isArray(data.models) ? data.models as string[] : [];
-      setAvailableModels(models);
-    } catch {
-      setAvailableModels([]);
-    } finally {
-      setFetchingModels(false);
-    }
   };
 
   // ── Send / Stop ──
@@ -325,91 +413,56 @@ export default function AssistantPage() {
           case 'error':
             dispatch({ type: 'SET_ERROR', error: event.error || 'Unknown error' });
             break;
-          case 'done':
-            break;
         }
       }
 
       if (!abortRef.current?.signal.aborted && fullText) {
-        const assistantMsg: AIChatMessage = {
-          id: `assistant-${Date.now()}`,
-          role: 'assistant',
-          content: fullText,
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
-          timestamp: Date.now(),
-        };
-        dispatch({ type: 'ADD_MESSAGE', message: assistantMsg });
+        dispatch({
+          type: 'ADD_MESSAGE',
+          message: {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: fullText,
+            toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+            timestamp: Date.now(),
+          },
+        });
       }
       dispatch({ type: 'SET_STREAMING', value: false });
       dispatch({ type: 'CLEAR_STREAMING_TEXT' });
     } catch (err: unknown) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
-      const msg = err instanceof Error ? err.message : 'Request failed';
-      dispatch({ type: 'SET_ERROR', error: msg });
+      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'Request failed' });
       dispatch({ type: 'SET_STREAMING', value: false });
     }
   };
 
   // ── Render ──
   return (
-    <div className="ai-chat">
-      {/* ── Sidebar Backdrop ── */}
-      {sidebarOpen && (
-        <div className="ai-chat-sidebar-backdrop" onClick={() => setSidebarOpen(false)} />
-      )}
+    <div className="chat-page">
+      {/* Sidebar backdrop */}
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
-      {/* ── Sidebar ── */}
-      <aside className={`ai-chat-sidebar ${sidebarOpen ? 'ai-chat-sidebar-open' : ''}`}>
-        <div className="ai-chat-sidebar-header">
-          <button onClick={handleNewSession} className="ai-chat-sidebar-btn-new" type="button" aria-label="New conversation">
-            <Plus size={15} />
-            <span>New</span>
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? 'sidebar--open' : ''}`}>
+        <div className="sidebar-header">
+          <button onClick={handleNewSession} className="sidebar-btn sidebar-btn--new" type="button">
+            <Plus size={15} /> <span>New</span>
           </button>
         </div>
-        <div className="ai-chat-sidebar-search">
+        <div className="sidebar-search">
           <Search size={14} />
-          <input placeholder="Search..." className="ai-chat-sidebar-search-input" />
+          <input placeholder="Search..." className="sidebar-search-input" />
         </div>
-        <div className="ai-chat-sidebar-list">
+        <div className="sidebar-list">
           {sessions.map(s => (
-            <div
-              key={s.id}
-              onClick={() => switchSession(s.id)}
-              className={`ai-chat-sidebar-item ${s.id === activeSessionId ? 'ai-chat-sidebar-item-active' : ''}`}
-            >
-              <MessageSquare size={14} className="ai-chat-sidebar-item-icon" />
-              {editingSessionId === s.id ? (
-                <input
-                  autoFocus
-                  value={editTitle}
-                  onChange={e => setEditTitle(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') handleRenameSession(s.id);
-                    if (e.key === 'Escape') setEditingSessionId(null);
-                  }}
-                  onBlur={() => handleRenameSession(s.id)}
-                  onClick={e => e.stopPropagation()}
-                  className="ai-chat-sidebar-edit-input"
-                />
-              ) : (
-                <span
-                  className="ai-chat-sidebar-item-label"
-                  onDoubleClick={e => {
-                    e.stopPropagation();
-                    setEditingSessionId(s.id);
-                    setEditTitle(s.title);
-                  }}
-                >
-                  {s.title}
-                </span>
-              )}
-              {sessions.length > 1 && editingSessionId !== s.id && (
-                <button
-                  onClick={e => { e.stopPropagation(); handleDeleteSession(s.id); }}
-                  className="ai-chat-sidebar-item-delete"
-                  title="Delete"
-                  aria-label="Delete"
-                >
+            <div key={s.id} onClick={() => switchSession(s.id)}
+              className={`sidebar-item ${s.id === activeSessionId ? 'sidebar-item--active' : ''}`}>
+              <MessageSquare size={14} className="sidebar-item-icon" />
+              <span className="sidebar-item-label">{s.title}</span>
+              {sessions.length > 1 && (
+                <button onClick={e => { e.stopPropagation(); handleDeleteSession(s.id); }}
+                  className="sidebar-item-delete" type="button" aria-label="Delete">
                   <Trash2 size={12} />
                 </button>
               )}
@@ -418,145 +471,88 @@ export default function AssistantPage() {
         </div>
       </aside>
 
-      {/* ── Main ── */}
-      <div className="ai-chat-main">
+      {/* Main */}
+      <div className="chat-main">
         {/* Header */}
-        <header className="ai-chat-header">
-          <div className="ai-chat-header-left">
-            <button onClick={() => setSidebarOpen(o => !o)} className="ai-chat-header-btn" type="button" aria-label="Toggle sidebar">
+        <header className="header">
+          <div className="header-left">
+            <button onClick={() => setSidebarOpen(o => !o)} className="header-btn" type="button" aria-label="Toggle sidebar">
               <PanelLeft size={16} />
             </button>
           </div>
-          <div className="ai-chat-header-center">
-            <div className="ai-chat-header-brand">
-              <SparklesIcon size={14} className="ai-chat-header-brand-icon" />
-              <span className="ai-chat-header-brand-text">Hermes</span>
+          <div className="header-center">
+            <div className="header-brand">
+              <SparklesIcon size={14} />
+              <span className="header-brand-text">Hermes</span>
             </div>
           </div>
-          <div className="ai-chat-header-right">
-            <button onClick={() => setShowConfig(true)} className="ai-chat-header-btn" type="button" title="Settings" aria-label="Settings">
+          <div className="header-right">
+            <button onClick={() => setShowConfig(true)} className="header-btn" type="button" aria-label="Settings">
               <Settings size={15} />
             </button>
           </div>
         </header>
 
         {/* Messages */}
-        <Messages
-          messages={state.messages}
-          streaming={state.streaming}
-          streamingText={state.streamingText}
-          toolCalls={state.currentToolCalls}
-          isAtBottom={isAtBottom}
-          onScroll={handleScroll}
-        />
+        <div className="messages" ref={messagesContainerRef} onScroll={handleScroll}>
+          {state.messages.length === 0 && !state.streaming && (
+            <div className="empty">
+              <Greeting />
+              <div style={{ marginTop: 40 }}>
+                <SuggestedActions onSelect={(text) => { setInput(text); }} />
+              </div>
+            </div>
+          )}
 
-        {/* Error */}
-        {state.error && (
-          <div className="ai-chat-error" style={{ position: 'absolute', bottom: 80, left: '50%', transform: 'translateX(-50%)', maxWidth: 600, zIndex: 20 }}>
-            <span>{state.error}</span>
-            <button onClick={() => dispatch({ type: 'SET_ERROR', error: null })} className="ai-chat-error-dismiss" type="button">
-              Dismiss
-            </button>
+          <div className="messages-inner">
+            {state.messages.map(msg => (
+              <PreviewMessage key={msg.id} msg={msg} />
+            ))}
+
+            {state.streaming && (
+              <ThinkingMessage streamingText={state.streamingText} />
+            )}
+
+            {state.currentToolCalls.length > 0 && (
+              <div className="message-tools" style={{ maxWidth: 768, margin: '0 auto' }}>
+                {state.currentToolCalls.map((tc, i) => <ToolCard key={i} tc={tc} />)}
+              </div>
+            )}
+
+            {state.error && (
+              <div className="error" style={{ maxWidth: 768, margin: '12px auto' }}>
+                <span>{state.error}</span>
+                <button onClick={() => dispatch({ type: 'SET_ERROR', error: null })} className="error-dismiss" type="button">
+                  Dismiss
+                </button>
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
           </div>
-        )}
+        </div>
+
+        {/* Scroll to bottom */}
+        <ScrollToBottom isAtBottom={isAtBottom} onClick={() => scrollToBottom(true)} />
 
         {/* Composer */}
-        <div style={{ borderTop: '1px solid var(--border-color, #eaeaea)', background: 'var(--card-bg, #ffffff)', flexShrink: 0, position: 'relative', zIndex: 20 }}>
-          <MultimodalInput
-            input={input}
-            setInput={setInput}
-            onSend={handleSend}
-            onStop={handleStop}
-            isStreaming={state.streaming}
-            disabled={!config.apiEndpoint || !config.model}
-            placeholder={!config.apiEndpoint ? 'Set up AI provider first...' : 'Ask anything...'}
-            messagesEmpty={state.messages.length === 0}
-          />
+        <div className="composer">
+          <div className="composer-inner">
+            <PromptInput
+              input={input}
+              onInputChange={setInput}
+              onSubmit={handleSend}
+              onStop={handleStop}
+              status={state.streaming ? 'streaming' : 'ready'}
+              placeholder={!config.apiEndpoint ? 'Set up AI provider first...' : 'Ask anything...'}
+              disabled={!config.apiEndpoint || !config.model}
+            />
+          </div>
         </div>
       </div>
 
-      {/* ── Config Modal ── */}
-      {showConfig && (
-        <div className="ai-chat-modal-overlay" onClick={() => setShowConfig(false)}>
-          <div className="ai-chat-modal" onClick={e => e.stopPropagation()}>
-            <div className="ai-chat-modal-header">
-              <div className="ai-chat-modal-header-left">
-                <Settings size={17} className="ai-chat-modal-header-icon" />
-                <h3 className="ai-chat-modal-title">AI Settings</h3>
-              </div>
-              <button onClick={() => setShowConfig(false)} className="ai-chat-modal-close" type="button" aria-label="Close">
-                <X size={15} />
-              </button>
-            </div>
-            <div className="ai-chat-modal-body">
-              <div>
-                <label className="ai-chat-field-label">API Endpoint</label>
-                <input
-                  type="url"
-                  value={config.apiEndpoint}
-                  onChange={e => saveConfig({ ...config, apiEndpoint: e.target.value })}
-                  placeholder="https://api.openai.com/v1/chat/completions"
-                  dir="ltr"
-                  className="ai-chat-field-input"
-                />
-              </div>
-              <div>
-                <label className="ai-chat-field-label">API Key</label>
-                <input
-                  type="password"
-                  value={config.apiKey}
-                  onChange={e => saveConfig({ ...config, apiKey: e.target.value })}
-                  placeholder="sk-..."
-                  dir="ltr"
-                  className="ai-chat-field-input"
-                />
-              </div>
-              <div>
-                <label className="ai-chat-field-label">Model</label>
-                <div className="ai-chat-field-row">
-                  <input
-                    type="text"
-                    value={config.model}
-                    onChange={e => saveConfig({ ...config, model: e.target.value })}
-                    placeholder="gpt-4o / deepseek-chat / ..."
-                    dir="ltr"
-                    list="hermes-models-list"
-                    className="ai-chat-field-input ai-chat-field-input-flex"
-                  />
-                  <datalist id="hermes-models-list">
-                    {availableModels.map(m => <option key={m} value={m} />)}
-                  </datalist>
-                  <button onClick={fetchModels} disabled={fetchingModels} className="ai-chat-field-btn" type="button" title="Fetch models" aria-label="Fetch models">
-                    {fetchingModels ? <Loader2 size={14} className="ai-chat-fetch-spinner" /> : <ChevronRight size={14} />}
-                  </button>
-                </div>
-                {availableModels.length > 0 && (
-                  <span className="ai-chat-field-hint">{availableModels.length} models available</span>
-                )}
-              </div>
-              <div>
-                <label className="ai-chat-field-label">Provider name (optional)</label>
-                <input
-                  type="text"
-                  value={config.providerName || ''}
-                  onChange={e => saveConfig({ ...config, providerName: e.target.value })}
-                  placeholder="openai / openrouter / custom"
-                  dir="ltr"
-                  className="ai-chat-field-input"
-                />
-              </div>
-            </div>
-            <button
-              onClick={() => setShowConfig(false)}
-              disabled={!config.apiEndpoint || !config.model}
-              className="ai-chat-modal-submit"
-              type="button"
-            >
-              Save & Close
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Config Modal */}
+      <ConfigModal show={showConfig} onClose={() => setShowConfig(false)} config={config} onSave={saveConfig} />
     </div>
   );
 }

@@ -58,6 +58,7 @@ const PrintQueue = lazy(() => import('./components/PrintQueue'));
 const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 const TaxBookExportModal = lazy(() => import('./components/TaxBookExportModal'));
 const AssistantPage = lazy(() => import('./components/AssistantPage'));
+const ChatPage = lazy(() => import('./components/ChatPage'));
 
 export default function App() {
   // ========== TOAST (needed by many hooks) ==========
@@ -67,7 +68,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
-  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard', 'assistant'];
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard', 'assistant', 'chat'];
   const initialTab = validTabs.includes(pathTab) ? pathTab : 'records';
 
   const [tab, setTabState] = useState(initialTab);
@@ -745,6 +746,11 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {tab === 'chat' ? (
+        <Suspense fallback={<LoadingScreen />}>
+          <ChatPage />
+        </Suspense>
+      ) : (
       <div className={`app-container${ws.sidebarOpen ? ' sidebar-collapsed' : ''}${ws.sidebarCompact ? ' sidebar-compact' : ''}`}>
         <Sidebar
           tab={tab}
@@ -1353,6 +1359,7 @@ export default function App() {
           </Suspense>
         )}
       </div>
+      )}
     </ErrorBoundary>
   );
 }
