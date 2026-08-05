@@ -34,6 +34,7 @@ setDB(db);
 setFTS5Rebuilder(() => rebuildFTS5());
 
 const app = express();
+app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
