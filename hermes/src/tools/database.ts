@@ -4,7 +4,7 @@ import initSqlJs, { type Database } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../../server/data.db');
+const DB_PATH = process.env.DB_PATH || path.join(import.meta.dirname, '../../../server/data.db');
 
 let db: Database | null = null;
 
