@@ -200,9 +200,18 @@ export interface AIChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  attachments?: ChatAttachment[];
   toolCalls?: AIToolCall[];
   toolResults?: AIToolResult[];
   timestamp: number;
+}
+
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  type?: string;
+  size?: number;
+  url?: string;
 }
 
 export interface AIToolCall {
@@ -224,4 +233,5 @@ export interface AISSEEvent {
   result?: unknown;
   error?: string;
   elapsed?: number;
+  attachments?: ChatAttachment[];
 }

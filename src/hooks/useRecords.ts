@@ -5,7 +5,7 @@ import type { RecordItem, Snapshot } from '../types';
 const STORAGE_KEY = 'label-studio-records';
 const UNDO_KEY = 'label-studio-undo';
 const DEFAULT_RECORDS: RecordItem[] = [
-  { code: "INV-001", project: "HQ Renovation", type: "Invoice", date: "1403/02/10", party: "BuildCo", amount: "12,500,000", related: ["CONTRACT-001"], color: "#7367f0" },
+  { code: "INV-001", project: "HQ Renovation", type: "Invoice", date: "1403/02/10", party: "BuildCo", amount: "12,500,000", related: ["CONTRACT-001"], color: "#0f766e" },
   { code: "REC-002", project: "IT Upgrade", type: "Receipt", date: "1403/02/12", party: "TechStore", amount: "3,200,000", related: [], color: "#28c76f" },
   { code: "PAY-003", project: "Marketing", type: "Payment", date: "1403/02/14", party: "AdAgency", amount: "8,000,000", related: ["CONTRACT-001", "CONTRACT-002"], color: "#ff9f43" },
   { code: "CONTRACT-001", project: "Office Contract", type: "Contract", date: "1403/01/01", party: "Legal Dept", amount: "50,000,000", related: [], color: "#00cfe8" },

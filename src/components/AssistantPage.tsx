@@ -4,7 +4,7 @@ import {
   X, Trash2, PanelLeft, ChevronRight, Loader2,
 } from 'lucide-react';
 import { api } from '../utils/api';
-import type { AIChatMessage, AIProviderConfig, AISSEEvent } from '../types';
+import type { AIChatMessage, AIProviderConfig, AISSEEvent, ChatAttachment } from '../types';
 import { SparklesIcon } from './ai-chatbot/icons';
 import { Messages } from './ai-chatbot/messages';
 import { MultimodalInput } from './ai-chatbot/multimodal-input';
@@ -160,6 +160,7 @@ export default function AssistantPage() {
   });
 
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [config, setConfig] = useState<AIProviderConfig>(INITIAL_CONFIG);
   const [showConfig, setShowConfig] = useState(!config.apiEndpoint);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -265,6 +266,24 @@ export default function AssistantPage() {
     dispatch({ type: 'SET_ABORTED', value: true });
   };
 
+  // Attachments — user can send files; agent responses may carry them too
+  const handleAttachFiles = useCallback((files: File[]) => {
+    setAttachments(prev => [
+      ...prev,
+      ...files.map(f => ({
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        url: URL.createObjectURL(f),
+      })),
+    ]);
+  }, []);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  }, []);
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || state.streaming || !config.apiEndpoint || !config.model) return;
@@ -276,10 +295,12 @@ export default function AssistantPage() {
       id: `user-${Date.now()}`,
       role: 'user',
       content: text,
+      attachments: attachments.length ? attachments : undefined,
       timestamp: Date.now(),
     };
     dispatch({ type: 'ADD_MESSAGE', message: userMsg });
     setInput('');
+    setAttachments([]);
     dispatch({ type: 'SET_STREAMING', value: true });
     dispatch({ type: 'CLEAR_STREAMING_TEXT' });
     dispatch({ type: 'CLEAR_TOOL_CALLS' });
@@ -304,6 +325,7 @@ export default function AssistantPage() {
     try {
       const stream = api.aiChat(apiMessages, config);
       let fullText = '';
+      let agentAttachments: ChatAttachment[] | undefined;
       const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
 
       for await (const event of stream as AsyncIterable<AISSEEvent>) {
@@ -326,6 +348,7 @@ export default function AssistantPage() {
             dispatch({ type: 'SET_ERROR', error: event.error || 'Unknown error' });
             break;
           case 'done':
+            if (event.attachments && event.attachments.length) agentAttachments = event.attachments;
             break;
         }
       }
@@ -335,6 +358,7 @@ export default function AssistantPage() {
           id: `assistant-${Date.now()}`,
           role: 'assistant',
           content: fullText,
+          attachments: agentAttachments,
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
           timestamp: Date.now(),
         };
@@ -471,6 +495,9 @@ export default function AssistantPage() {
             disabled={!config.apiEndpoint || !config.model}
             placeholder={!config.apiEndpoint ? 'Set up AI provider first...' : 'Ask anything...'}
             messagesEmpty={state.messages.length === 0}
+            attachments={attachments}
+            onAttachFiles={handleAttachFiles}
+            onRemoveAttachment={handleRemoveAttachment}
           />
         </div>
       </div>

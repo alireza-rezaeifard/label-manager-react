@@ -146,7 +146,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
         .vd-image { max-width: 100%; max-height: 300px; border-radius: 12px; border: 1px solid var(--border-color); object-fit: contain; }
         .vd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
         .vd-header-left { display: flex; align-items: center; gap: 1rem; }
-        .vd-emblem { width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), #818cf8); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; flex-shrink: 0; }
+        .vd-emblem { width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), #14b8a6); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; flex-shrink: 0; }
         .vd-code { margin: 0; font-family: monospace; direction: ltr; }
         .vd-meta { opacity: 0.6; font-size: 0.875rem; }
         .vd-header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }

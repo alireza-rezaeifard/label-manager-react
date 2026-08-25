@@ -164,7 +164,7 @@ export default function TaxBookExportModal({
                 width: 36,
                 height: 36,
                 borderRadius: 'var(--radius-md, 0.5rem)',
-                background: 'rgba(99, 102, 241, 0.1)',
+                background: 'rgba(15, 118, 110, 0.1)',
                 color: 'var(--primary)',
               }}
             >
@@ -192,7 +192,7 @@ export default function TaxBookExportModal({
                         background: isDone
                           ? 'var(--primary)'
                           : isActive
-                            ? 'rgba(99, 102, 241, 0.12)'
+                            ? 'rgba(15, 118, 110, 0.12)'
                             : 'var(--hover-bg)',
                         color: isDone
                           ? '#fff'
@@ -247,8 +247,8 @@ export default function TaxBookExportModal({
                   <label
                     className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg transition-all duration-150"
                     style={{
-                      background: scope === 'selected' ? 'rgba(99, 102, 241, 0.06)' : 'transparent',
-                      border: `1px solid ${scope === 'selected' ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}`,
+                      background: scope === 'selected' ? 'rgba(15, 118, 110, 0.06)' : 'transparent',
+                      border: `1px solid ${scope === 'selected' ? 'rgba(15, 118, 110, 0.2)' : 'transparent'}`,
                     }}
                   >
                     <input
@@ -277,8 +277,8 @@ export default function TaxBookExportModal({
                   <label
                     className="flex items-center gap-3 cursor-pointer p-2.5 rounded-lg transition-all duration-150"
                     style={{
-                      background: scope === 'all' ? 'rgba(99, 102, 241, 0.06)' : 'transparent',
-                      border: `1px solid ${scope === 'all' ? 'rgba(99, 102, 241, 0.2)' : 'transparent'}`,
+                      background: scope === 'all' ? 'rgba(15, 118, 110, 0.06)' : 'transparent',
+                      border: `1px solid ${scope === 'all' ? 'rgba(15, 118, 110, 0.2)' : 'transparent'}`,
                     }}
                   >
                     <input
@@ -370,7 +370,7 @@ export default function TaxBookExportModal({
                   width: 64,
                   height: 64,
                   borderRadius: '50%',
-                  background: 'rgba(99, 102, 241, 0.08)',
+                  background: 'rgba(15, 118, 110, 0.08)',
                 }}
               >
                 <Loader2
@@ -395,7 +395,7 @@ export default function TaxBookExportModal({
                     <div
                       className="h-full rounded-full transition-all duration-500 ease-out"
                       style={{
-                        background: 'linear-gradient(90deg, var(--primary), #818cf8)',
+                        background: 'linear-gradient(90deg, var(--primary), #14b8a6)',
                         width: `${(batchProgress.current / batchProgress.total) * 100}%`,
                       }}
                     />

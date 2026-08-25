@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* PersianLabs/ui components use the `dark:` variant. The app toggles themes
+   via the `data-theme` attribute on <html>, so point `dark:` at it. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 /*
  * Tailwind v4 theme tokens — mapped to the existing CSS custom properties
  * defined in src/styles/main.css so all legacy classes continue to work
@@ -35,8 +39,14 @@
   --color-destructive-foreground: #ffffff;
 
   --color-success: var(--success);
+  --color-success-foreground: #ffffff;
   --color-warning: var(--warning);
+  --color-warning-foreground: #ffffff;
   --color-info: var(--info);
+  --color-info-foreground: #ffffff;
+
+  --color-accent-gold: var(--accent-gold);
+  --color-accent-gold-foreground: #ffffff;
 
   --color-border: var(--border-color);
   --color-input: var(--border-color);

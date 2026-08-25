@@ -24,6 +24,7 @@ import {
   Tags,
   Shield,
   Bot,
+  Layers,
 } from 'lucide-react';
 
 const SECTIONS = [
@@ -58,9 +59,17 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'فضای کاری',
+    key: 'workspace',
+    numeral: 'IV',
+    items: [
+      { tab: 'workspace', icon: Layers, label: 'مدیریت فضا' },
+    ],
+  },
+  {
     title: 'حساب',
     key: 'account',
-    numeral: 'IV',
+    numeral: 'V',
     items: [
       { tab: 'profile', icon: User, label: 'پروفایل' },
       { tab: 'settings', icon: Settings, label: 'تنظیمات' },
@@ -349,10 +358,10 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             font-weight: 700;
             color: var(--primary);
             opacity: 0.5;
-            background: rgba(99, 102, 241, 0.06);
+            background: rgba(15, 118, 110, 0.06);
             padding: 0.1rem 0.3rem;
             border-radius: 3px;
-            border: 1px solid rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(15, 118, 110, 0.1);
             letter-spacing: 0.05em;
             min-width: 18px;
             text-align: center;
@@ -372,7 +381,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
           }
 
           .sb-nav-item.active {
-            background: rgba(99, 102, 241, 0.08) !important;
+            background: rgba(15, 118, 110, 0.08) !important;
             color: var(--primary) !important;
             box-shadow: none !important;
           }
@@ -392,10 +401,10 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
           }
 
           .sb-nav-icon-wrap.active {
-            background: linear-gradient(135deg, var(--primary), #818cf8) !important;
+            background: linear-gradient(135deg, var(--primary), #14b8a6) !important;
             color: white !important;
             opacity: 1;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 2px 8px rgba(15, 118, 110, 0.3);
           }
 
           .sb-nav-label {
@@ -417,7 +426,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             height: 4px;
             border-radius: 50%;
             background: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+            box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.15);
           }
 
           /* ── Activity Feed ── */

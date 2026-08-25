@@ -24,9 +24,13 @@ export default defineConfig({
     dedupe: ['react', 'react-dom'],
     alias: {
       '@': path.resolve(__dirname, 'src'),
-      react: path.resolve('./node_modules/react'),
-      'react-dom': path.resolve('./node_modules/react-dom'),
+      rgbcolor: path.resolve(__dirname, 'src/vendor/rgbcolor.js'),
+      'performance-now': path.resolve(__dirname, 'src/vendor/performance-now.cjs'),
     },
+  },
+  optimizeDeps: {
+    // Keep every react entry in ONE pre-bundled singleton chunk
+    include: ['react', 'react-dom', 'react/jsx-runtime'],
   },
   server: {
     proxy: {

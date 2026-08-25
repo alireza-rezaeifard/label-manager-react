@@ -42,7 +42,7 @@ export default function ConfirmDialog({
                 <div
                   className="flex h-16 w-16 items-center justify-center rounded-full"
                   style={{
-                    background: variant === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(99, 102, 241, 0.1)',
+                    background: variant === 'danger' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(15, 118, 110, 0.1)',
                     color: variant === 'danger' ? 'var(--danger)' : 'var(--primary)',
                   }}
                 >

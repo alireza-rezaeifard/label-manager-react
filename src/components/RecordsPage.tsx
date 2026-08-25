@@ -190,20 +190,17 @@ export default function RecordsPage({
 
   return (
     <div className="rpg fade-in">
-      {/* ── Page Header ── */}
+      {/* ── Section Header (DS pattern: numeral chip + title + gilded rule) ── */}
       <div className="rpg-header">
         <div className="rpg-header-left">
-          <div className="rpg-emblem">
-            <FileSpreadsheet className="rpg-emblem-icon" />
-          </div>
-          <div>
-            <h2 className="rpg-title">رکوردها</h2>
-            <p className="rpg-subtitle">
-              {sortedRecords.length.toLocaleString('fa-IR')} رکورد
-              {selected.size > 0 && ` — ${selected.size.toLocaleString('fa-IR')} انتخاب شده`}
-            </p>
-          </div>
+          <span className="ds-section-numeral">رک</span>
+          <h2 className="rpg-title">رکوردها</h2>
+          <span className="ds-section-desc">
+            {sortedRecords.length.toLocaleString('fa-IR')} رکورد
+            {selected.size > 0 && ` — ${selected.size.toLocaleString('fa-IR')} انتخاب شده`}
+          </span>
         </div>
+        <div className="ds-section-rule" />
         <div className="rpg-header-right">
           <ToolbarBtn onClick={onToggleAll} active={selected.size === sortedRecords.length && sortedRecords.length > 0}>
             {selected.size === sortedRecords.length && sortedRecords.length > 0 ? <CheckSquare className="rpg-tb-icon" /> : <Square className="rpg-tb-icon" />}
@@ -552,46 +549,27 @@ export default function RecordsPage({
           gap: 1rem;
         }
 
-        /* ── Page Header ── */
+        /* ── Section Header (DS pattern) ── */
         .rpg-header {
           display: flex;
           align-items: center;
-          justify-content: space-between;
-          gap: 1rem;
-          padding-bottom: 1.25rem;
-          border-bottom: 1px solid var(--border-color);
+          gap: 0.625rem;
         }
 
         .rpg-header-left {
           display: flex;
           align-items: center;
-          gap: 0.875rem;
-        }
-
-        .rpg-emblem {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
-          flex-shrink: 0;
-        }
-
-        .rpg-emblem-icon {
-          width: 22px;
-          height: 22px;
-          color: white;
+          gap: 0.625rem;
+          min-width: 0;
         }
 
         .rpg-title {
           margin: 0;
-          font-size: 1.25rem;
-          font-weight: 800;
+          font-size: 0.9375rem;
+          font-weight: 700;
           color: var(--text-color);
-          letter-spacing: -0.02em;
+          letter-spacing: -0.01em;
+          white-space: nowrap;
         }
 
         .rpg-subtitle {
@@ -605,6 +583,7 @@ export default function RecordsPage({
           display: flex;
           align-items: center;
           gap: 0.375rem;
+          flex-shrink: 0;
         }
 
         /* ── Toolbar Button ── */
@@ -628,7 +607,7 @@ export default function RecordsPage({
         .rpg-tb-btn:hover {
           border-color: var(--primary);
           color: var(--primary);
-          background: rgba(99, 102, 241, 0.04);
+          background: rgba(15, 118, 110, 0.04);
         }
 
         .rpg-tb-btn-active {
@@ -812,7 +791,7 @@ export default function RecordsPage({
           width: 32px;
           height: 32px;
           border-radius: 8px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -963,12 +942,12 @@ export default function RecordsPage({
           width: 80px;
           height: 80px;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
           margin: 0 auto 1.5rem;
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+          box-shadow: 0 8px 24px rgba(15, 118, 110, 0.2);
           position: relative;
         }
 
@@ -1040,14 +1019,14 @@ export default function RecordsPage({
         }
 
         .rpg-empty-btn.primary {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           color: white;
           border: none;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
         }
 
         .rpg-empty-btn.primary:hover {
-          box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 6px 16px rgba(15, 118, 110, 0.4);
           transform: translateY(-1px);
         }
 
@@ -1109,7 +1088,7 @@ export default function RecordsPage({
         .rpg-pg-btn.active {
           background: var(--primary);
           color: white;
-          box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 2px 6px rgba(15, 118, 110, 0.3);
         }
 
         .rpg-pg-btn:disabled {

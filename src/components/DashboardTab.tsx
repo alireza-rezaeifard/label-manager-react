@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const COLORS = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
+const COLORS = ['#0f766e', '#10b981', '#ef4444', '#f59e0b', '#06b6d4', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 interface Props {
   records: RecordItem[];
@@ -45,7 +45,7 @@ function relativeTime(dateStr?: string): string {
 
 const ACTION_CONFIG: Record<string, { icon: string; color: string; bg: string; label: string }> = {
   create: { icon: 'ti-plus', color: '#10b981', bg: 'rgba(16,185,129,0.1)', label: 'ایجاد' },
-  update: { icon: 'ti-edit', color: '#6366f1', bg: 'rgba(99,102,241,0.1)', label: 'ویرایش' },
+  update: { icon: 'ti-edit', color: '#0f766e', bg: 'rgba(15,118,110,0.1)', label: 'ویرایش' },
   delete: { icon: 'ti-trash', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'حذف' },
   trash: { icon: 'ti-trash', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', label: 'انتقال به سطل زباله' },
   restore: { icon: 'ti-rotate', color: '#06b6d4', bg: 'rgba(6,182,212,0.1)', label: 'بازیابی' },
@@ -286,10 +286,10 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           <Chart
             options={{
               chart: { type: 'line', toolbar: { show: false } },
-              colors: ['#6366f1'],
+              colors: ['#0f766e'],
               xaxis: { categories: monthlyData.map(d => d.name), labels: { style: { fontSize: '11px' } } },
               stroke: { curve: 'smooth', width: 2 },
-              markers: { size: 4, colors: ['#6366f1'] },
+              markers: { size: 4, colors: ['#0f766e'] },
               dataLabels: { enabled: false },
               tooltip: { enabled: true },
             }}
@@ -387,7 +387,7 @@ export default function DashboardTab({ records, customFields, tags, activityLog,
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             {(showAllActivity ? actLog : actLog.slice(0, 20)).map((a, i) => {
-              const cfg = ACTION_CONFIG[a.action] || { icon: 'ti-info-circle', color: 'var(--primary)', bg: 'rgba(99,102,241,0.08)', label: a.action };
+              const cfg = ACTION_CONFIG[a.action] || { icon: 'ti-info-circle', color: 'var(--primary)', bg: 'rgba(15,118,110,0.08)', label: a.action };
               return (
                 <div key={a.record_id || i} style={{
                   display: 'flex', alignItems: 'center', gap: '0.75rem',

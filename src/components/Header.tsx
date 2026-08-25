@@ -32,7 +32,9 @@ import {
   Sun,
   ChevronDown,
   User,
+  Layers,
 } from 'lucide-react';
+import { getAuthUser } from '../utils/api';
 
 interface HeaderProps {
   search: string;
@@ -42,6 +44,7 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onSettingsClick: () => void;
   onProfileClick: () => void;
+  onWorkspaceClick: () => void;
   onShortcutsHelp: () => void;
   connectionStatus?: ConnectionStatus;
 }
@@ -53,9 +56,11 @@ const STATUS_CONFIG: Record<ConnectionStatus, { color: string; label: string; ic
   reconnecting: { color: '#f59e0b', label: 'در حال اتصال مجدد...', icon: <RefreshCw className="h-3.5 w-3.5 animate-spin" /> },
 };
 
-export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onShortcutsHelp, connectionStatus }: HeaderProps) {
+export default function Header({ search, onSearchChange, theme, onToggleTheme, onToggleSidebar, onSettingsClick, onProfileClick, onWorkspaceClick, onShortcutsHelp, connectionStatus }: HeaderProps) {
   const [notifications] = useState([]);
   const statusInfo = connectionStatus ? STATUS_CONFIG[connectionStatus] : null;
+  const user = getAuthUser();
+  const initial = user?.username?.[0]?.toUpperCase() || 'A';
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -65,13 +70,13 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
             <Menu className="h-5 w-5" />
           </Button>
           <div className="search-box">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
             <Input
               type="text"
               placeholder="جستجو..."
               value={search}
               onChange={e => onSearchChange(e.target.value)}
-              className="border-0 bg-transparent pl-10 focus-visible:ring-0"
+              className="border-0 bg-transparent ps-10 focus-visible:ring-0"
             />
           </div>
         </div>
@@ -132,9 +137,12 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="user-dropdown" onClick={onProfileClick}>
-                <div className="user-avatar">A</div>
-                <span className="font-medium text-sm">Admin</span>
+              <button className="user-dropdown" aria-label="Account menu">
+                <div className="user-avatar">
+                  {initial}
+                  <span className="user-avatar-ring" aria-hidden="true" />
+                </div>
+                <span className="user-dropdown-label">{user?.username || 'Admin'}</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />
               </button>
             </DropdownMenuTrigger>
@@ -144,6 +152,10 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
               <DropdownMenuItem onClick={onProfileClick}>
                 <User className="h-4 w-4" />
                 پروفایل
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onWorkspaceClick}>
+                <Layers className="h-4 w-4" />
+                فضای کاری
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onSettingsClick}>
                 <Settings className="h-4 w-4" />

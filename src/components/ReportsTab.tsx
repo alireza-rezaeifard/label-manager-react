@@ -2,7 +2,7 @@ import { useMemo, useState, useCallback } from 'react';
 import Chart from 'react-apexcharts';
 import type { RecordItem } from '../types';
 
-const COLORS = ['#7367f0', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
+const COLORS = ['#0f766e', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
 
 interface Props {
   records: RecordItem[];

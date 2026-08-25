@@ -152,7 +152,7 @@ export default function AutocompleteInput({
               style={{
                 padding: '8px 12px', cursor: 'pointer', direction: 'ltr', textAlign: 'left',
                 background: i === focusedIdx ? 'var(--hover-bg, #2a2a45)' : 'transparent',
-                color: i === focusedIdx ? 'var(--primary, #7367f0)' : 'var(--text, #e0e0e0)',
+                color: i === focusedIdx ? 'var(--primary, #0f766e)' : 'var(--text, #e0e0e0)',
                 fontSize: '0.875rem', borderBottom: i < filtered.length - 1 ? '1px solid var(--border-color, #2d2d44)' : 'none',
                 transition: 'background 0.1s',
               }}

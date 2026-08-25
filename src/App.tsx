@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, startTransition } from 'react';
+import { DirectionProvider } from '@radix-ui/react-direction';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
@@ -57,8 +58,8 @@ const QRScanner = lazy(() => import('./components/QRScanner'));
 const PrintQueue = lazy(() => import('./components/PrintQueue'));
 const RecordHistoryModal = lazy(() => import('./components/RecordHistoryModal'));
 const TaxBookExportModal = lazy(() => import('./components/TaxBookExportModal'));
-const AssistantPage = lazy(() => import('./components/AssistantPage'));
 const ChatPage = lazy(() => import('./components/ChatPage'));
+const WorkspacePage = lazy(() => import('./components/WorkspacePage'));
 
 export default function App() {
   // ========== TOAST (needed by many hooks) ==========
@@ -68,7 +69,7 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
   const pathTab = location.pathname.replace('/', '').split('/')[0] || 'records';
-  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard', 'assistant', 'chat'];
+  const validTabs = ['records', 'add', 'import', 'preview', 'view', 'history', 'profile', 'settings', 'reports', 'dashboard', 'assistant', 'chat', 'workspace'];
   const initialTab = validTabs.includes(pathTab) ? pathTab : 'records';
 
   const [tab, setTabState] = useState(initialTab);
@@ -745,10 +746,14 @@ export default function App() {
   const allParties = [...new Set(currentRecords.map((r: RecordItem) => r.party).filter(Boolean))] as string[];
 
   return (
-    <ErrorBoundary>
+    <DirectionProvider dir="rtl">
+      <ErrorBoundary>
       {tab === 'chat' ? (
         <Suspense fallback={<LoadingScreen />}>
-          <ChatPage />
+          <ChatPage
+            workspaceName={ws.workspaces.find(w => w.id === ws.currentWorkspaceId)?.name}
+            recordCount={currentRecords.length}
+          />
         </Suspense>
       ) : (
       <div className={`app-container${ws.sidebarOpen ? ' sidebar-collapsed' : ''}${ws.sidebarCompact ? ' sidebar-compact' : ''}`}>
@@ -775,12 +780,13 @@ export default function App() {
             onToggleSidebar={ws.toggleSidebar}
             onSettingsClick={() => setTab('settings')}
             onProfileClick={() => setTab('profile')}
+            onWorkspaceClick={() => setTab('workspace')}
             onShortcutsHelp={() => setShowShortcutsHelp(true)}
             connectionStatus={ws.serverMode ? ws.connectionStatus : undefined}
           />
 
           <div className="content-area">
-            {tab !== 'assistant' && (
+            {tab !== 'assistant' && tab !== 'profile' && tab !== 'settings' && tab !== 'workspace' && (
             <div className="page-header">
               <div>
                 <h1 className="page-title">
@@ -790,11 +796,8 @@ export default function App() {
                   {tab === 'preview' && 'پیش‌نمایش برچسب‌ها'}
                   {tab === 'view' && 'جزئیات برچسب'}
                   {tab === 'history' && 'تاریخچه چاپ'}
-                  {tab === 'profile' && 'پروفایل'}
-                  {tab === 'settings' && 'تنظیمات'}
                   {tab === 'reports' && 'گزارش‌ها و آمار'}
                   {tab === 'dashboard' && 'داشبورد'}
-                  {tab === 'assistant' && 'دستیار هوشمند'}
                 </h1>
                 <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
               </div>
@@ -862,7 +865,7 @@ export default function App() {
             )}
 
             <TransitionPage tab={tab}>
-              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && tab !== 'assistant' && (
+              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && tab !== 'assistant' && tab !== 'workspace' && (
                 <StatsCards records={currentRecords} selected={list.selected} filtered={list.sortedRecords} />
               )}
 
@@ -1039,7 +1042,32 @@ export default function App() {
 
               {tab === 'assistant' && (
                 <Suspense fallback={<StatsSkeleton />}>
-                  <AssistantPage />
+                  <div className="aiw-embedded">
+                    <ChatPage
+                      workspaceName={ws.workspaces.find(w => w.id === ws.currentWorkspaceId)?.name}
+                      recordCount={currentRecords.length}
+                    />
+                  </div>
+                </Suspense>
+              )}
+
+              {tab === 'workspace' && (
+                <Suspense fallback={<SettingsSkeleton />}>
+                  <WorkspacePage
+                    serverMode={ws.serverMode}
+                    authUser={ws.authUser}
+                    workspaces={ws.workspaces}
+                    currentWorkspaceId={ws.currentWorkspaceId}
+                    recordCount={currentRecords.length}
+                    customFieldCount={ws.customFields.length}
+                    activityLog={ws.activityLog}
+                    onCreate={handleCreateWorkspace}
+                    onInvite={handleInviteMember}
+                    onLeave={handleLeaveWorkspace}
+                    onDelete={handleDeleteWorkspace}
+                    onLogin={handleLoginGoToServer}
+                    addToast={addToast}
+                  />
                 </Suspense>
               )}
 
@@ -1263,12 +1291,12 @@ export default function App() {
                   رنگ
                 </label>
                 <div className="d-flex gap-2 align-items-center">
-                  <input type="color" value={bulkEditColor || '#7367f0'}
+                  <input type="color" value={bulkEditColor || '#0f766e'}
                     onChange={e => setBulkEditColor(e.target.value)}
                     style={{ width: 48, height: 48, borderRadius: 8, border: '1px solid var(--border-color)', cursor: 'pointer', padding: 2, background: 'none' }} />
                   <input type="text" className="form-input" value={bulkEditColor}
                     onChange={e => setBulkEditColor(e.target.value)}
-                    placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
+                    placeholder="#0f766e" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
                   <button className="btn btn-outline btn-sm" onClick={() => setBulkEditColor('')}>
                     <X className="h-4 w-4" />
                   </button>
@@ -1360,6 +1388,7 @@ export default function App() {
         )}
       </div>
       )}
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </DirectionProvider>
   );
 }

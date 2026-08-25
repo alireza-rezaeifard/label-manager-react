@@ -1122,3 +1122,151 @@
   white-space: nowrap;
   border-width: 0;
 }
+/* ══════════════════════════════════════════════════════════════════════
+   Hermes template · PersianLabs/ui "Ink Ledger" additions
+   RTL text, Vazirmatn, and file attachments (user + agent)
+   ══════════════════════════════════════════════════════════════════════ */
+.ai-chat {
+  font-family: 'Vazirmatn', 'Vazirmatn', 'Inter', system-ui, -apple-system, sans-serif;
+  direction: rtl;
+}
+.ai-chat-input-textarea,
+.ai-chat-user-bubble,
+.ai-chat-message-text,
+.ai-chat-sidebar-item-label,
+.ai-chat-field-input {
+  direction: rtl;
+}
+/* code stays LTR */
+.ai-chat-code-block,
+.ai-chat-code-header,
+.code-block pre {
+  direction: ltr;
+  text-align: left;
+}
+
+/* ── Attachments (user & agent files) ── */
+.ai-chat-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.ai-chat-attachment {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 240px;
+  border: 1px solid var(--border-color, #e6e1d3);
+  border-radius: 0.625rem;
+  background: var(--card-bg, #ffffff);
+  padding: 0.25rem 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ai-chat-attachment:hover {
+  border-color: var(--primary, #0f766e);
+  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.12);
+}
+.ai-chat-attachment-image-wrap {
+  padding: 0.25rem;
+  display: inline-block;
+}
+.ai-chat-attachment-image {
+  display: block;
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 0.5rem;
+  object-fit: cover;
+}
+.ai-chat-attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+  color: var(--text-color, #24302d);
+  text-decoration: none;
+}
+.ai-chat-attachment-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 0.45rem;
+  background: var(--primary-light, #e6f4f1);
+  color: var(--primary, #0f766e);
+  flex-shrink: 0;
+}
+.ai-chat-attachment-name {
+  font-size: 0.75rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+.ai-chat-attachment-download {
+  margin-inline-start: auto;
+  display: inline-flex;
+  color: var(--text-color, #24302d);
+  opacity: 0.55;
+}
+.ai-chat-attachment-download:hover {
+  opacity: 1;
+}
+
+/* ── Composer: pending file chips + attach button ── */
+.ai-chat-input-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem 0;
+}
+.ai-chat-input-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--primary-light, #e6f4f1);
+  color: var(--primary, #0f766e);
+  font-size: 0.75rem;
+}
+.ai-chat-input-chip-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-chat-input-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.65;
+}
+.ai-chat-input-chip-remove:hover {
+  opacity: 1;
+}
+.ai-chat-input-attach {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color, #e6e1d3);
+  background: transparent;
+  color: var(--text-color, #24302d);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+.ai-chat-input-attach:hover {
+  border-color: var(--primary, #0f766e);
+  color: var(--primary, #0f766e);
+}

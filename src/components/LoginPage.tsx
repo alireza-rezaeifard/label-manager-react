@@ -317,12 +317,12 @@ export default function LoginPage({ onLogin }: {
           width: 100%;
           height: 100%;
           border-radius: 50%;
-          background: linear-gradient(145deg, var(--primary), #818cf8);
+          background: linear-gradient(145deg, var(--primary), #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
           box-shadow:
-            0 4px 16px rgba(99, 102, 241, 0.3),
+            0 4px 16px rgba(15, 118, 110, 0.3),
             0 0 0 4px var(--card-bg),
             0 0 0 6px var(--primary);
           position: relative;
@@ -333,7 +333,7 @@ export default function LoginPage({ onLogin }: {
           width: 56px;
           height: 56px;
           border-radius: 50%;
-          background: linear-gradient(145deg, #818cf8, var(--primary));
+          background: linear-gradient(145deg, #14b8a6, var(--primary));
           display: flex;
           align-items: center;
           justify-content: center;
@@ -491,7 +491,7 @@ export default function LoginPage({ onLogin }: {
 
         .classic-input:focus {
           border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.1);
         }
 
         .classic-input::placeholder {
@@ -524,10 +524,10 @@ export default function LoginPage({ onLogin }: {
           border-radius: 10px;
           font-weight: 600;
           font-size: 0.9375rem;
-          background: linear-gradient(145deg, var(--primary), #818cf8);
+          background: linear-gradient(145deg, var(--primary), #14b8a6);
           color: white;
           border: none;
-          box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 14px rgba(15, 118, 110, 0.3);
           transition: all 0.25s ease;
           display: flex;
           align-items: center;
@@ -537,7 +537,7 @@ export default function LoginPage({ onLogin }: {
         }
 
         .classic-submit:hover {
-          box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 6px 20px rgba(15, 118, 110, 0.4);
           transform: translateY(-1px);
         }
 

@@ -3,10 +3,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, FileText, Download } from 'lucide-react';
 import { SparklesIcon, WrenchIcon, CheckCircle2Icon, XCircleIcon, ClockIcon, ChevronDownIcon } from './icons';
 import { Shimmer } from './shimmer';
-import type { AIChatMessage } from '../../types';
+import type { AIChatMessage, ChatAttachment } from '../../types';
 
 // ── Code Block ──
 function CodeBlock({ language, code }: { language: string; code: string }) {
@@ -159,6 +159,47 @@ function MessageActions({ text }: { text: string }) {
   );
 }
 
+// ── Attachments (files sent by the user or the agent) ──
+function FileAttachments({ attachments }: { attachments: ChatAttachment[] }) {
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <div className="ai-chat-attachments">
+      {attachments.map((a) => {
+        const isImage = !!a.type && a.type.startsWith('image/');
+        return (
+          <div
+            key={a.id}
+            className={`ai-chat-attachment ${isImage ? 'ai-chat-attachment-image-wrap' : 'ai-chat-attachment-file-wrap'}`}
+          >
+            {isImage && a.url ? (
+              <a href={a.url} target="_blank" rel="noreferrer">
+                <img src={a.url} alt={a.name} className="ai-chat-attachment-image" loading="lazy" />
+              </a>
+            ) : (
+              <a href={a.url} download={a.name} className="ai-chat-attachment-file" title="Download">
+                <span className="ai-chat-attachment-icon"><FileText size={14} /></span>
+                <span className="ai-chat-attachment-name">{a.name}</span>
+              </a>
+            )}
+            {a.url && (
+              <a
+                href={a.url}
+                download={a.name}
+                className="ai-chat-attachment-download"
+                aria-label="Download"
+                title="Download"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Download size={12} />
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Preview Message ──
 export const PreviewMessage = memo(function PreviewMessage({
   msg,
@@ -180,12 +221,18 @@ export const PreviewMessage = memo(function PreviewMessage({
         )}
         <div className="ai-chat-message-content">
           {isUser ? (
-            <div className="ai-chat-user-bubble">{msg.content}</div>
+            <div className="ai-chat-user-col">
+              {msg.attachments && msg.attachments.length > 0 && <FileAttachments attachments={msg.attachments} />}
+              <div className="ai-chat-user-bubble">{msg.content}</div>
+            </div>
           ) : (
-            <div className="ai-chat-message-text">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {msg.content}
-              </ReactMarkdown>
+            <div>
+              <div className="ai-chat-message-text">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                  {msg.content}
+                </ReactMarkdown>
+              </div>
+              {msg.attachments && msg.attachments.length > 0 && <FileAttachments attachments={msg.attachments} />}
             </div>
           )}
           {isAssistant && msg.toolCalls && msg.toolCalls.length > 0 && (

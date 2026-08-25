@@ -116,7 +116,7 @@ export default function FormPanel({
                   related: [],
                   tags: [],
                   image: '',
-                  color: '#7367f0',
+                  color: '#0f766e',
                 };
                 if (tmpl.customFields) {
                   tmpl.customFields.forEach(cf => { (record as any)[cf.key] = ''; });

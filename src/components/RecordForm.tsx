@@ -6,6 +6,8 @@ import "@daypicker/react/style.css";
 import { FIELDS } from "../data/fields";
 import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
+import { PriceInput } from "@/components/ui/price-input"
+import { useControllableState } from "@/hooks/useControllableState"
 import { extractTextFromImage } from "../utils/ocr";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import SearchableSelect from "./SearchableSelect";
@@ -92,7 +94,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
       form.color = editRecord.color || "";
       return form;
     }
-    const form: RecordFormState = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#7367f0" };
+    const form: RecordFormState = { code: "", project: "", type: "", date: "", party: "", amount: "", related: [], tags: [], image: "", color: "#0f766e" };
     customFields.forEach((f: FormField) => { form[f.key] = ""; });
     return form;
   };
@@ -365,12 +367,12 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                     </div>
                   ) : f.isCustom && f.fieldType === 'color' ? (
                     <div className="rf-color-row">
-                      <input type="color" value={(form[f.key] as string) || '#7367f0'}
+                      <input type="color" value={(form[f.key] as string) || '#0f766e'}
                         onChange={e => setField(f.key, e.target.value)}
                         className="rf-color-picker" />
                       <input type="text" className="rf-input" value={(form[f.key] as string) || ''}
                         onChange={e => setField(f.key, e.target.value)}
-                        placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
+                        placeholder="#0f766e" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
                     </div>
                   ) : f.isCustom && f.fieldType === 'dropdown' ? (
                     <SearchableSelect
@@ -453,12 +455,12 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
                 <span className="rf-label-fa">(اختیاری)</span>
               </label>
               <div className="rf-color-row">
-                <input type="color" value={form.color || '#7367f0'}
+                <input type="color" value={form.color || '#0f766e'}
                   onChange={e => setField('color', e.target.value)}
                   className="rf-color-picker" />
                 <input type="text" className="rf-input" value={form.color || ''}
                   onChange={e => setField('color', e.target.value)}
-                  placeholder="#7367f0" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
+                  placeholder="#0f766e" style={{ marginBottom: 0, fontFamily: 'monospace' }} />
               </div>
             </div>
           </div>
@@ -576,11 +578,11 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           width: 44px;
           height: 44px;
           border-radius: 12px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.25);
           flex-shrink: 0;
         }
 
@@ -610,8 +612,8 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           align-items: center;
           gap: 0.375rem;
           padding: 0.5rem 1rem;
-          background: rgba(99, 102, 241, 0.06);
-          border: 1px solid rgba(99, 102, 241, 0.12);
+          background: rgba(15, 118, 110, 0.06);
+          border: 1px solid rgba(15, 118, 110, 0.12);
           border-radius: 8px;
           font-size: 0.75rem;
           font-weight: 600;
@@ -702,7 +704,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         .rf-input:focus {
           outline: none;
           border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.08);
         }
 
         .rf-input.error {
@@ -820,7 +822,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
           white-space: nowrap;
           padding: 0.5rem 1rem;
           font-size: 0.75rem;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           color: white;
           border: none;
           border-radius: 8px;
@@ -835,7 +837,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         }
 
         .rf-btn.ocr:hover:not(:disabled) {
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
           transform: translateY(-1px);
         }
 
@@ -942,14 +944,14 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
         }
 
         .rf-btn.primary {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           color: white;
           border: none;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
         }
 
         .rf-btn.primary:hover {
-          box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 6px 16px rgba(15, 118, 110, 0.4);
           transform: translateY(-1px);
         }
 

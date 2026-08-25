@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { Paperclip, X } from 'lucide-react';
 import { ArrowUpIcon, StopIcon } from './icons';
 import { SuggestedActions } from './suggested-actions';
+import type { ChatAttachment } from '../../types';
 
 interface MultimodalInputProps {
   input: string;
@@ -11,6 +13,9 @@ interface MultimodalInputProps {
   disabled?: boolean;
   placeholder?: string;
   messagesEmpty: boolean;
+  attachments?: ChatAttachment[];
+  onAttachFiles?: (files: File[]) => void;
+  onRemoveAttachment?: (id: string) => void;
 }
 
 export function MultimodalInput({
@@ -22,8 +27,18 @@ export function MultimodalInput({
   disabled = false,
   placeholder = 'Ask anything...',
   messagesEmpty,
+  attachments = [],
+  onAttachFiles,
+  onRemoveAttachment,
 }: MultimodalInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFiles = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length && onAttachFiles) onAttachFiles(files);
+    e.target.value = '';
+  }, [onAttachFiles]);
 
   useEffect(() => {
     if (!disabled && !isStreaming) {
@@ -79,8 +94,31 @@ export function MultimodalInput({
             disabled={disabled}
             className="ai-chat-input-textarea"
           />
+          {attachments.length > 0 && (
+            <div className="ai-chat-input-attachments">
+              {attachments.map((a) => (
+                <span key={a.id} className="ai-chat-input-chip">
+                  <span className="ai-chat-input-chip-name">{a.name}</span>
+                  {onRemoveAttachment && (
+                    <button type="button" className="ai-chat-input-chip-remove" onClick={() => onRemoveAttachment(a.id)} aria-label="Remove file">
+                      <X size={12} />
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
           <div className="ai-chat-input-footer">
-            <div className="ai-chat-input-tools" />
+            <div className="ai-chat-input-tools">
+              {onAttachFiles && !isStreaming && (
+                <>
+                  <input ref={fileInputRef} type="file" multiple hidden onChange={handleFiles} />
+                  <button type="button" className="ai-chat-input-attach" onClick={() => fileInputRef.current?.click()} title="Attach file" aria-label="Attach file">
+                    <Paperclip size={15} />
+                  </button>
+                </>
+              )}
+            </div>
             <button
               onClick={handleSubmit}
               disabled={!isStreaming && !isActive}

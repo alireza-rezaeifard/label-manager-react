@@ -350,7 +350,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
 
         .cp-comment.reply {
           margin-left: 2rem;
-          background: rgba(99, 102, 241, 0.03);
+          background: rgba(15, 118, 110, 0.03);
           border: 1px solid var(--border-color);
         }
 
@@ -358,7 +358,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
           width: 32px;
           height: 32px;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -420,7 +420,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
         .cp-mention {
           color: var(--primary);
           font-weight: 600;
-          background: rgba(99, 102, 241, 0.06);
+          background: rgba(15, 118, 110, 0.06);
           padding: 0.05rem 0.3rem;
           border-radius: 3px;
         }
@@ -472,7 +472,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
           align-items: center;
           gap: 0.5rem;
           padding: 0.5rem 0.75rem;
-          background: rgba(99, 102, 241, 0.06);
+          background: rgba(15, 118, 110, 0.06);
           border-radius: 8px;
           font-size: 0.75rem;
         }
@@ -520,7 +520,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
         .cp-input:focus {
           outline: none;
           border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08);
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.08);
         }
 
         .cp-input::placeholder {
@@ -532,7 +532,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
           height: 44px;
           border-radius: 10px;
           border: none;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), #14b8a6);
           color: white;
           display: flex;
           align-items: center;
@@ -543,7 +543,7 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
         }
 
         .cp-send-btn:hover {
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 12px rgba(15, 118, 110, 0.3);
           transform: translateY(-1px);
         }
 

@@ -3,8 +3,8 @@ import SearchableSelect from './SearchableSelect';
 import ValidationRuleEditor from './ValidationRuleEditor';
 import type { ValidationRule as ValidationRuleType } from '../types';
 import {
-  Server, Palette, Tags, ListChecks, Zap, Plus, Trash2, Pencil, Check, X,
-  ChevronDown, Merge, Sun, Moon, Droplet, Contrast, Shield, Bot, Eye, EyeOff,
+  Plus, Trash2, Pencil, Check, X,
+  Merge, Shield, Eye, EyeOff, Loader2, SlidersHorizontal, CheckCircle2,
 } from 'lucide-react';
 
 const FIELD_TYPES = [
@@ -16,19 +16,22 @@ const FIELD_TYPES = [
 ];
 
 const FIELD_TYPE_BADGES: Record<string, { label: string; color: string }> = {
-  text: { label: 'متن', color: '#6366f1' },
+  text: { label: 'متن', color: '#0f766e' },
   number: { label: 'عدد', color: '#10b981' },
   date: { label: 'تاریخ', color: '#f59e0b' },
   dropdown: { label: 'لیست', color: '#06b6d4' },
   color: { label: 'رنگ', color: '#ef4444' },
 };
 
-const THEME_OPTIONS = [
-  { key: 'light', icon: Sun, label: 'روشن' },
-  { key: 'dark', icon: Moon, label: 'تیره' },
-  { key: 'sepia', icon: Droplet, label: 'قهوه‌ای' },
-  { key: 'high-contrast', icon: Contrast, label: 'کنتراست بالا' },
-];
+/* Mini page previews for the theme selector — real token colors per theme */
+const THEME_PREVIEWS: Record<string, { bg: string; surface: string; ink: string; accent: string; label: string }> = {
+  light: { bg: '#f4f2ec', surface: '#ffffff', ink: '#1f2937', accent: '#0f766e', label: 'روشن' },
+  dark: { bg: '#151d29', surface: '#1f2a3a', ink: '#e7ecf3', accent: '#2dd4bf', label: 'تیره' },
+  sepia: { bg: '#efe6d4', surface: '#faf3e4', ink: '#5a4a33', accent: '#a16207', label: 'سپیا' },
+  'high-contrast': { bg: '#000000', surface: '#111111', ink: '#ffffff', accent: '#ffe14d', label: 'کنتراست بالا' },
+};
+
+const THEME_ORDER = ['light', 'dark', 'sepia', 'high-contrast'] as const;
 
 interface CustomFieldSettings {
   key: string;
@@ -68,25 +71,23 @@ interface Props {
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }
 
-function SectionHeader({ numeral, title, icon: Icon }: {
-  numeral: string;
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
+function SectionHead({ numeral, title, desc }: { numeral: string; title: string; desc?: string }) {
   return (
-    <div className="st-section-header">
-      <div className="st-section-badge"><Icon className="st-section-badge-icon" /></div>
-      <span className="st-section-numeral">{numeral}</span>
-      <h4 className="st-section-title">{title}</h4>
-      <div className="st-section-rule" />
+    <div className="ds-section-head">
+      <span className="ds-section-numeral">{numeral}</span>
+      <h4 className="ds-section-title">{title}</h4>
+      {desc && <span className="ds-section-desc">{desc}</span>}
+      <div className="ds-section-rule" />
     </div>
   );
 }
 
+type Category = 'appearance' | 'tags' | 'fields' | 'performance' | 'ai';
+
 export default function SettingsTab({
   customFields, onAddField, onRemoveField, onEditField, newFieldName, onNewFieldNameChange,
   newFieldType, onNewFieldTypeChange,
-  serverMode, authUser,
+  serverMode: _serverMode, authUser: _authUser,
   tags, onAddTag, onRemoveTag,
   useVirtualScroll, onToggleVirtualScroll,
   theme, onThemeChange,
@@ -95,6 +96,7 @@ export default function SettingsTab({
   aiCorsProxy, onAiCorsProxyChange,
   addToast,
 }: Props) {
+  const [category, setCategory] = useState<Category>('appearance');
   const [newTag, setNewTag] = useState('');
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -127,7 +129,7 @@ export default function SettingsTab({
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'خطای ناشناخته';
-      addToast('خطا در دریافت مدل‌ها: ' + msg, 'error');
+      addToast('خطا در دریافت مدلها: ' + msg, 'error');
     } finally {
       setModelsLoading(false);
     }
@@ -189,940 +191,348 @@ export default function SettingsTab({
     setMergeTarget('');
   };
 
+  const categories: Array<{ key: Category; numeral: string; label: string }> = [
+    { key: 'appearance', numeral: 'I', label: 'ظاهر' },
+    { key: 'tags', numeral: 'II', label: 'برچسبها' },
+    { key: 'fields', numeral: 'III', label: 'فیلدهای سفارشی' },
+    { key: 'performance', numeral: 'IV', label: 'عملکرد' },
+    { key: 'ai', numeral: 'V', label: 'هوش مصنوعی' },
+  ];
+
+  const aiConfigured = Boolean(aiApiUrl && aiApiKey && aiModel);
+
   return (
-    <div className="st fade-in">
-      {/* ── Account Settings ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="I" title="تنظیمات حساب کاربری" icon={Shield} />
-        <div className="st-account-settings">
-          <div className="st-account-field">
-            <label className="st-account-label">نام کاربری</label>
-            <input
-              type="text"
-              className="st-input"
-              value={authUser?.username || ''}
-              readOnly
-              dir="rtl"
-            />
-          </div>
-          <div className="st-account-field">
-            <label className="st-account-label">ایمیل</label>
-            <input
-              type="email"
-              className="st-input"
-              placeholder="example@email.com"
-              dir="rtl"
-            />
-          </div>
-          <div className="st-account-field">
-            <label className="st-account-label">شماره تلفن</label>
-            <input
-              type="tel"
-              className="st-input"
-              placeholder="09123456789"
-              dir="rtl"
-            />
-          </div>
-          <div className="st-account-field">
-            <label className="st-account-label">تغییر رمز عبور</label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-              <input
-                type="password"
-                className="st-input"
-                placeholder="رمز عبور فعلی"
-                dir="rtl"
-              />
-              <input
-                type="password"
-                className="st-input"
-                placeholder="رمز عبور جدید"
-                dir="rtl"
-              />
-              <input
-                type="password"
-                className="st-input"
-                placeholder="تکرار رمز عبور جدید"
-                dir="rtl"
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
-            <button className="st-btn primary" onClick={() => addToast('تغییرات ذخیره شدند', 'success')}>
-              ذخیره تغییرات
+    <div className="ds fade-in">
+      {/* ── Page head ── */}
+      <div className="ds-page-head">
+        <div>
+          <div className="ds-page-eyebrow"><SlidersHorizontal className="h-3.5 w-3.5" /> تنظیمات</div>
+          <h2 className="ds-page-title">تنظیمات برنامه</h2>
+          <p className="ds-page-desc">ظاهر، برچسبها، فیلدها و اتصال هوش مصنوعی — تغییرات بلافاصله ذخیره میشوند.</p>
+        </div>
+        <span className="st-autosave-hint"><CheckCircle2 className="h-3.5 w-3.5" /> ذخیره خودکار</span>
+      </div>
+
+      <div className="ds-layout">
+        {/* ── Category rail ── */}
+        <nav className="ds-rail" aria-label="دستههای تنظیمات">
+          {categories.map(c => (
+            <button key={c.key} className={`ds-rail-item ${category === c.key ? 'active' : ''}`}
+              onClick={() => setCategory(c.key)} aria-current={category === c.key ? 'page' : undefined}>
+              <span className="ds-section-numeral">{c.numeral}</span>
+              {c.label}
             </button>
-            <button className="st-btn" onClick={() => addToast('لغو شد', 'info')}>لغو</button>
-          </div>
-        </div>
-      </div>
+          ))}
+        </nav>
 
-      {/* ── Server Connection ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="II" title="اتصال به سرور" icon={Server} />
-        <div className="st-server-status">
-          <div className="st-server-info">
-            <span className="st-server-dot" style={{ background: serverMode ? 'var(--success)' : 'var(--text-color)' }} />
-            <span className="st-server-text">
-              {serverMode ? `متصل به عنوان ${authUser?.username || 'کاربر'}` : 'حالت محلی (localStorage)'}
-            </span>
-          </div>
-        </div>
-      </div>
+        {/* ── Content ── */}
+        <div className="ds-card">
+          {/* ═══ ظاهر ═══ */}
+          {category === 'appearance' && (
+            <>
+              <SectionHead numeral="I" title="ظاهر" desc="پوسته نمایش برنامه" />
+              <div className="st-themes" role="radiogroup" aria-label="انتخاب پوسته">
+                {THEME_ORDER.map(key => {
+                  const p = THEME_PREVIEWS[key];
+                  const active = theme === key;
+                  return (
+                    <button key={key} role="radio" aria-checked={active}
+                      className={`st-theme ${active ? 'active' : ''}`}
+                      onClick={() => onThemeChange(key)}>
+                      <span className="st-theme-preview" style={{ background: p.bg }} aria-hidden="true">
+                        <span className="st-theme-preview-bar" style={{ background: p.accent }} />
+                        <span className="st-theme-preview-line" style={{ background: p.ink }} />
+                        <span className="st-theme-preview-line st-theme-preview-line--short" style={{ background: p.ink, opacity: 0.4 }} />
+                        <span className="st-theme-preview-card" style={{ background: p.surface, borderColor: p.ink + '22' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 3, background: p.accent }} />
+                          <span style={{ flex: 1, height: 3, borderRadius: 2, background: p.ink, opacity: 0.25 }} />
+                        </span>
+                      </span>
+                      <span className="st-theme-label">{p.label}</span>
+                      {active && <span className="st-theme-check"><Check className="st-theme-check-icon" /></span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="st-theme-note">
+                پوسته روی همین دستگاه ذخیره میشود و همه صفحات — از سوابق تا دستیار هوشمند — را یکجا تغییر میدهد.
+              </p>
+            </>
+          )}
 
-      {/* ── Theme ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="III" title="پوسته (Theme)" icon={Palette} />
-        <div className="st-themes">
-          {THEME_OPTIONS.map(t => {
-            const Icon = t.icon;
-            return (
-              <button key={t.key} className={`st-theme ${theme === t.key ? 'active' : ''}`} onClick={() => onThemeChange(t.key)}>
-                <div className="st-theme-icon-wrap">
-                  <Icon className="st-theme-icon" />
+          {/* ═══ برچسبها ═══ */}
+          {category === 'tags' && (
+            <>
+              <SectionHead numeral="II" title="برچسبها" desc="دستهبندی رکوردها" />
+              {tags.length > 0 ? (
+                <div className="st-tags">
+                  {tags.map(tag => (
+                    <span key={tag}
+                      className={`st-tag ${mergeSource === tag ? 'merge-source' : ''} ${mergeMode ? 'merge-mode' : ''}`}
+                      onClick={() => {
+                        if (mergeMode) {
+                          if (!mergeSource) setMergeSource(tag);
+                          else if (tag !== mergeSource) { setMergeTarget(tag); }
+                        }
+                      }}
+                    >
+                      {editingTag === tag ? (
+                        <input type="text" value={editTagValue} onChange={e => setEditTagValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveTagEdit(); if (e.key === 'Escape') setEditingTag(null); }}
+                          onBlur={saveTagEdit}
+                          className="st-tag-input" autoFocus aria-label={`ویرایش برچسب ${tag}`} />
+                      ) : tag}
+                      {!mergeMode && (
+                        <Pencil className="st-tag-icon" onClick={(e) => { e.stopPropagation(); startTagEdit(tag); }} />
+                      )}
+                      {!mergeMode && (
+                        <X className="st-tag-icon" onClick={() => onRemoveTag(tag)} aria-label={`حذف برچسب ${tag}`} />
+                      )}
+                    </span>
+                  ))}
                 </div>
-                <span className="st-theme-label">{t.label}</span>
-                {theme === t.key && <div className="st-theme-check"><Check className="st-theme-check-icon" /></div>}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+              ) : (
+                <p className="st-hint-block">هنوز برچسبی نساختهاید. برچسبها برای فیلتر کردن سریع رکوردها استفاده میشوند.</p>
+              )}
 
-      {/* ── Tags ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="IV" title="برچسب‌ها (Tags)" icon={Tags} />
-
-        {tags.length > 0 && (
-          <div className="st-tags">
-            {tags.map(tag => (
-              <span key={tag}
-                className={`st-tag ${mergeSource === tag ? 'merge-source' : ''} ${mergeMode ? 'merge-mode' : ''}`}
-                onClick={() => {
-                  if (mergeMode) {
-                    if (!mergeSource) setMergeSource(tag);
-                    else if (tag !== mergeSource) { setMergeTarget(tag); }
-                  }
-                }}
-              >
-                {editingTag === tag ? (
-                  <input type="text" value={editTagValue} onChange={e => setEditTagValue(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') saveTagEdit(); if (e.key === 'Escape') setEditingTag(null); }}
-                    onBlur={saveTagEdit}
-                    className="st-tag-input" autoFocus />
-                ) : tag}
-                {!mergeMode && (
-                  <Pencil className="st-tag-icon" onClick={(e) => { e.stopPropagation(); startTagEdit(tag); }} />
-                )}
-                {!mergeMode && (
-                  <X className="st-tag-icon" onClick={() => onRemoveTag(tag)} />
-                )}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="st-add-row">
-          <input type="text" className="st-input" value={newTag}
-            onChange={e => setNewTag(e.target.value)}
-            placeholder="نام برچسب جدید..."
-            onKeyDown={e => { if (e.key === 'Enter') { onAddTag(newTag); setNewTag(''); } }} />
-          <button className="st-btn primary" onClick={() => { onAddTag(newTag); setNewTag(''); }}>
-            <Plus className="h-4 w-4" /> افزودن
-          </button>
-        </div>
-
-        {tags.length >= 2 && (
-          <button className={`st-btn ${mergeMode ? 'danger' : ''}`} onClick={() => { setMergeMode(!mergeMode); setMergeSource(null); setMergeTarget(''); }}>
-            <Merge className="h-4 w-4" /> ادغام
-          </button>
-        )}
-
-        {mergeMode && (
-          <div className="st-merge-box">
-            <p className="st-merge-hint">
-              {mergeSource ? `برچسب "${mergeSource}" به کجا ادغام شود؟` : 'برچسب مبدأ را انتخاب کنید'}
-            </p>
-            {mergeSource && (
-              <div className="st-merge-row">
-                <input type="text" className="st-input" value={mergeTarget}
-                  onChange={e => setMergeTarget(e.target.value)}
-                  placeholder="نام برچسب مقصد..."
-                  onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
-                <button className="st-btn primary" onClick={handleMerge}>
-                  <Check className="h-4 w-4" /> تأیید
+              <div className="st-add-row">
+                <input type="text" className="ds-input" value={newTag}
+                  onChange={e => setNewTag(e.target.value)}
+                  placeholder="نام برچسب جدید..."
+                  aria-label="نام برچسب جدید"
+                  onKeyDown={e => { if (e.key === 'Enter') { onAddTag(newTag); setNewTag(''); } }} />
+                <button className="ds-btn ds-btn--primary" onClick={() => { onAddTag(newTag); setNewTag(''); }} disabled={!newTag.trim()}>
+                  <Plus className="h-4 w-4" /> افزودن
                 </button>
               </div>
-            )}
-          </div>
-        )}
-      </div>
 
-      {/* ── Custom Fields ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="V" title="فیلدهای سفارشی" icon={ListChecks} />
-
-        {customFields.length > 0 && (
-          <div className="st-fields">
-            {customFields.map(f => {
-              const badge = FIELD_TYPE_BADGES[f.fieldType] || FIELD_TYPE_BADGES.text;
-              const isEditing = editingKey === f.key;
-
-              if (isEditing) {
-                return (
-                  <div key={f.key} className="st-field-edit">
-                    <div className="st-field-edit-row">
-                      <input type="text" className="st-input" value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        placeholder="نام فیلد" style={{ flex: 1, minWidth: 120 }} />
-                      <div style={{ width: 180 }}>
-                        <SearchableSelect
-                          value={FIELD_TYPES.find(t => t.value === editType)?.label || editType}
-                          options={FIELD_TYPES.map(t => t.label)}
-                          onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) setEditType(found.value); }}
-                          dir="rtl"
-                        />
-                      </div>
+              {tags.length >= 2 && (
+                <div className="st-merge-area">
+                  <button className={`ds-btn ds-btn--sm ${mergeMode ? 'ds-btn--danger' : ''}`}
+                    onClick={() => { setMergeMode(!mergeMode); setMergeSource(null); setMergeTarget(''); }}>
+                    <Merge className="h-3.5 w-3.5" /> {mergeMode ? 'لغو ادغام' : 'ادغام برچسبها'}
+                  </button>
+                  {mergeMode && (
+                    <div className="st-merge-box">
+                      <p className="st-merge-hint">
+                        {mergeSource ? `برچسب «${mergeSource}» به کجا ادغام شود؟` : 'ابتدا برچسب مبدأ را از بالا انتخاب کنید'}
+                      </p>
+                      {mergeSource && (
+                        <div className="st-merge-row">
+                          <input type="text" className="ds-input" value={mergeTarget}
+                            onChange={e => setMergeTarget(e.target.value)}
+                            placeholder="نام برچسب مقصد..."
+                            aria-label="نام برچسب مقصد"
+                            onKeyDown={e => { if (e.key === 'Enter') handleMerge(); }} />
+                          <button className="ds-btn ds-btn--primary" onClick={handleMerge}>
+                            <Check className="h-4 w-4" /> ادغام
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {editType === 'dropdown' && (
-                      <div className="st-field-edit-opts">
-                        {editOptions.length > 0 && (
-                          <div className="st-field-opt-tags">
-                            {editOptions.map((opt, i) => (
-                              <span key={i} className="st-opt-tag">
-                                {opt}
-                                <X className="st-opt-tag-x" onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} />
-                              </span>
-                            ))}
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ═══ فیلدهای سفارشی ═══ */}
+          {category === 'fields' && (
+            <>
+              <SectionHead numeral="III" title="فیلدهای سفارشی" desc="اطلاعات اضافه روی هر رکورد" />
+              {customFields.length > 0 && (
+                <div className="st-fields">
+                  {customFields.map(f => {
+                    const badge = FIELD_TYPE_BADGES[f.fieldType] || FIELD_TYPE_BADGES.text;
+                    const isEditing = editingKey === f.key;
+
+                    if (isEditing) {
+                      return (
+                        <div key={f.key} className="st-field-edit">
+                          <div className="st-field-edit-row">
+                            <input type="text" className="ds-input" value={editName}
+                              onChange={e => setEditName(e.target.value)}
+                              placeholder="نام فیلد" style={{ flex: 1, minWidth: 120 }}
+                              aria-label="نام فیلد" />
+                            <div style={{ width: 180 }}>
+                              <SearchableSelect
+                                value={FIELD_TYPES.find(t => t.value === editType)?.label || editType}
+                                options={FIELD_TYPES.map(t => t.label)}
+                                onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) setEditType(found.value); }}
+                                dir="rtl"
+                              />
+                            </div>
                           </div>
-                        )}
-                        <input type="text" className="st-input"
-                          placeholder="گزینه را تایپ کنید و Enter بزنید..."
-                          onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                              e.preventDefault();
-                              const val = (e.target as HTMLInputElement).value.trim();
-                              if (val && !editOptions.includes(val)) { setEditOptions([...editOptions, val]); (e.target as HTMLInputElement).value = ''; }
-                            }
-                          }} />
-                      </div>
-                    )}
-                    <div className="vre-section">
-                      <label className="vre-section-label"><Shield className="h-3.5 w-3.5" /> اعتبارسنجی</label>
-                      <ValidationRuleEditor
-                        rules={editValidationRules}
-                        onChange={setEditValidationRules}
-                        fieldType={editType}
-                      />
-                    </div>
-                    <div className="st-field-edit-actions">
-                      <button className="st-btn-sm primary" onClick={saveEdit}><Check className="h-3.5 w-3.5" /> ذخیره</button>
-                      <button className="st-btn-sm" onClick={cancelEdit}><X className="h-3.5 w-3.5" /> لغو</button>
-                    </div>
-                  </div>
-                );
-              }
+                          {editType === 'dropdown' && (
+                            <div className="st-field-edit-opts">
+                              {editOptions.length > 0 && (
+                                <div className="st-field-opt-tags">
+                                  {editOptions.map((opt, i) => (
+                                    <span key={i} className="st-opt-tag">
+                                      {opt}
+                                      <X className="st-opt-tag-x" onClick={() => setEditOptions(editOptions.filter((_, j) => j !== i))} />
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              <input type="text" className="ds-input"
+                                placeholder="گزینه را تایپ کنید و Enter بزنید..."
+                                aria-label="افزودن گزینه"
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = (e.target as HTMLInputElement).value.trim();
+                                    if (val && !editOptions.includes(val)) { setEditOptions([...editOptions, val]); (e.target as HTMLInputElement).value = ''; }
+                                  }
+                                }} />
+                            </div>
+                          )}
+                          <div className="st-vre-section">
+                            <label className="st-vre-label"><Shield className="h-3.5 w-3.5" /> قوانین اعتبارسنجی</label>
+                            <ValidationRuleEditor
+                              rules={editValidationRules}
+                              onChange={setEditValidationRules}
+                              fieldType={editType}
+                            />
+                          </div>
+                          <div className="st-field-edit-actions">
+                            <button className="ds-btn ds-btn--sm ds-btn--primary" onClick={saveEdit}><Check className="h-3.5 w-3.5" /> ذخیره</button>
+                            <button className="ds-btn ds-btn--sm" onClick={cancelEdit}><X className="h-3.5 w-3.5" /> لغو</button>
+                          </div>
+                        </div>
+                      );
+                    }
 
-              return (
-                <div key={f.key} className="st-field-row">
-                  <div className="st-field-info">
-                    <span className="st-field-name">{f.fa}</span>
-                    <span className="st-field-badge" style={{ background: badge.color }}>{badge.label}</span>
-                    {f.fieldType === 'dropdown' && f.options && f.options.length > 0 && (
-                      <span className="st-field-opts-count">({f.options.length} گزینه)</span>
-                    )}
-                    {f.validationRules && f.validationRules.length > 0 && (
-                      <span className="st-field-badge" style={{ background: '#10b981' }}>{f.validationRules.length} قانون</span>
-                    )}
-                  </div>
-                  <div className="st-field-actions">
-                    <Pencil className="st-field-action-icon" onClick={() => startEdit(f)} />
-                    <Trash2 className="st-field-action-icon danger" onClick={() => onRemoveField(f.key)} />
+                    return (
+                      <div key={f.key} className="st-field-row">
+                        <div className="st-field-info">
+                          <span className="st-field-name">{f.fa}</span>
+                          <span className="st-field-badge" style={{ background: badge.color }}>{badge.label}</span>
+                          {f.fieldType === 'dropdown' && f.options && f.options.length > 0 && (
+                            <span className="st-field-opts-count">({f.options.length.toLocaleString('fa-IR')} گزینه)</span>
+                          )}
+                          {f.validationRules && f.validationRules.length > 0 && (
+                            <span className="st-field-badge" style={{ background: '#10b981' }}>{f.validationRules.length.toLocaleString('fa-IR')} قانون</span>
+                          )}
+                        </div>
+                        <div className="st-field-actions">
+                          <button className="st-field-action-btn" onClick={() => startEdit(f)} aria-label={`ویرایش ${f.fa}`}>
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button className="st-field-action-btn st-field-action-btn--danger" onClick={() => onRemoveField(f.key)} aria-label={`حذف ${f.fa}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="st-add-row">
+                <input type="text" className="ds-input" value={newFieldName}
+                  onChange={e => onNewFieldNameChange(e.target.value)}
+                  placeholder="نام فیلد جدید..."
+                  style={{ flex: 1, minWidth: 140 }}
+                  aria-label="نام فیلد جدید"
+                  onKeyDown={e => e.key === 'Enter' && onAddField()} />
+                <div style={{ width: 160 }}>
+                  <SearchableSelect
+                    value={FIELD_TYPES.find(t => t.value === newFieldType)?.label || newFieldType}
+                    options={FIELD_TYPES.map(t => t.label)}
+                    onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) onNewFieldTypeChange(found.value); }}
+                    dir="rtl"
+                  />
+                </div>
+                <button className="ds-btn ds-btn--primary" onClick={onAddField} disabled={!newFieldName.trim()}>
+                  <Plus className="h-4 w-4" /> افزودن
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ═══ عملکرد ═══ */}
+          {category === 'performance' && (
+            <>
+              <SectionHead numeral="IV" title="عملکرد" desc="بهینهسازی نمایش" />
+              <div className="st-toggle-row">
+                <div>
+                  <div className="st-toggle-label">نمایش مجازی</div>
+                  <div className="st-toggle-desc">فقط رکوردهای قابل مشاهده رندر میشوند — برای لیستهای چند هزار رکوردی</div>
+                </div>
+                <label className="toggle-switch">
+                  <input type="checkbox" checked={useVirtualScroll} onChange={onToggleVirtualScroll} />
+                  <span className="toggle-slider"></span>
+                  <span className="sr-only">نمایش مجازی</span>
+                </label>
+              </div>
+            </>
+          )}
+
+          {/* ═══ هوش مصنوعی ═══ */}
+          {category === 'ai' && (
+            <>
+              <SectionHead numeral="V" title="هوش مصنوعی" desc="اتصال دستیار هوشمند به سرویس AI" />
+              <p className="st-hint-block">
+                برای تبدیل هوشمند رکوردها به قالب دفاتر قانونی الکترونیکی، اطلاعات API سرویس AI را وارد کنید.
+                {aiConfigured && (
+                  <span className="st-ai-status"><span className="st-ai-dot" /> پیکربندی شده</span>
+                )}
+              </p>
+              <div className="st-ai-form">
+                <div>
+                  <label className="ds-field-label" htmlFor="ai-url">آدرس API</label>
+                  <input id="ai-url" type="url" className="ds-input" dir="ltr"
+                    value={aiApiUrl} onChange={e => onAiApiUrlChange(e.target.value)}
+                    placeholder="https://openrouter.ai/api/v1/chat/completions" />
+                  <p className="ds-field-hint" dir="ltr">openrouter.ai · api.openai.com · localhost:20128/v1/chat/completions</p>
+                </div>
+                <div>
+                  <label className="ds-field-label" htmlFor="ai-key">کلید API</label>
+                  <div className="st-pw-wrap">
+                    <input id="ai-key" type={showApiKey ? 'text' : 'password'} className="ds-input" dir="ltr"
+                      value={aiApiKey} onChange={e => onAiApiKeyChange(e.target.value)}
+                      placeholder="sk-..." autoComplete="off" />
+                    <button type="button" className="pf-pw-toggle" onClick={() => setShowApiKey(v => !v)}
+                      aria-label={showApiKey ? 'پنهان کردن کلید' : 'نمایش کلید'}>
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="st-add-row">
-          <input type="text" className="st-input" value={newFieldName}
-            onChange={e => onNewFieldNameChange(e.target.value)}
-            placeholder="نام فیلد جدید..."
-            style={{ flex: 1, minWidth: 140 }}
-            onKeyDown={e => e.key === 'Enter' && onAddField()} />
-          <div style={{ width: 160 }}>
-            <SearchableSelect
-              value={FIELD_TYPES.find(t => t.value === newFieldType)?.label || newFieldType}
-              options={FIELD_TYPES.map(t => t.label)}
-              onChange={(label) => { const found = FIELD_TYPES.find(t => t.label === label); if (found) onNewFieldTypeChange(found.value); }}
-              dir="rtl"
-            />
-          </div>
-          <button className="st-btn primary" onClick={onAddField}>
-            <Plus className="h-4 w-4" /> افزودن
-          </button>
-        </div>
-      </div>
-
-      {/* ── Performance ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="VI" title="عملکرد (Performance)" icon={Zap} />
-        <div className="st-toggle-row">
-          <div>
-            <div className="st-toggle-label">نمایش مجازی (Virtual Scroll)</div>
-            <div className="st-toggle-desc">حافظه و پردازش کمتر برای هزاران رکورد</div>
-          </div>
-          <label className="toggle-switch">
-            <input type="checkbox" checked={useVirtualScroll} onChange={onToggleVirtualScroll} />
-            <span className="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      {/* ── AI Configuration ── */}
-      <div className="st-panel">
-        <SectionHeader numeral="VII" title="پیکربندی AI (هوش مصنوعی)" icon={Bot} />
-        <p style={{ fontSize: '0.8125rem', opacity: 0.6, margin: '0 0 1rem 0' }}>
-          برای تبدیل هوشمند رکوردها به قالب دفاتر قانونی الکترونیکی، اطلاعات API را وارد کنید.
-        </p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>API URL</label>
-            <input
-              type="url"
-              className="st-input"
-              value={aiApiUrl}
-              onChange={e => onAiApiUrlChange(e.target.value)}
-              placeholder="https://openrouter.ai/api/v1/chat/completions"
-              dir="ltr"
-            />
-            <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.25rem', direction: 'ltr', textAlign: 'left' }}>
-              نمونه: openrouter.ai/api/v1/chat/completions | api.openai.com/v1/chat/completions | localhost:20128/v1/chat/completions
-            </div>
-          </div>
-          <div>
-            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>API Key</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showApiKey ? 'text' : 'password'}
-                className="st-input"
-                value={aiApiKey}
-                onChange={e => onAiApiKeyChange(e.target.value)}
-                placeholder="sk-..."
-                dir="ltr"
-                style={{ paddingRight: '2.5rem' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowApiKey(!showApiKey)}
-                style={{
-                  position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)',
-                  background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-color)', opacity: 0.5,
-                  padding: '0.25rem',
-                }}
-              >
-                {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-          <div>
-            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>مدل</label>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <div style={{ flex: 1 }}>
-                <input
-                  type="text"
-                  className="st-input"
-                  value={aiModel}
-                  onChange={e => onAiModelChange(e.target.value)}
-                  placeholder="gpt-4o / deepseek-chat / ..."
-                  dir="ltr"
-                  list="ai-models-list"
-                />
-                <datalist id="ai-models-list">
-                  {availableModels.map(m => (
-                    <option key={m} value={m} />
-                  ))}
-                </datalist>
+                <div>
+                  <label className="ds-field-label" htmlFor="ai-model">مدل</label>
+                  <div className="st-model-row">
+                    <input id="ai-model" type="text" className="ds-input" dir="ltr"
+                      value={aiModel} onChange={e => onAiModelChange(e.target.value)}
+                      placeholder="gpt-4o / deepseek-chat / ..."
+                      list="ai-models-list" />
+                    <datalist id="ai-models-list">
+                      {availableModels.map(m => <option key={m} value={m} />)}
+                    </datalist>
+                    <button className="ds-btn" onClick={fetchModels} disabled={modelsLoading || !aiApiUrl || !aiApiKey}
+                      title="دریافت خودکار مدلها از API">
+                      {modelsLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'دریافت مدلها'}
+                    </button>
+                  </div>
+                  {availableModels.length > 0 && (
+                    <p className="ds-field-hint">{availableModels.length.toLocaleString('fa-IR')} مدل از سرویس شما یافت شد</p>
+                  )}
+                </div>
+                <div>
+                  <label className="ds-field-label" htmlFor="ai-proxy">پروکسی CORS (اختیاری)</label>
+                  <input id="ai-proxy" type="text" className="ds-input" dir="ltr"
+                    value={aiCorsProxy} onChange={e => onAiCorsProxyChange(e.target.value)}
+                    placeholder="http://localhost:3002/" />
+                  <p className="ds-field-hint">
+                    فقط در صورت خطای CORS: پروکسی محلی را اجرا کنید و آدرس آن را وارد نمایید. آدرس API را تغییر ندهید.
+                  </p>
+                </div>
+                <p className="st-ai-save-note">این تنظیمات بلافاصله در همین مرورگر ذخیره میشوند.</p>
               </div>
-              <button
-                className="st-btn"
-                onClick={fetchModels}
-                disabled={modelsLoading || !aiApiUrl || !aiApiKey}
-                title="دریافت خودکار مدل‌ها از API"
-                style={{ flexShrink: 0 }}
-              >
-                {modelsLoading ? (
-                  <span className="spinner-border spinner-border-sm" role="status" />
-                ) : (
-                  'دریافت مدل‌ها'
-                )}
-              </button>
-            </div>
-            {availableModels.length > 0 && (
-              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginTop: '0.25rem' }}>
-                {availableModels.length} مدل موجود
-              </div>
-            )}
-          </div>
-          <div>
-            <label className="st-toggle-label" style={{ marginBottom: '0.375rem', display: 'block' }}>CORS Proxy (اختیاری)</label>
-            <input
-              type="text"
-              className="st-input"
-              value={aiCorsProxy}
-              onChange={e => onAiCorsProxyChange(e.target.value)}
-              placeholder="http://localhost:3002/"
-              dir="ltr"
-            />
-            <div style={{ fontSize: '0.7rem', opacity: 0.4, marginTop: '0.25rem', direction: 'ltr', textAlign: 'left' }}>
-              اگر خطای CORS دارید: proxy-server.cjs را اجرا کنید و http://localhost:3002/ را اینجا وارد کنید. API URL را تغییر ندهید.
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
-            <button className="st-btn primary" onClick={() => addToast('تنظیمات AI ذخیره شد', 'success')}>
-              <Check className="h-4 w-4" /> ذخیره
-            </button>
-            {aiApiUrl && aiApiKey && aiModel && (
-              <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-                پیکربندی شده
-              </span>
-            )}
-          </div>
+            </>
+          )}
         </div>
       </div>
-
-      <style>{`
-        /* ══════════════════════════════════════════════════════════════
-           Settings — Classic Badge Theme
-           ══════════════════════════════════════════════════════════════ */
-
-        .st {
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
-        }
-
-        /* ── Panel ── */
-        .st-panel {
-          background: var(--card-bg);
-          border: 1px solid var(--border-color);
-          border-radius: 14px;
-          padding: 1.5rem;
-        }
-
-        /* ── Section Header ── */
-        .st-section-header {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          margin-bottom: 1.25rem;
-        }
-
-        .st-section-badge {
-          width: 26px;
-          height: 26px;
-          border-radius: 7px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-
-        .st-section-badge-icon {
-          width: 13px;
-          height: 13px;
-          color: white;
-        }
-
-        .st-section-numeral {
-          font-family: 'Georgia', serif;
-          font-size: 0.5625rem;
-          font-weight: 700;
-          color: var(--primary);
-          background: rgba(99, 102, 241, 0.06);
-          padding: 0.1rem 0.35rem;
-          border-radius: 3px;
-          border: 1px solid rgba(99, 102, 241, 0.1);
-        }
-
-        .st-section-title {
-          margin: 0;
-          font-size: 0.9375rem;
-          font-weight: 700;
-          color: var(--text-color);
-        }
-
-        .st-section-rule {
-          flex: 1;
-          height: 1px;
-          background: var(--border-color);
-        }
-
-        /* ── Account Settings ── */
-        .st-account-settings {
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-
-        .st-account-field {
-          display: flex;
-          flex-direction: column;
-          gap: 0.375rem;
-        }
-
-        .st-account-label {
-          font-weight: 600;
-          font-size: 0.875rem;
-          color: var(--text-color);
-        }
-
-        /* ── Server Status ── */
-        .st-server-status {
-          padding: 0.75rem 1rem;
-          background: var(--hover-bg);
-          border-radius: 8px;
-        }
-
-        .st-server-info {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .st-server-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          flex-shrink: 0;
-        }
-
-        .st-server-text {
-          font-size: 0.8125rem;
-          font-weight: 500;
-        }
-
-        /* ── Themes ── */
-        .st-themes {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 0.625rem;
-        }
-
-        .st-theme {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 1rem 0.75rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--border-color);
-          background: transparent;
-          color: var(--text-color);
-          cursor: pointer;
-          transition: all 0.15s;
-          position: relative;
-          font-family: inherit;
-        }
-
-        .st-theme:hover {
-          border-color: var(--primary);
-        }
-
-        .st-theme.active {
-          border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.04);
-        }
-
-        .st-theme-icon-wrap {
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          background: var(--hover-bg);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.15s;
-        }
-
-        .st-theme.active .st-theme-icon-wrap {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
-          color: white;
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
-        }
-
-        .st-theme-icon {
-          width: 20px;
-          height: 20px;
-        }
-
-        .st-theme-label {
-          font-size: 0.75rem;
-          font-weight: 600;
-        }
-
-        .st-theme-check {
-          position: absolute;
-          top: 6px;
-          left: 6px;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          background: var(--primary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .st-theme-check-icon {
-          width: 10px;
-          height: 10px;
-          color: white;
-        }
-
-        /* ── Tags ── */
-        .st-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .st-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          padding: 0.4rem 0.8rem;
-          border-radius: 20px;
-          background: var(--primary);
-          color: white;
-          font-size: 0.8125rem;
-          cursor: default;
-          transition: all 0.15s;
-        }
-
-        .st-tag.merge-source {
-          background: var(--danger);
-        }
-
-        .st-tag.merge-mode {
-          cursor: pointer;
-          opacity: 0.7;
-        }
-
-        .st-tag.merge-mode:hover {
-          opacity: 1;
-        }
-
-        .st-tag-input {
-          background: transparent;
-          border: none;
-          color: white;
-          font-size: 0.8125rem;
-          width: auto;
-          min-width: 50px;
-          outline: none;
-          padding: 0;
-          font-family: inherit;
-        }
-
-        .st-tag-icon {
-          width: 14px;
-          height: 14px;
-          cursor: pointer;
-          opacity: 0.8;
-          transition: opacity 0.15s;
-          flex-shrink: 0;
-        }
-
-        .st-tag-icon:hover {
-          opacity: 1;
-        }
-
-        /* ── Merge ── */
-        .st-merge-box {
-          margin-top: 1rem;
-          padding: 1rem;
-          background: var(--hover-bg);
-          border-radius: 8px;
-        }
-
-        .st-merge-hint {
-          font-size: 0.8125rem;
-          opacity: 0.7;
-          margin-bottom: 0.75rem;
-        }
-
-        .st-merge-row {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        /* ── Custom Fields ── */
-        .st-fields {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-          margin-bottom: 1rem;
-        }
-
-        .st-field-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.75rem 1rem;
-          background: var(--hover-bg);
-          border-radius: 8px;
-          transition: background 0.15s;
-        }
-
-        .st-field-row:hover {
-          background: var(--border-color);
-        }
-
-        .st-field-info {
-          display: flex;
-          align-items: center;
-          gap: 0.625rem;
-        }
-
-        .st-field-name {
-          font-weight: 500;
-          font-size: 0.875rem;
-        }
-
-        .st-field-badge {
-          font-size: 0.625rem;
-          padding: 0.15rem 0.5rem;
-          border-radius: 10px;
-          color: white;
-          font-weight: 600;
-        }
-
-        .st-field-opts-count {
-          font-size: 0.75rem;
-          opacity: 0.5;
-        }
-
-        .st-field-actions {
-          display: flex;
-          gap: 0.5rem;
-          align-items: center;
-        }
-
-        .st-field-action-icon {
-          width: 18px;
-          height: 18px;
-          cursor: pointer;
-          opacity: 0.4;
-          transition: all 0.15s;
-        }
-
-        .st-field-action-icon:hover {
-          opacity: 0.8;
-        }
-
-        .st-field-action-icon.danger {
-          color: var(--danger);
-        }
-
-        .st-field-edit {
-          padding: 1rem;
-          background: var(--hover-bg);
-          border-radius: 8px;
-          margin-bottom: 0.5rem;
-        }
-
-        .st-field-edit-row {
-          display: flex;
-          gap: 0.5rem;
-          margin-bottom: 0.75rem;
-          flex-wrap: wrap;
-        }
-
-        .st-field-edit-opts {
-          margin-bottom: 0.75rem;
-        }
-
-        .st-field-opt-tags {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.4rem;
-          margin-bottom: 0.5rem;
-        }
-
-        .st-opt-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.25rem;
-          padding: 0.3rem 0.6rem;
-          background: var(--primary);
-          color: white;
-          border-radius: 6px;
-          font-size: 0.75rem;
-        }
-
-        .st-opt-tag-x {
-          width: 12px;
-          height: 12px;
-          cursor: pointer;
-        }
-
-        .st-field-edit-actions {
-          display: flex;
-          gap: 0.5rem;
-        }
-
-        .vre-section {
-          margin: 0.75rem 0;
-          padding: 0.625rem;
-          background: var(--bg-body);
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-        }
-
-        .vre-section-label {
-          display: flex;
-          align-items: center;
-          gap: 0.375rem;
-          font-size: 0.75rem;
-          font-weight: 600;
-          margin-bottom: 0.5rem;
-          color: var(--text-color);
-          opacity: 0.7;
-        }
-
-        /* ── Toggle Row ── */
-        .st-toggle-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0.5rem 0;
-        }
-
-        .st-toggle-label {
-          font-weight: 600;
-          font-size: 0.875rem;
-        }
-
-        .st-toggle-desc {
-          opacity: 0.5;
-          font-size: 0.8125rem;
-          margin-top: 0.125rem;
-        }
-
-        /* ── Shared Inputs ── */
-        .st-input {
-          width: 100%;
-          padding: 0.5rem 0.75rem;
-          border: 1px solid var(--border-color);
-          border-radius: 8px;
-          background: var(--bg-body);
-          color: var(--text-color);
-          font-size: 0.8125rem;
-          font-family: inherit;
-          margin-bottom: 0;
-          transition: border-color 0.15s;
-        }
-
-        .st-input:focus {
-          outline: none;
-          border-color: var(--primary);
-        }
-
-        .st-input::placeholder {
-          color: var(--text-color);
-          opacity: 0.3;
-        }
-
-        .st-add-row {
-          display: flex;
-          gap: 0.5rem;
-          flex-wrap: wrap;
-        }
-
-        /* ── Buttons ── */
-        .st-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background: var(--card-bg);
-          color: var(--text-color);
-          font-size: 0.8125rem;
-          font-weight: 600;
-          font-family: inherit;
-          cursor: pointer;
-          transition: all 0.15s;
-          white-space: nowrap;
-        }
-
-        .st-btn:hover {
-          border-color: var(--primary);
-          color: var(--primary);
-        }
-
-        .st-btn.primary {
-          background: var(--primary);
-          color: white;
-          border-color: var(--primary);
-        }
-
-        .st-btn.primary:hover {
-          background: var(--primary-hover);
-        }
-
-        .st-btn.danger {
-          background: var(--danger);
-          color: white;
-          border-color: var(--danger);
-        }
-
-        .st-btn-sm {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.375rem;
-          padding: 0.4rem 0.875rem;
-          border-radius: 8px;
-          border: 1px solid var(--border-color);
-          background: var(--card-bg);
-          color: var(--text-color);
-          font-size: 0.75rem;
-          font-weight: 600;
-          font-family: inherit;
-          cursor: pointer;
-          transition: all 0.15s;
-        }
-
-        .st-btn-sm:hover {
-          border-color: var(--primary);
-          color: var(--primary);
-        }
-
-        .st-btn-sm.primary {
-          background: var(--primary);
-          color: white;
-          border-color: var(--primary);
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 768px) {
-          .st-themes {
-            grid-template-columns: repeat(2, 1fr);
-          }
-
-          .st-add-row {
-            flex-direction: column;
-          }
-
-          .st-add-row > div {
-            width: 100% !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }
