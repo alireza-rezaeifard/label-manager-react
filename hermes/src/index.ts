@@ -38,10 +38,11 @@ app.post('/chat', async (req, res) => {
   const startTime = Date.now();
 
   try {
-    const { messages, config, conversationId } = req.body as {
+    const { messages, config, conversationId, workspaceId } = req.body as {
       messages: CoreMessage[];
       config: ProviderConfig;
       conversationId?: string;
+      workspaceId?: number | null;
     };
 
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
@@ -62,6 +63,7 @@ app.post('/chat', async (req, res) => {
       model: config.model,
       endpoint: config.apiEndpoint,
       conversationId,
+      workspaceId,
     }, 'Chat request received');
 
     // Set SSE headers
@@ -75,7 +77,7 @@ app.post('/chat', async (req, res) => {
     const toolCallsList: Array<{ name: string; args: Record<string, unknown> }> = [];
     const toolResultsList: Array<{ toolCallId: string; result: unknown }> = [];
 
-    const result = streamChatResponse({ messages, config, conversationId }, {
+    const result = streamChatResponse({ messages, config, conversationId, workspaceId }, {
       onToolCall: (toolName, args) => {
         toolCallsList.push({ name: toolName, args });
         res.write(`data: ${JSON.stringify({ type: 'tool-call', toolName, args })}\n\n`);
@@ -83,6 +85,11 @@ app.post('/chat', async (req, res) => {
       onToolResult: (toolCallId, result) => {
         toolResultsList.push({ toolCallId, result });
         res.write(`data: ${JSON.stringify({ type: 'tool-result', toolCallId, result })}\n\n`);
+      },
+      // Binary travels server-to-server only; the Express proxy stores the
+      // file and rewrites this event into workspace-scoped metadata.
+      onArtifact: (artifact) => {
+        res.write(`data: ${JSON.stringify({ type: 'artifact', ...artifact })}\n\n`);
       },
     });
 

@@ -172,6 +172,8 @@ export const api = {
     messages: Array<{ role: string; content: string }>,
     config: { apiEndpoint: string; apiKey: string; model: string; providerName?: string },
     conversationId?: string,
+    /** optional — server validates membership and scopes artifacts/reporting to it */
+    workspaceId?: number | string,
   ) {
     const token = localStorage.getItem('auth_token');
     const res = await fetch(`${API_BASE}/ai/chat`, {
@@ -180,7 +182,7 @@ export const api = {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({ messages, config, conversationId }),
+      body: JSON.stringify({ messages, config, conversationId, workspaceId }),
     });
 
     if (!res.ok) {

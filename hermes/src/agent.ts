@@ -18,6 +18,9 @@ import {
   listRecordsTool, getRecordStatsTool,
   executeQueryTool, getTableSchemaTool, executeWriteTool,
 } from './tools/database.js';
+import {
+  createGenerateMonthlyReportTool, createCreateArtifactTool, type EmitArtifact,
+} from './tools/report.js';
 import { fetchWebPageTool } from './tools/web.js';
 import {
   getCurrentTimeTool, jsonTool, hashTool, generateIdTool, textTransformTool,
@@ -40,9 +43,11 @@ export interface ChatRequest {
   messages: CoreMessage[];
   config: ProviderConfig;
   conversationId?: string;
+  /** TaxBook workspace scope for data tools + artifacts (validated upstream) */
+  workspaceId?: number | null;
 }
 
-const SYSTEM_PROMPT = `You are Hermes, an expert AI coding assistant. You have full access to the project workspace and its database.
+const SYSTEM_PROMPT = `You are Hermes, the AI agent operating inside TaxBook — a Persian RTL financial record/label manager. You have full access to the project workspace and its database.
 
 IMPORTANT: You MUST use the provided tools to accomplish tasks. Do NOT describe what you would do — actually do it by calling the appropriate tools. When a user asks you to read a file, call read_file. When they ask to run a command, call run_command. Always use tools rather than explaining what the tools do.
 
@@ -64,13 +69,20 @@ CAPABILITIES (use these tools):
 - Get current time in any timezone
 
 DATABASE:
-The project has a SQLite database (records table) with fields: id, code, project, type, date, party, amount, related, tags, image, color, notes, is_favorite, created_at, updated_at.
+The project has a SQLite database (records table) with fields: id, workspace_id, code, project, type, date, party, amount, related, tags, image, color, notes, is_favorite, created_at, updated_at, deleted_at.
+- ALWAYS filter by the current workspace_id given in the conversation context.
 - Use get_record_by_code for exact code lookups (e.g., "HR-1404-012")
 - Use search_records for text search across fields
 - Use list_records for filtered/paginated listing
 - Use get_record_stats for aggregate statistics
 - Use execute_query for custom SQL (SELECT only)
 - Use get_table_schema to explore database structure
+
+REPORTS & ARTIFACTS:
+- For "monthly report" / "گزارش ماهانه" requests use generate_monthly_report — it queries real activity data and produces a Persian PDF file automatically. Do NOT build reports from git_log: git history is source-code history, NOT user data changes.
+- Dates in TaxBook records are Jalali (Solar Hijri). The activity_log.created_at is Gregorian UTC. Use generate_monthly_report instead of hand-writing date math whenever possible.
+- Use create_artifact to deliver any text content (csv/json/txt/md) as a real downloadable file.
+- Never invent report numbers — every number must come from a tool result.
 
 FILE OPERATIONS:
 - Prefer editFile for targeted changes (search-and-replace)
@@ -109,7 +121,11 @@ function createProvider(config: ProviderConfig) {
   });
 }
 
-function buildTools() {
+function buildTools(callbacks?: StreamCallbacks) {
+  const emitArtifact: EmitArtifact = (artifact) => {
+    callbacks?.onArtifact?.(artifact);
+  };
+
   return {
     // Files
     read_file: readFileTool,
@@ -159,6 +175,9 @@ function buildTools() {
     hash: hashTool,
     generate_id: generateIdTool,
     text_transform: textTransformTool,
+    // Reports & artifacts
+    generate_monthly_report: createGenerateMonthlyReportTool(emitArtifact),
+    create_artifact: createCreateArtifactTool(emitArtifact),
     // MCP
     mcp_connect: mcpConnectTool,
     mcp_list: mcpListServersTool,
@@ -171,23 +190,31 @@ export interface StreamCallbacks {
   onTextDelta?: (delta: string) => void;
   onToolCall?: (toolName: string, args: Record<string, unknown>) => void;
   onToolResult?: (toolCallId: string, result: unknown) => void;
+  /** binary artifact produced by a report/export tool (base64, server-to-server) */
+  onArtifact?: (artifact: { filename: string; mime_type: string; size: number; data_base64: string }) => void;
   onFinish?: (steps: any[]) => void;
 }
 
 export function streamChatResponse(request: ChatRequest, callbacks?: StreamCallbacks) {
-  const { messages, config } = request;
+  const { messages, config, workspaceId } = request;
   const provider = createProvider(config);
-  const tools = buildTools();
+  const tools = buildTools(callbacks);
+
+  // Scope data tools to the requesting workspace via the system prompt.
+  const system = workspaceId
+    ? `${SYSTEM_PROMPT}\n\nCONVERSATION CONTEXT: The user is working in TaxBook workspace_id = ${workspaceId}. Pass this exact id to generate_monthly_report and create_artifact, and use it in every SQL query against workspace-scoped tables.`
+    : SYSTEM_PROMPT;
 
   log.info({
     model: config.model,
     endpoint: config.apiEndpoint,
     messageCount: messages.length,
+    workspaceId,
   }, 'Starting chat stream');
 
   const result = streamText({
     model: provider(config.model),
-    system: SYSTEM_PROMPT,
+    system,
     messages,
     tools,
     toolChoice: 'auto',

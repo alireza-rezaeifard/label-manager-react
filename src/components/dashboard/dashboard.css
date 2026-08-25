@@ -1,0 +1,1128 @@
+/* ══════════════════════════════════════════════════════════════════════
+   TaxBook Dashboard — «دفتر کل» (General Ledger)
+   Extends the app's "Ink Ledger" system: teal ink, brass accents,
+   warm ledger paper. All colors resolve through theme variables so the
+   four themes (light / dark / sepia / high-contrast) stay intact.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.txd {
+  --txd-gap: 1.25rem;
+  --txd-radius: 14px;
+  --txd-folio: Georgia, 'Times New Roman', serif;
+  --txd-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Inverted folio (signature) */
+  --txd-inverse-bg: linear-gradient(160deg, #103c37 0%, #0a2a26 100%);
+  --txd-inverse-border: rgba(201, 162, 39, 0.35);
+  --txd-inverse-text: #f2efe4;
+  --txd-inverse-muted: rgba(242, 239, 228, 0.55);
+  --txd-figure: var(--primary);
+
+  color: var(--text-color);
+}
+
+[data-theme="dark"] .txd {
+  --txd-inverse-bg: linear-gradient(160deg, #17302c 0%, #101d1b 100%);
+  --txd-inverse-border: rgba(224, 187, 60, 0.28);
+  --txd-inverse-text: #eef3ef;
+  --txd-inverse-muted: rgba(238, 243, 239, 0.5);
+}
+
+[data-theme="sepia"] .txd {
+  --txd-inverse-bg: linear-gradient(160deg, #274741 0%, #16302b 100%);
+  --txd-inverse-border: rgba(201, 162, 39, 0.4);
+}
+
+[data-theme="high-contrast"] .txd {
+  --txd-inverse-bg: #000000;
+  --txd-inverse-border: var(--accent-gold);
+  --txd-inverse-text: #ffffff;
+  --txd-inverse-muted: #cccccc;
+}
+
+/* ── Grid ──────────────────────────────────────────────────────────── */
+
+.txd-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--txd-gap);
+}
+
+.txd-span-2 { grid-column: span 2; }
+.txd-span-3 { grid-column: span 3; }
+.txd-span-4 { grid-column: span 4; }
+.txd-span-5 { grid-column: span 5; }
+.txd-span-6 { grid-column: span 6; }
+.txd-span-7 { grid-column: span 7; }
+.txd-span-8 { grid-column: span 8; }
+.txd-span-12 { grid-column: span 12; }
+
+@media (max-width: 1100px) {
+  .txd-span-3, .txd-span-4 { grid-column: span 6; }
+  .txd-span-5, .txd-span-6, .txd-span-7, .txd-span-8 { grid-column: span 12; }
+}
+
+@media (max-width: 640px) {
+  .txd {
+    --txd-gap: 0.85rem;
+  }
+  .txd-grid > * { grid-column: span 12 !important; }
+}
+
+/* ── Header ────────────────────────────────────────────────────────── */
+
+.txd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.txd-header-main { min-width: 0; }
+
+.txd-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-gold);
+  margin-bottom: 0.35rem;
+}
+
+.txd-eyebrow-rule {
+  width: 26px;
+  height: 1px;
+  background: var(--accent-gold);
+  opacity: 0.6;
+}
+
+.txd-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.txd-subtitle {
+  margin-top: 0.3rem;
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.txd-ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-inline-start: 0.75rem;
+  padding: 0.18rem 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: var(--card-bg);
+  vertical-align: middle;
+  opacity: 0.9;
+}
+
+.txd-header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+/* Period selector — segmented ledger tabs */
+.txd-period {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+}
+
+.txd-period-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.32rem 0.8rem;
+  border-radius: 7px;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.txd-period-btn:hover { opacity: 1; }
+
+.txd-period-btn.active {
+  background: var(--card-bg);
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: var(--card-shadow);
+  opacity: 1;
+}
+
+.txd-header-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.txd-icon-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: inherit;
+  padding: 0.42rem 0.8rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 9px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+}
+
+.txd-icon-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.txd-icon-btn:active { transform: translateY(1px); }
+
+@keyframes txd-spin {
+  to { transform: rotate(360deg); }
+}
+
+.txd-spinning { animation: txd-spin 0.9s linear infinite; }
+
+/* ── Quick actions ─────────────────────────────────────────────────── */
+
+.txd-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: var(--txd-gap);
+}
+
+.txd-quick-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: inherit;
+  padding: 0.42rem 0.85rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.txd-quick-btn:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft, rgba(15, 118, 110, 0.06));
+  color: var(--primary);
+}
+
+.txd-quick-btn svg { opacity: 0.75; }
+
+/* ── Section shell ─────────────────────────────────────────────────── */
+
+.txd-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--txd-radius);
+  box-shadow: var(--card-shadow);
+  padding: 1.15rem 1.3rem 1.25rem;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.txd-card:hover { box-shadow: var(--card-shadow-hover); }
+
+.txd-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.txd-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.txd-card-note { font-size: 0.72rem; opacity: 0.55; white-space: nowrap; }
+
+.txd-link {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.txd-link:hover { text-decoration: underline; }
+
+/* ── Metric cards (ledger folios) ──────────────────────────────────── */
+
+.txd-metric {
+  display: block;
+  width: 100%;
+  text-align: start;
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--txd-radius);
+  box-shadow: var(--card-shadow);
+  padding: 1rem 1.2rem 1.05rem;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+button.txd-metric { cursor: pointer; }
+
+.txd-metric:hover,
+button.txd-metric:focus-visible {
+  box-shadow: var(--card-shadow-hover);
+}
+
+.txd-metric-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+}
+
+.txd-metric-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--primary-soft, rgba(15, 118, 110, 0.08));
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.txd-metric-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.75;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-metric-folio {
+  font-family: var(--txd-folio);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  color: var(--text-color);
+  opacity: 0.28;
+}
+
+.txd-metric-value {
+  font-size: clamp(1.55rem, 2vw, 1.95rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--txd-figure);
+  font-variant-numeric: normal;
+}
+
+.txd-metric-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--border-color);
+  position: relative;
+}
+
+.txd-metric-foot::after {
+  content: "";
+  position: absolute;
+  top: 1px;
+  inset-inline: 0;
+  border-top: 1px solid var(--border-color);
+  opacity: 0.45;
+}
+
+.txd-metric-hint {
+  font-size: 0.71rem;
+  opacity: 0.55;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-delta-up { color: var(--success); font-weight: 700; opacity: 1 !important; }
+.txd-delta-down { color: var(--danger); font-weight: 700; opacity: 1 !important; }
+
+.txd-spark {
+  display: block;
+  color: var(--primary);
+  opacity: 0.85;
+  flex-shrink: 0;
+}
+
+/* ── Signature: the inverted amount folio ──────────────────────────── */
+
+.txd-inverse {
+  background: var(--txd-inverse-bg);
+  border-color: var(--txd-inverse-border);
+  color: var(--txd-inverse-text);
+}
+
+.txd-inverse:hover { box-shadow: var(--shadow-elevation-lg, var(--card-shadow-hover)); }
+
+.txd-inverse .txd-card-title,
+.txd-inverse .txd-card-note { color: var(--txd-inverse-text); }
+
+.txd-inverse .txd-card-note { opacity: 0.6; }
+
+.txd-amount-figure {
+  direction: ltr;
+  text-align: right;
+  font-size: clamp(1.5rem, 2.2vw, 2.1rem);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--accent-gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.txd-amount-unit {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--txd-inverse-muted);
+  margin-inline-start: 0.4rem;
+  direction: rtl;
+}
+
+.txd-amount-rows {
+  margin-top: auto;
+  padding-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.txd-amount-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+}
+
+.txd-amount-row-name {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.txd-amount-row-name span:last-child {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-amount-row-pct { font-weight: 700; opacity: 0.85; }
+
+.txd-amount-track {
+  display: block;
+  grid-column: 1 / -1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+[data-theme="high-contrast"] .txd-amount-track { background: #333333; }
+
+.txd-amount-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent-gold);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.txd-amount-empty {
+  margin-top: auto;
+  padding-top: 1rem;
+  font-size: 0.78rem;
+  color: var(--txd-inverse-muted);
+}
+
+/* ── Trend chart ───────────────────────────────────────────────────── */
+
+.txd-trend-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.txd-trend-stat { display: flex; flex-direction: column; gap: 0.1rem; }
+
+.txd-trend-stat-label { font-size: 0.7rem; opacity: 0.55; }
+
+.txd-trend-stat-value { font-size: 1.05rem; font-weight: 700; color: var(--primary); }
+
+.txd-seg {
+  display: inline-flex;
+  padding: 2px;
+  gap: 2px;
+  background: var(--hover-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.txd-seg-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.25rem 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.txd-seg-btn:hover { opacity: 1; }
+
+.txd-seg-btn.active {
+  background: var(--card-bg);
+  color: var(--primary);
+  box-shadow: var(--card-shadow);
+  opacity: 1;
+}
+
+.txd-chart-dir { direction: ltr; }
+
+/* ── Ranked bars (type / project) ──────────────────────────────────── */
+
+.txd-rank-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  overflow-y: auto;
+}
+
+.txd-rank-item {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  width: 100%;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.txd-rank-item:hover .txd-rank-name { color: var(--primary); }
+
+.txd-rank-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.3rem;
+}
+
+.txd-rank-no {
+  font-family: var(--txd-folio);
+  font-style: italic;
+  font-size: 0.72rem;
+  min-width: 1.5em;
+  color: var(--text-color);
+  opacity: 0.4;
+}
+
+.txd-rank-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s ease;
+}
+
+.txd-rank-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.txd-rank-pct {
+  font-size: 0.68rem;
+  opacity: 0.5;
+  min-width: 2.6em;
+  text-align: left;
+  direction: ltr;
+}
+
+.txd-rank-track {
+  display: block;
+  height: 7px;
+  border-radius: 4px;
+  background: var(--hover-bg);
+  overflow: hidden;
+}
+
+.txd-rank-fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--bar-color, var(--primary));
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  min-width: 2px;
+}
+
+/* ── Party ranking (ruled list, no chart) ──────────────────────────── */
+
+.txd-party-list {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.txd-party-row {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.35rem;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.txd-party-row:last-child { border-bottom: none; }
+.txd-party-row:hover { background: var(--hover-bg); }
+
+.txd-party-no {
+  font-family: var(--txd-folio);
+  font-style: italic;
+  font-size: 0.78rem;
+  min-width: 1.6em;
+  opacity: 0.4;
+}
+
+.txd-party-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.83rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-party-row:hover .txd-party-name { color: var(--primary); }
+
+.txd-party-count { font-size: 0.8rem; font-weight: 700; }
+
+/* ── Tag chips ─────────────────────────────────────────────────────── */
+
+.txd-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.txd-tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  padding: 0.34rem 0.8rem;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: var(--bg-body);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.txd-tag b { font-weight: 700; font-size: 0.74rem; opacity: 0.75; }
+
+.txd-tag-hot {
+  border-color: var(--accent-gold);
+  background: var(--accent-gold-soft, rgba(201, 162, 39, 0.12));
+}
+
+/* ── Data quality ──────────────────────────────────────────────────── */
+
+.txd-quality-summary {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-body);
+  margin-bottom: 1rem;
+}
+
+.txd-quality-score {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--primary);
+  line-height: 1;
+}
+
+.txd-quality-desc { font-size: 0.76rem; opacity: 0.7; line-height: 1.6; }
+
+.txd-quality-field { margin-bottom: 0.75rem; }
+
+.txd-quality-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.28rem;
+}
+
+.txd-quality-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-quality-meta { font-size: 0.7rem; opacity: 0.55; white-space: nowrap; }
+
+.txd-quality-track {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--hover-bg);
+  overflow: hidden;
+}
+
+.txd-quality-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.txd-quality-low { background: var(--warning); }
+.txd-quality-mid { background: var(--info); }
+.txd-quality-high { background: var(--success); }
+
+/* ── Recent records table ──────────────────────────────────────────── */
+
+.txd-table-wrap { overflow-x: auto; margin: 0 -0.35rem; }
+
+.txd-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.81rem;
+}
+
+.txd-table th {
+  text-align: right;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.5;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.txd-table td {
+  padding: 0.62rem 0.6rem;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.txd-table tbody tr:last-child td { border-bottom: none; }
+
+.txd-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.txd-table tbody tr:hover { background: var(--hover-bg); }
+
+.txd-code {
+  font-family: var(--txd-mono);
+  font-size: 0.74rem;
+  direction: ltr;
+  unicode-bidi: embed;
+  opacity: 0.85;
+}
+
+.txd-code-btn {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-family: var(--txd-mono);
+  padding: 0.1rem 0.3rem;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.txd-code-btn:hover { text-decoration: underline; }
+
+.txd-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.73rem;
+  font-weight: 600;
+  padding: 0.14rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--badge-color, var(--primary)) 12%, transparent);
+  color: var(--badge-color, var(--primary));
+}
+
+.txd-type-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--badge-color, var(--primary));
+}
+
+.txd-amount-cell { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── Activity journal timeline ─────────────────────────────────────── */
+
+.txd-act-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.txd-chip {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  padding: 0.26rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: all 0.15s ease;
+}
+
+.txd-chip:hover { opacity: 1; border-color: var(--primary); }
+
+.txd-chip.active {
+  background: var(--primary-soft, rgba(15, 118, 110, 0.08));
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 700;
+  opacity: 1;
+}
+
+.txd-chip-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-color);
+  margin: 0 0.3rem;
+}
+
+.tdx-timeline {
+  position: relative;
+  padding-inline-start: 1.35rem;
+}
+
+.tdx-timeline::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 1px;
+  background: var(--border-color);
+}
+
+.txd-act-item {
+  appearance: none;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  display: block;
+  width: 100%;
+  position: relative;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.15rem;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.13s ease;
+}
+
+.txd-act-item:hover { background: var(--hover-bg); }
+
+.txd-act-dot {
+  position: absolute;
+  inset-inline-start: -1.35rem;
+  top: 0.72rem;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--card-bg);
+  border: 1.5px solid var(--dot-color, var(--primary));
+  color: var(--dot-color, var(--primary));
+  z-index: 1;
+}
+
+.txd-act-line-1 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+
+.txd-act-action { font-size: 0.8rem; font-weight: 700; }
+
+.txd-act-user { font-size: 0.71rem; opacity: 0.55; }
+
+.txd-act-time {
+  margin-inline-start: auto;
+  font-size: 0.68rem;
+  opacity: 0.45;
+  white-space: nowrap;
+}
+
+.txd-act-detail {
+  margin-top: 0.15rem;
+  font-family: var(--txd-mono);
+  font-size: 0.68rem;
+  direction: ltr;
+  unicode-bidi: embed;
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.txd-act-more { text-align: center; margin-top: 0.85rem; }
+
+/* ── Drawer ────────────────────────────────────────────────────────── */
+
+.txd-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  background: rgba(0, 0, 0, 0.4);
+  animation: txd-fade-in 0.18s ease;
+}
+
+.txd-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: 0;
+  z-index: 2101;
+  width: min(400px, 92vw);
+  background: var(--card-bg);
+  border-inline-end: 1px solid var(--border-color);
+  box-shadow: var(--shadow-elevation-lg, 0 20px 50px rgba(0, 0, 0, 0.25));
+  padding: 1.5rem;
+  overflow-y: auto;
+  animation: txd-slide-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.txd-drawer-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.txd-drawer-title { font-size: 1rem; font-weight: 700; margin: 0; }
+
+.txd-drawer-close {
+  appearance: none;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: inherit;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.txd-drawer-close:hover { border-color: var(--danger); color: var(--danger); }
+
+.txd-drawer-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--dot-color, var(--primary)) 14%, transparent);
+  color: var(--dot-color, var(--primary));
+  margin-bottom: 1.25rem;
+}
+
+.txd-kv { margin-bottom: 1rem; }
+
+.txd-kv-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.5;
+  margin-bottom: 0.2rem;
+}
+
+.txd-kv-value { font-size: 0.86rem; font-weight: 500; word-break: break-word; }
+
+.txd-kv-value.mono {
+  font-family: var(--txd-mono);
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: right;
+}
+
+@keyframes txd-fade-in {
+  from { opacity: 0; }
+}
+
+@keyframes txd-slide-in {
+  from { transform: translateX(var(--txd-slide-from, 100%)); }
+}
+
+[dir="rtl"] .txd-drawer { --txd-slide-from: 100%; }
+[dir="ltr"] .txd-drawer { --txd-slide-from: -100%; }
+
+/* ── Empty & error states ──────────────────────────────────────────── */
+
+.txd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  text-align: center;
+  padding: 2.25rem 1rem;
+  min-height: 140px;
+}
+
+.txd-empty-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--hover-bg);
+  color: var(--text-color);
+  opacity: 0.5;
+}
+
+.txd-empty-title { font-size: 0.88rem; font-weight: 700; }
+
+.txd-empty-hint { font-size: 0.77rem; opacity: 0.55; max-width: 320px; line-height: 1.8; }
+
+.txd-error-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2rem 1rem;
+  text-align: center;
+}
+
+.txd-error-box svg { color: var(--danger); }
+
+/* ── Skeletons ─────────────────────────────────────────────────────── */
+
+.txd-skeleton-block {
+  border-radius: 6px;
+  margin-bottom: 0.6rem;
+}
+
+/* ── Focus & motion ────────────────────────────────────────────────── */
+
+.txd button:focus-visible,
+.txd [role="button"]:focus-visible,
+.txd tr:focus-visible {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .txd *,
+  .txd *::before,
+  .txd *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

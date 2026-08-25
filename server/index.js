@@ -24,6 +24,7 @@ import apiKeyRoutes from './routes/api-keys.js';
 import webhookRoutes from './routes/webhooks.js';
 import notificationRoutes from './routes/notifications.js';
 import aiRoutes from './routes/ai.js';
+import artifactRoutes from './routes/artifacts.js';
 import swaggerSpec from './swagger.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -956,6 +957,8 @@ app.use('/api/v1/api-keys', apiKeyRoutes);
 
 app.use('/api/ai', authMiddleware, aiRoutes);
 app.use('/api/v1/ai', authMiddleware, aiRoutes);
+app.use('/api/artifacts', artifactRoutes);
+app.use('/api/v1/artifacts', artifactRoutes);
 
 app.get('/api/version', (req, res) => {
   res.json({ version: '2.1.0', apiVersions: ['v1'] });

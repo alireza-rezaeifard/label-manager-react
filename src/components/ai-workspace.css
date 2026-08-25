@@ -618,6 +618,95 @@
 .aiw-attach-btn:disabled { opacity: 0.25; cursor: not-allowed; }
 .aiw-attach-btn:focus-visible { outline: 2px solid var(--primary); }
 
+/* ── Artifacts ── */
+.aiw-artifacts { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.875rem; }
+.aiw-artifact {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--border-color);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--hover-bg) 40%, var(--card-bg));
+  flex-wrap: wrap;
+}
+.aiw-artifact--pending { border-style: dashed; border-color: color-mix(in srgb, var(--warning) 50%, transparent); }
+.aiw-artifact--failed { border-color: color-mix(in srgb, var(--danger) 40%, transparent); background: color-mix(in srgb, var(--danger) 5%, transparent); }
+.aiw-artifact-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.aiw-artifact-icon--pending { color: var(--warning); background: color-mix(in srgb, var(--warning) 10%, transparent); }
+.aiw-artifact-icon--failed { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.aiw-artifact-info { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 0.1rem; }
+.aiw-artifact-filename {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aiw-artifact-meta { font-size: 0.6875rem; color: var(--text-color); opacity: 0.5; }
+.aiw-artifact-error { font-size: 0.6875rem; color: var(--danger); display: inline-flex; align-items: center; gap: 0.25rem; }
+.aiw-artifact-actions { display: flex; gap: 0.375rem; flex-shrink: 0; }
+
+/* ── Message status notes ── */
+.aiw-msg-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.625rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+.aiw-msg-status--failed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent);
+}
+.aiw-msg-status--failed span { flex: 1; }
+.aiw-msg-status--cancelled { color: var(--text-color); opacity: 0.55; }
+
+/* ── Streaming indicator in topbar + live session dot ── */
+.aiw-streaming-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  color: var(--warning);
+  white-space: nowrap;
+}
+.aiw-side-item-live {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--warning);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.aiw-side-item-live::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warning);
+  animation: aiw-pulse 1.2s ease-in-out infinite;
+}
+
 /* ── Context panel (left in RTL) ── */
 .aiw-context {
   display: flex;

@@ -1,122 +1,17 @@
-import { useState, useRef, useEffect, useCallback, useReducer, useMemo, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
+import { useSyncExternalStore } from 'react';
 import { MessageResponse } from './chatbot';
-import { api, getAuthUser } from '../utils/api';
-import type { AIChatMessage, AIProviderConfig, AISSEEvent, ChatAttachment } from '../types';
+import { chatStore } from '../ai/chatStore';
+import { getAuthUser } from '../utils/api';
+import type { AIChatMessage, AIProviderConfig, ChatAttachment } from '../types';
 import {
   PanelRight, Plus, MessageSquare, X, Trash2, Search, Settings2,
   Sparkles, ArrowUp, Square, Database, FolderSearch, FileText, GitBranch,
-  Terminal, Plug, ChevronDown, Check, AlertTriangle, Pin, Paperclip,
+  Terminal, Plug, ChevronDown, Check, AlertTriangle, Pin, Paperclip, RotateCcw,
 } from 'lucide-react';
+import ArtifactCard, { ArtifactGenerating } from './ArtifactCard';
 import './chatbot/chatbot.css';
 import './ai-workspace.css';
-
-/* ────────────────────────────  Session types  ──────────────────────────── */
-interface ChatSession {
-  id: string;
-  title: string;
-  messages: AIChatMessage[];
-  createdAt: number;
-  updatedAt: number;
-  pinned?: boolean;
-}
-
-/* ────────────────────────────  Reducer  ──────────────────────────── */
-interface State {
-  messages: AIChatMessage[];
-  streaming: boolean;
-  streamingText: string;
-  currentToolCalls: Array<{ name: string; args: Record<string, unknown>; result?: unknown }>;
-  error: string | null;
-  aborted: boolean;
-}
-
-type Action =
-  | { type: 'ADD_MESSAGE'; message: AIChatMessage }
-  | { type: 'SET_MESSAGES'; messages: AIChatMessage[] }
-  | { type: 'SET_STREAMING'; value: boolean }
-  | { type: 'APPEND_TEXT'; text: string }
-  | { type: 'CLEAR_STREAMING_TEXT' }
-  | { type: 'CLEAR_TOOL_CALLS' }
-  | { type: 'ADD_TOOL_CALL'; name: string; args: Record<string, unknown> }
-  | { type: 'ADD_TOOL_RESULT'; toolCallId: string; result: unknown }
-  | { type: 'SET_ERROR'; error: string | null }
-  | { type: 'SET_ABORTED'; value: boolean }
-  | { type: 'CLEAR' };
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'ADD_MESSAGE':
-      return { ...state, messages: [...state.messages, action.message] };
-    case 'SET_MESSAGES':
-      return { ...state, messages: action.messages };
-    case 'SET_STREAMING':
-      return { ...state, streaming: action.value };
-    case 'APPEND_TEXT':
-      return { ...state, streamingText: state.streamingText + action.text };
-    case 'CLEAR_STREAMING_TEXT':
-      return { ...state, streamingText: '' };
-    case 'CLEAR_TOOL_CALLS':
-      return { ...state, currentToolCalls: [] };
-    case 'ADD_TOOL_CALL':
-      return {
-        ...state,
-        currentToolCalls: [...state.currentToolCalls, { name: action.name, args: action.args }],
-      };
-    case 'ADD_TOOL_RESULT':
-      return {
-        ...state,
-        currentToolCalls: state.currentToolCalls.map(tc =>
-          tc.name === action.toolCallId ? { ...tc, result: action.result } : tc
-        ),
-      };
-    case 'SET_ERROR':
-      return { ...state, error: action.error };
-    case 'SET_ABORTED':
-      return { ...state, aborted: action.value };
-    case 'CLEAR':
-      return { messages: [], streaming: false, streamingText: '', currentToolCalls: [], error: null, aborted: false };
-    default:
-      return state;
-  }
-}
-
-/* ────────────────────────────  Session storage  ──────────────────────────── */
-const SESSIONS_KEY = 'hermes_chat_sessions';
-const ACTIVE_SESSION_KEY = 'hermes_chat_active';
-
-function loadSessions(): ChatSession[] {
-  try {
-    const raw = localStorage.getItem(SESSIONS_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
-function saveSessions(sessions: ChatSession[]) {
-  localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions));
-}
-
-function getActiveSessionId(): string | null {
-  return localStorage.getItem(ACTIVE_SESSION_KEY);
-}
-
-function setActiveSessionId(id: string) {
-  localStorage.setItem(ACTIVE_SESSION_KEY, id);
-}
-
-function createNewSession(): ChatSession {
-  return {
-    id: `session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    title: 'گفتگوی جدید',
-    messages: [],
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  };
-}
-
-function deriveTitle(msg: string): string {
-  const cleaned = msg.replace(/\s+/g, ' ').trim();
-  return cleaned.length > 35 ? cleaned.slice(0, 35) + '…' : cleaned;
-}
 
 /* ────────────────────────────  Config  ──────────────────────────── */
 const INITIAL_CONFIG: AIProviderConfig = {
@@ -138,6 +33,13 @@ const TOOL_LABELS: Record<string, string> = {
   list_files: 'فهرست فایلها',
   search: 'جستجو',
   search_files: 'جستجوی فایلها',
+  search_records: 'جستجوی رکوردها',
+  get_record_stats: 'آمار رکوردها',
+  get_table_schema: 'ساختار پایگاه داده',
+  execute_query: 'اجرای پرسوجو',
+  get_current_time: 'دریافت زمان فعلی',
+  generate_monthly_report: 'ساخت گزارش ماهانه (PDF)',
+  create_artifact: 'ساخت فایل خروجی',
   git: 'تاریخچه تغییرات',
   shell: 'دستور سیستمی',
   mcp: 'ابزار خارجی',
@@ -215,7 +117,10 @@ const MessageAttachments = memo(function MessageAttachments({ attachments }: { a
 });
 
 /* ────────────────────────────  Message  ──────────────────────────── */
-const ChatMessage = memo(function ChatMessage({ msg }: { msg: AIChatMessage }) {
+const ChatMessage = memo(function ChatMessage({ msg, onRetry }: {
+  msg: AIChatMessage;
+  onRetry?: (msg: AIChatMessage) => void;
+}) {
   const isUser = msg.role === 'user';
   const [copied, setCopied] = useState(false);
 
@@ -248,7 +153,30 @@ const ChatMessage = memo(function ChatMessage({ msg }: { msg: AIChatMessage }) {
       </div>
       <div className="aiw-msg-body">
         <MessageResponse>{msg.content}</MessageResponse>
+
+        {msg.status === 'failed' && (
+          <div className="aiw-msg-status aiw-msg-status--failed">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            <span>{msg.error || 'پاسخ کامل نشد'}</span>
+            {onRetry && (
+              <button type="button" className="ds-btn ds-btn--sm" onClick={() => onRetry(msg)}>
+                <RotateCcw className="h-3 w-3" /> تلاش مجدد
+              </button>
+            )}
+          </div>
+        )}
+        {msg.status === 'cancelled' && (
+          <div className="aiw-msg-status aiw-msg-status--cancelled">تولید پاسخ متوقف شد — بخشهای تولیدشده حفظ شدهاند.</div>
+        )}
+
+        {msg.artifacts && msg.artifacts.length > 0 && (
+          <div className="aiw-artifacts">
+            {msg.artifacts.map(a => <ArtifactCard key={a.id} artifact={a} />)}
+          </div>
+        )}
+
         <MessageAttachments attachments={msg.attachments} />
+
         {msg.toolCalls && msg.toolCalls.length > 0 && (
           <div className="aiw-msg-traces">
             {msg.toolCalls.map((tc, i) => (
@@ -307,75 +235,47 @@ function ConfigModal({ show, onClose, config, onSave }: {
 
 /* ────────────────────────────  Suggestions  ──────────────────────────── */
 const SUGGESTIONS: Array<{ icon: React.ReactNode; title: string; prompt: string }> = [
+  { icon: <Database className="h-4 w-4" />, title: 'گزارش ماهانه PDF', prompt: 'یک خلاصه گزارش از تغییرات این ماه برایم بساز. خروجی را به صورت PDF بهم بده.' },
   { icon: <Database className="h-4 w-4" />, title: 'تحلیل رکوردها', prompt: 'رکوردهای این فضای کاری را تحلیل کن و موارد غیرعادی مبلغ را پیدا کن.' },
   { icon: <FolderSearch className="h-4 w-4" />, title: 'جستجوی رکورد', prompt: 'رکوردهای پرداختنشده را فهرست کن.' },
-  { icon: <FileText className="h-4 w-4" />, title: 'کار با فایلها', prompt: 'آخرین فایل اکسل را بخوان و خلاصهاش را بده.' },
-  { icon: <GitBranch className="h-4 w-4" />, title: 'گزارش ماهانه', prompt: 'یک خلاصه گزارش از تغییرات این ماه برایم بساز.' },
+  { icon: <GitBranch className="h-4 w-4" />, title: 'خروجی CSV', prompt: 'رکوردهای این ماه را در قالب CSV بهم بده.' },
 ];
 
 /* ────────────────────────────  Main  ──────────────────────────── */
-export default function ChatPage({ workspaceName, recordCount }: { workspaceName?: string; recordCount?: number }) {
-  /* Sessions */
-  const [sessions, setSessions] = useState<ChatSession[]>(() => {
-    const loaded = loadSessions();
-    if (loaded.length === 0) {
-      const s = createNewSession();
-      saveSessions([s]);
-      setActiveSessionId(s.id);
-      return [s];
-    }
-    return loaded;
-  });
-  const [activeSessionId, setActiveSessionIdState] = useState<string>(() => {
-    const id = getActiveSessionId();
-    if (id && sessions.find(s => s.id === id)) return id;
-    setActiveSessionId(sessions[0].id);
-    return sessions[0].id;
-  });
+export default function ChatPage({ workspaceId, workspaceName, recordCount, initialPrompt, onPromptConsumed }: {
+  workspaceId?: number | null;
+  workspaceName?: string;
+  recordCount?: number;
+  initialPrompt?: string;
+  onPromptConsumed?: () => void;
+}) {
+  const snap = useSyncExternalStore(chatStore.subscribe, chatStore.getSnapshot);
 
   /* UI state */
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [contextOpen, setContextOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 1024);
   const [sessionSearch, setSessionSearch] = useState('');
 
-  /* Chat state */
-  const activeSession = sessions.find(s => s.id === activeSessionId) || sessions[0];
-  const [state, dispatch] = useReducer(reducer, {
-    messages: activeSession?.messages || [],
-    streaming: false,
-    streamingText: '',
-    currentToolCalls: [],
-    error: null,
-    aborted: false,
-  });
+  /* Chat state — lives in the store, survives navigation */
+  const activeSession = snap.sessions.find(s => s.id === snap.activeSessionId) || snap.sessions[0];
+  const isStreamingHere = snap.streamingSessionId === activeSession?.id;
+  const isStreamingAnywhere = snap.streamingSessionId !== null;
 
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialPrompt || '');
+  const consumedPromptRef = useRef(false);
+
+  useEffect(() => {
+    if (initialPrompt && !consumedPromptRef.current) {
+      consumedPromptRef.current = true;
+      onPromptConsumed?.();
+    }
+  }, [initialPrompt, onPromptConsumed]);
   const [config, setConfig] = useState<AIProviderConfig>(INITIAL_CONFIG);
   const [showConfig, setShowConfig] = useState(!config.apiEndpoint);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  /* Attachments — user can send files; agent responses may carry them too */
-  const handleAttachFiles = useCallback((files: File[]) => {
-    setAttachments(prev => [
-      ...prev,
-      ...files.map(f => ({
-        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        name: f.name,
-        type: f.type,
-        size: f.size,
-        url: URL.createObjectURL(f),
-      })),
-    ]);
-  }, []);
-
-  const handleRemoveAttachment = useCallback((id: string) => {
-    setAttachments(prev => prev.filter(a => a.id !== id));
-  }, []);
-
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -395,27 +295,13 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
   }, []);
 
   useEffect(() => {
-    if (isAtBottom) scrollToBottom(false);
-  }, [state.messages, state.streamingText, isAtBottom, scrollToBottom]);
+    if (isAtBottom && isStreamingHere) scrollToBottom(false);
+  }, [snap.streamingText, isAtBottom, isStreamingHere, scrollToBottom]);
 
-  /* Persist — debounced so streaming doesn't thrash localStorage */
   useEffect(() => {
-    if (!activeSessionId) return;
-    const id = setTimeout(() => {
-      setSessions(prev => {
-        const updated = prev.map(s =>
-          s.id === activeSessionId
-            ? { ...s, messages: state.messages, updatedAt: Date.now() }
-            : s
-        );
-        saveSessions(updated);
-        return updated;
-      });
-    }, 300);
-    return () => clearTimeout(id);
-  }, [state.messages, activeSessionId]);
-
-  useEffect(() => () => { abortRef.current?.abort(); }, []);
+    if (activeSession && activeSession.messages.length > 0) scrollToBottom(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession?.id]);
 
   /* Composer auto-resize */
   const resizeTextarea = useCallback(() => {
@@ -426,42 +312,34 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
   }, []);
   useEffect(resizeTextarea, [input, resizeTextarea]);
 
-  /* Session management */
+  /* Attachments — user can send files; agent responses may carry them too */
+  const handleAttachFiles = useCallback((files: File[]) => {
+    setAttachments(prev => [
+      ...prev,
+      ...files.map(f => ({
+        id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: f.name,
+        type: f.type,
+        size: f.size,
+        url: URL.createObjectURL(f),
+      })),
+    ]);
+  }, []);
+
+  const handleRemoveAttachment = useCallback((id: string) => {
+    setAttachments(prev => prev.filter(a => a.id !== id));
+  }, []);
+
+  /* Session management — store-owned, stream keeps running across switches */
   const switchSession = useCallback((id: string) => {
-    const target = sessions.find(s => s.id === id);
-    if (!target) return;
-    abortRef.current?.abort();
-    setActiveSessionIdState(id);
-    setActiveSessionId(id);
-    dispatch({ type: 'SET_MESSAGES', messages: target.messages });
-    dispatch({ type: 'CLEAR_STREAMING_TEXT' });
-    dispatch({ type: 'CLEAR_TOOL_CALLS' });
-    dispatch({ type: 'SET_ERROR', error: null });
-    dispatch({ type: 'SET_ABORTED', value: false });
+    chatStore.switchSession(id);
     setSidebarOpen(false);
-  }, [sessions]);
+  }, []);
 
   const handleNewSession = () => {
-    const s = createNewSession();
-    const updated = [s, ...sessions];
-    setSessions(updated);
-    saveSessions(updated);
-    switchSession(s.id);
+    chatStore.newSession();
+    setSidebarOpen(false);
     textareaRef.current?.focus();
-  };
-
-  const handleDeleteSession = (id: string) => {
-    if (sessions.length <= 1) return;
-    const updated = sessions.filter(s => s.id !== id);
-    setSessions(updated);
-    saveSessions(updated);
-    if (id === activeSessionId) switchSession(updated[0].id);
-  };
-
-  const togglePin = (id: string) => {
-    const updated = sessions.map(s => s.id === id ? { ...s, pinned: !s.pinned } : s);
-    setSessions(updated);
-    saveSessions(updated);
   };
 
   /* Config */
@@ -473,106 +351,45 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
     localStorage.setItem('ai_provider_name', c.providerName || '');
   };
 
-  /* Send / Stop */
-  const handleStop = () => {
-    abortRef.current?.abort();
-    dispatch({ type: 'SET_STREAMING', value: false });
-    dispatch({ type: 'SET_ABORTED', value: true });
-  };
+  /* Send / Stop — lifecycle owned by the store */
+  const handleStop = useCallback(() => {
+    chatStore.stop();
+  }, []);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(() => {
     const text = input.trim();
-    if ((!text && attachments.length === 0) || state.streaming || !config.apiEndpoint || !config.model) return;
-
-    abortRef.current?.abort();
-    abortRef.current = new AbortController();
-
-    const userMsg: AIChatMessage = {
-      id: `user-${Date.now()}`,
-      role: 'user',
-      content: text,
-      attachments: attachments.length ? attachments : undefined,
-      timestamp: Date.now(),
-    };
-    dispatch({ type: 'ADD_MESSAGE', message: userMsg });
+    if ((!text && attachments.length === 0) || isStreamingAnywhere || !config.apiEndpoint || !config.model) return;
+    const sessionId = chatStore.ensureSession();
+    chatStore.sendMessage({
+      sessionId,
+      text,
+      attachments,
+      config,
+      workspaceId: workspaceId ?? undefined,
+      workspaceName,
+    });
     setInput('');
     setAttachments([]);
     setIsAtBottom(true);
-    dispatch({ type: 'SET_STREAMING', value: true });
-    dispatch({ type: 'CLEAR_STREAMING_TEXT' });
-    dispatch({ type: 'CLEAR_TOOL_CALLS' });
-    dispatch({ type: 'SET_ERROR', error: null });
-    dispatch({ type: 'SET_ABORTED', value: false });
+  }, [input, attachments, isStreamingAnywhere, config, workspaceId, workspaceName]);
 
-    const currentSession = sessions.find(s => s.id === activeSessionId);
-    if (currentSession && currentSession.messages.length === 0) {
-      const newTitle = deriveTitle(text);
-      const updated = sessions.map(s =>
-        s.id === activeSessionId ? { ...s, title: newTitle } : s
-      );
-      setSessions(updated);
-      saveSessions(updated);
-    }
-
-    const apiMessages = [...state.messages, userMsg].map(m => ({
-      role: m.role,
-      content: m.content,
-    }));
-
-    try {
-      const stream = api.aiChat(apiMessages, config);
-      let fullText = '';
-      const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
-      let agentAttachments: ChatAttachment[] | undefined;
-
-      for await (const event of stream as AsyncIterable<AISSEEvent>) {
-        if (abortRef.current?.signal.aborted) break;
-        switch (event.type) {
-          case 'text-delta':
-            fullText += event.text || '';
-            dispatch({ type: 'APPEND_TEXT', text: event.text || '' });
-            break;
-          case 'tool-call':
-            if (event.toolName && event.args) {
-              toolCalls.push({ name: event.toolName, args: event.args });
-              dispatch({ type: 'ADD_TOOL_CALL', name: event.toolName, args: event.args });
-            }
-            break;
-          case 'tool-result':
-            dispatch({ type: 'ADD_TOOL_RESULT', toolCallId: event.toolCallId || '', result: event.result });
-            break;
-          case 'error':
-            dispatch({ type: 'SET_ERROR', error: event.error || 'خطای ناشناخته' });
-            break;
-        }
-        if (event.attachments && event.attachments.length) {
-          agentAttachments = [...(agentAttachments || []), ...event.attachments];
-        }
-      }
-
-      if (!abortRef.current?.signal.aborted && (fullText || agentAttachments)) {
-        dispatch({
-          type: 'ADD_MESSAGE',
-          message: {
-            id: `assistant-${Date.now()}`,
-            role: 'assistant',
-            content: fullText,
-            attachments: agentAttachments,
-            toolCalls: toolCalls.length > 0
-              ? toolCalls.map(t => ({ toolName: t.name, args: t.args }))
-              : undefined,
-            timestamp: Date.now(),
-          },
-        });
-      }
-      dispatch({ type: 'SET_STREAMING', value: false });
-      dispatch({ type: 'CLEAR_STREAMING_TEXT' });
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') return;
-      dispatch({ type: 'SET_ERROR', error: err instanceof Error ? err.message : 'ارسال درخواست ناموفق بود' });
-      dispatch({ type: 'SET_STREAMING', value: false });
-    }
-  };
+  /** Re-send the same prompt after a failed generation. */
+  const handleRetry = useCallback((failed: AIChatMessage) => {
+    if (isStreamingAnywhere || !config.apiEndpoint || !config.model) return;
+    const session = activeSession;
+    if (!session) return;
+    const idx = session.messages.indexOf(failed);
+    const prevUser = [...session.messages.slice(0, idx)].reverse().find(m => m.role === 'user');
+    if (!prevUser) return;
+    chatStore.sendMessage({
+      sessionId: session.id,
+      text: prevUser.content,
+      attachments: prevUser.attachments,
+      config,
+      workspaceId: workspaceId ?? undefined,
+      workspaceName,
+    });
+  }, [activeSession, isStreamingAnywhere, config, workspaceId, workspaceName]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -588,11 +405,11 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
     const startOfYesterday = startOfToday - 86400000;
     const weekAgo = startOfToday - 7 * 86400000;
 
-    const filtered = sessions.filter(s =>
+    const filtered = snap.sessions.filter(s =>
       !sessionSearch.trim() || s.title.toLowerCase().includes(sessionSearch.trim().toLowerCase())
     );
 
-    const groups: Array<{ label: string; items: ChatSession[] }> = [
+    const groups: Array<{ label: string; items: typeof snap.sessions }> = [
       { label: 'پینشده', items: [] },
       { label: 'امروز', items: [] },
       { label: 'دیروز', items: [] },
@@ -608,17 +425,17 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
       else groups[4].items.push(s);
     }
     return groups.filter(g => g.items.length > 0);
-  }, [sessions, sessionSearch]);
+  }, [snap.sessions, sessionSearch]);
 
   /* Context panel stats — all real */
-  const sessionToolCount = state.messages.reduce((n, m) => n + (m.toolCalls?.length || 0), 0) + state.currentToolCalls.length;
+  const sessionToolCount = activeSession?.messages.reduce((n, m) => n + (m.toolCalls?.length || 0), 0)
+    + (isStreamingHere ? snap.runningToolCalls.length : 0);
   const endpointHost = (() => {
     try { return new URL(config.apiEndpoint).host; } catch { return null; }
   })();
 
-  const activeTitle = activeSession?.messages.length
-    ? activeSession.title
-    : 'گفتگوی جدید';
+  const activeTitle = activeSession?.messages.length ? activeSession.title : 'گفتگوی جدید';
+  const showEmpty = !activeSession || (activeSession.messages.length === 0 && !isStreamingHere);
 
   return (
     <div className={`aiw ${contextOpen ? '' : 'aiw--no-ctx'}`}>
@@ -658,20 +475,22 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
               </span>
               {group.items.map(s => (
                 <div key={s.id}
-                  className={`aiw-side-item ${s.id === activeSessionId ? 'aiw-side-item--active' : ''}`}
+                  className={`aiw-side-item ${s.id === snap.activeSessionId ? 'aiw-side-item--active' : ''}`}
                   onClick={() => switchSession(s.id)}
                   role="button" tabIndex={0}
                   onKeyDown={e => { if (e.key === 'Enter') switchSession(s.id); }}>
-                  <MessageSquare className="h-3.5 w-3.5 aiw-side-item-icon" />
+                  {snap.streamingSessionId === s.id
+                    ? <span className="aiw-side-item-live" title="در حال تولید پاسخ" />
+                    : <MessageSquare className="h-3.5 w-3.5 aiw-side-item-icon" />}
                   <span className="aiw-side-item-label" title={s.title}>{s.title}</span>
                   <span className="aiw-side-item-actions">
-                    <button onClick={e => { e.stopPropagation(); togglePin(s.id); }}
+                    <button onClick={e => { e.stopPropagation(); chatStore.togglePin(s.id); }}
                       className={`aiw-side-item-btn ${s.pinned ? 'aiw-side-item-btn--on' : ''}`}
                       type="button" aria-label={s.pinned ? 'برداشتن پین' : 'پین کردن'} title={s.pinned ? 'برداشتن پین' : 'پین کردن'}>
                       <Pin className="h-3 w-3" />
                     </button>
-                    {sessions.length > 1 && (
-                      <button onClick={e => { e.stopPropagation(); handleDeleteSession(s.id); }}
+                    {snap.sessions.length > 1 && (
+                      <button onClick={e => { e.stopPropagation(); chatStore.deleteSession(s.id); }}
                         className="aiw-side-item-btn" type="button" aria-label="حذف گفتگو" title="حذف">
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -703,6 +522,11 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
               {workspaceName ? `فضای کاری ${workspaceName}` : 'دستیار هوشمند'}
             </span>
           </div>
+          {isStreamingAnywhere && (
+            <span className="aiw-streaming-chip" role="status">
+              <span className="aiw-trace-pulse" /> در حال تولید پاسخ
+            </span>
+          )}
           <span className={`aiw-model-chip ${config.apiEndpoint && config.model ? '' : 'aiw-model-chip--off'}`}
             title={config.model || 'پیکربندی نشده'}>
             <span className="aiw-model-dot" aria-hidden="true" />
@@ -718,7 +542,7 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
         </header>
 
         <div className="aiw-thread" ref={messagesContainerRef} onScroll={handleThreadScroll}>
-          {state.messages.length === 0 && !state.streaming ? (
+          {showEmpty ? (
             <div className="aiw-empty">
               <div className="aiw-empty-seal" aria-hidden="true">
                 <Sparkles className="h-6 w-6" />
@@ -743,54 +567,53 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
             </div>
           ) : (
             <div className="aiw-thread-inner">
-              {state.messages.map(msg => <ChatMessage key={msg.id} msg={msg} />)}
+              {activeSession.messages.map(msg => (
+                <ChatMessage key={msg.id} msg={msg} onRetry={handleRetry} />
+              ))}
 
-              {state.streaming && (
+              {isStreamingHere && (
                 <div className="aiw-msg aiw-msg--assistant">
                   <div className="aiw-msg-meta">
                     <span className="aiw-msg-agent"><Sparkles className="h-3.5 w-3.5" /> هرمس</span>
                   </div>
                   <div className="aiw-msg-body">
-                    {state.currentToolCalls.length > 0 && !state.streamingText && (
+                    {snap.runningToolCalls.length > 0 && !snap.streamingText && (
                       <div className="aiw-thinking">در حال بررسی فضای کاری...</div>
                     )}
-                    {state.streamingText && (
+                    {snap.streamingText && (
                       <div className="aiw-streaming">
-                        <MessageResponse>{state.streamingText}</MessageResponse>
+                        <MessageResponse>{snap.streamingText}</MessageResponse>
                         <span className="aiw-cursor" aria-hidden="true" />
                       </div>
                     )}
-                    {state.currentToolCalls.length > 0 && (
+                    {snap.runningToolCalls.some(t => !t.result && t.name.includes('report')) && (
+                      <ArtifactGenerating />
+                    )}
+                    {snap.runningToolCalls.length > 0 && (
                       <div className="aiw-msg-traces">
-                        {state.currentToolCalls.map((tc, i) => <ToolTrace key={i} tc={tc} />)}
+                        {snap.runningToolCalls.map((tc, i) => <ToolTrace key={i} tc={tc} />)}
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {state.error && (
+              {snap.streamError && !isStreamingHere && (
                 <div className="aiw-error" role="alert">
                   <AlertTriangle className="h-4 w-4" />
                   <div className="aiw-error-body">
                     <strong>پاسخ کامل نشد</strong>
-                    <span>{state.error}</span>
+                    <span>{snap.streamError}</span>
                   </div>
-                  <button className="ds-btn ds-btn--sm" type="button" onClick={() => dispatch({ type: 'SET_ERROR', error: null })}>
-                    بستن
-                  </button>
+                  <button className="ds-btn ds-btn--sm" type="button" onClick={handleRetry as never} style={{ display: 'none' }} aria-hidden="true" />
                 </div>
-              )}
-
-              {state.aborted && !state.streaming && (
-                <div className="aiw-aborted">تولید پاسخ متوقف شد — بخشهای تولیدشده حفظ شدهاند.</div>
               )}
 
               <div ref={messagesEndRef} />
             </div>
           )}
 
-          {!isAtBottom && state.messages.length > 0 && (
+          {!isAtBottom && activeSession && activeSession.messages.length > 0 && (
             <button className="aiw-jump-bottom" type="button" onClick={() => scrollToBottom(true)}>
               <ChevronDown className="h-4 w-4" /> رفتن به آخر
             </button>
@@ -805,7 +628,7 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
               برای شروع، آدرس API و مدل هوش مصنوعی را تنظیم کنید
             </button>
           ) : null}
-          <div className={`aiw-composer-box ${state.streaming ? 'aiw-composer-box--busy' : ''}`}>
+          <div className={`aiw-composer-box ${isStreamingHere ? 'aiw-composer-box--busy' : ''}`}>
             {attachments.length > 0 && (
               <div className="aiw-composer-attachments">
                 {attachments.map(a => (
@@ -836,20 +659,20 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
                 <input ref={fileInputRef} type="file" multiple hidden
                   onChange={e => { if (e.target.files) handleAttachFiles(Array.from(e.target.files)); e.target.value = ''; }} />
                 <button type="button" className="aiw-attach-btn" onClick={() => fileInputRef.current?.click()}
-                  aria-label="پیوست فایل" title="پیوست فایل" disabled={state.streaming}>
+                  aria-label="پیوست فایل" title="پیوست فایل" disabled={isStreamingHere}>
                   <Paperclip className="h-4 w-4" />
                 </button>
                 <span className="aiw-composer-hint">
                   {config.model ? <><Plug className="h-3 w-3" /> {config.model}</> : 'بدون اتصال'}
                 </span>
               </div>
-              {state.streaming ? (
+              {isStreamingHere ? (
                 <button className="aiw-send aiw-send--stop" onClick={handleStop} type="button" aria-label="توقف تولید">
                   <Square className="h-3.5 w-3.5" />
                 </button>
               ) : (
                 <button className="aiw-send" onClick={handleSend} type="button"
-                  disabled={(!input.trim() && attachments.length === 0) || !config.apiEndpoint || !config.model}
+                  disabled={(!input.trim() && attachments.length === 0) || isStreamingAnywhere || !config.apiEndpoint || !config.model}
                   aria-label="ارسال پیام">
                   <ArrowUp className="h-4 w-4" />
                 </button>
@@ -882,7 +705,7 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
             <h4 className="aiw-ctx-title">این نشست</h4>
             <div className="aiw-ctx-stats">
               <div className="aiw-ctx-stat">
-                <span className="aiw-ctx-stat-value">{state.messages.length.toLocaleString('fa-IR')}</span>
+                <span className="aiw-ctx-stat-value">{(activeSession?.messages.length || 0).toLocaleString('fa-IR')}</span>
                 <span className="aiw-ctx-stat-label">پیام</span>
               </div>
               <div className="aiw-ctx-stat">
@@ -895,9 +718,10 @@ export default function ChatPage({ workspaceName, recordCount }: { workspaceName
           <section className="aiw-ctx-section">
             <h4 className="aiw-ctx-title">ابزارهای در دسترس</h4>
             <ul className="aiw-ctx-tools">
+              <li><Database className="h-3.5 w-3.5" /> گزارش ماهانه PDF</li>
               <li><Database className="h-3.5 w-3.5" /> پرسوجوی پایگاه داده</li>
               <li><FolderSearch className="h-3.5 w-3.5" /> جستجوی فایل و رکورد</li>
-              <li><FileText className="h-3.5 w-3.5" /> خواندن اسناد</li>
+              <li><FileText className="h-3.5 w-3.5" /> ساخت فایل خروجی</li>
               <li><GitBranch className="h-3.5 w-3.5" /> تاریخچه تغییرات</li>
               <li><Terminal className="h-3.5 w-3.5" /> ابزارهای سیستمی</li>
             </ul>

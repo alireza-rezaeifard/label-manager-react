@@ -31,23 +31,23 @@ import ListPanel from './components/panels/ListPanel';
 import {
   DashboardSkeleton, ReportsSkeleton, SettingsSkeleton,
   ProfileSkeleton, HistorySkeleton, ViewDetailSkeleton,
-  ImportSkeleton, PreviewSkeleton, StatsSkeleton,
+  ImportSkeleton, StatsSkeleton,
 } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import type { RecordItem, Template, Workspace, FilterPreset, FilterState, CustomField, FormField, ActivityLogEntry } from './types';
 import RecordsPage from './components/RecordsPage';
+import LabelsWorkspace from './components/labels/LabelsWorkspace';
 import {
-  Settings as SettingsIcon, FileSpreadsheet, FileText, Printer, ArrowRight,
+  FileSpreadsheet, Printer, ArrowRight,
   ScanLine, CloudDownload, Lock, LayoutTemplate, Save, Trash2, Undo2,
   X, Palette, Tags, Check, ArrowLeft, Loader2,
 } from 'lucide-react';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
 const ImportCSV = lazy(() => import('./components/ImportCSV'));
-const LabelPreview = lazy(() => import('./components/LabelPreview'));
 const ViewDetail = lazy(() => import('./components/ViewDetail'));
 const ReportsTab = lazy(() => import('./components/ReportsTab'));
-const DashboardTab = lazy(() => import('./components/DashboardTab'));
+const DashboardTab = lazy(() => import('./components/dashboard/DashboardTab'));
 const LoginPage = lazy(() => import('./components/LoginPage'));
 const ProfileTab = lazy(() => import('./components/ProfileTab'));
 const HistoryTab = lazy(() => import('./components/HistoryTab'));
@@ -133,6 +133,7 @@ export default function App() {
   // ========== VIEW STATE ==========
   const [viewIndex, setViewIndex] = useState<number | null>(null);
   const [showTaxBookModal, setShowTaxBookModal] = useState(false);
+  const [hermesPrompt, setHermesPrompt] = useState('');
 
   useEffect(() => {
     if (!viewCode || currentRecords.length === 0) return;
@@ -751,6 +752,7 @@ export default function App() {
       {tab === 'chat' ? (
         <Suspense fallback={<LoadingScreen />}>
           <ChatPage
+            workspaceId={ws.currentWorkspaceId}
             workspaceName={ws.workspaces.find(w => w.id === ws.currentWorkspaceId)?.name}
             recordCount={currentRecords.length}
           />
@@ -786,14 +788,13 @@ export default function App() {
           />
 
           <div className="content-area">
-            {tab !== 'assistant' && tab !== 'profile' && tab !== 'settings' && tab !== 'workspace' && (
+            {tab !== 'assistant' && tab !== 'profile' && tab !== 'settings' && tab !== 'workspace' && tab !== 'preview' && tab !== 'dashboard' && (
             <div className="page-header">
               <div>
                 <h1 className="page-title">
                   {tab === 'records' && 'مدیریت سوابق'}
                   {tab === 'add' && (formState.editIndex !== null ? 'ویرایش رکورد' : 'افزودن رکورد جدید')}
                   {tab === 'import' && 'ورود از CSV'}
-                  {tab === 'preview' && 'پیش‌نمایش برچسب‌ها'}
                   {tab === 'view' && 'جزئیات برچسب'}
                   {tab === 'history' && 'تاریخچه چاپ'}
                   {tab === 'reports' && 'گزارش‌ها و آمار'}
@@ -803,25 +804,6 @@ export default function App() {
               </div>
 
               <div className="d-flex gap-2 flex-wrap align-items-center">
-                {tab === 'preview' && list.selected.size > 0 && (
-                  <>
-                    <button className="btn btn-outline btn-sm" onClick={() => ws.setShowPrintSettings(true)}>
-                      <SettingsIcon className="h-4 w-4" /> تنظیمات چاپ
-                    </button>
-                    <button className="btn btn-outline btn-sm" onClick={handleExcel}>
-                      <FileSpreadsheet className="h-4 w-4" /> اکسل
-                    </button>
-                    <button className="btn btn-outline btn-sm" onClick={handleCSVExport}>
-                      <FileText className="h-4 w-4" /> CSV
-                    </button>
-                    <button className="btn btn-outline btn-sm" onClick={handlePDF}>
-                      <FileText className="h-4 w-4" /> PDF
-                    </button>
-                    <button className="btn btn-success btn-sm" onClick={() => handlePrint('selected')}>
-                       <Printer className="h-4 w-4" /> چاپ ({selectedRecords.length} عدد، حدود {estimatePaperCount(selectedRecords.length, ws.printCols)} برگ)
-                     </button>
-                  </>
-                )}
                 {tab === 'view' && viewIndex !== null && (
                   <button className="btn btn-outline btn-sm" onClick={() => { setViewIndex(null); setTab('records'); list.setSelected(new Set([viewIndex])); }}>
                     <ArrowRight className="h-4 w-4" /> بازگشت
@@ -865,7 +847,7 @@ export default function App() {
             )}
 
             <TransitionPage tab={tab}>
-              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && tab !== 'assistant' && tab !== 'workspace' && (
+              {tab !== 'view' && tab !== 'settings' && tab !== 'profile' && tab !== 'reports' && tab !== 'dashboard' && tab !== 'assistant' && tab !== 'workspace' && tab !== 'preview' && (
                 <StatsCards records={currentRecords} selected={list.selected} filtered={list.sortedRecords} />
               )}
 
@@ -1007,9 +989,79 @@ export default function App() {
               )}
 
               {tab === 'preview' && (
-                <Suspense fallback={<PreviewSkeleton />}>
-                  <LabelPreview selectedRecords={selectedRecords} onGoToRecords={() => setTab('records')} customFields={ws.customFields} enabledCustomFieldKeys={ws.enabledCustomFieldKeys} />
-                </Suspense>
+                <LabelsWorkspace
+                  records={currentRecords}
+                  sortedRecords={list.sortedRecords}
+                  pagedRecords={list.pagedRecords}
+                  safePage={list.safePage}
+                  totalPages={list.totalPages}
+                  setPage={list.setPage}
+                  selected={list.selected}
+                  onToggleSelect={list.toggleSelect}
+                  onToggleAll={list.toggleAll}
+                  search={list.search}
+                  onSearchChange={(v: string) => { list.setSearch(v); list.setPage(1); }}
+                  sortBy={list.sortBy}
+                  sortOrder={list.sortOrder}
+                  onSort={list.handleSort}
+                  filters={{
+                    type: list.filterType,
+                    party: list.filterParty,
+                    tag: list.selectedTagFilter,
+                    dateFrom: list.filterDateFrom,
+                    dateTo: list.filterDateTo,
+                    amountMin: list.filterAmountMin,
+                    amountMax: list.filterAmountMax,
+                  }}
+                  onFiltersChange={(patch) => {
+                    if (patch.type !== undefined) list.setFilterType(patch.type);
+                    if (patch.party !== undefined) list.setFilterParty(patch.party);
+                    if (patch.tag !== undefined) list.setSelectedTagFilter(patch.tag);
+                    if (patch.dateFrom !== undefined) list.setFilterDateFrom(patch.dateFrom);
+                    if (patch.dateTo !== undefined) list.setFilterDateTo(patch.dateTo);
+                    if (patch.amountMin !== undefined) list.setFilterAmountMin(patch.amountMin);
+                    if (patch.amountMax !== undefined) list.setFilterAmountMax(patch.amountMax);
+                    list.setPage(1);
+                  }}
+                  onClearFilters={() => {
+                    list.setFilterType('');
+                    list.setFilterParty('');
+                    list.setSelectedTagFilter(null);
+                    list.setFilterDateFrom('');
+                    list.setFilterDateTo('');
+                    list.setFilterAmountMin('');
+                    list.setFilterAmountMax('');
+                    list.setPage(1);
+                  }}
+                  allTypes={allTypes}
+                  allParties={allParties}
+                  tags={ws.tags}
+                  customFields={ws.customFields}
+                  enabledCustomFieldKeys={ws.enabledCustomFieldKeys}
+                  viewMode={list.viewMode}
+                  setViewMode={list.setViewMode}
+                  serverLoading={ws.serverLoading}
+                  isViewer={ws.isViewer}
+                  recordToIndex={list.recordToIndex}
+                  findRelated={findRelated}
+                  onView={handleView}
+                  onEdit={handleEdit}
+                  onToggleFavorite={handleToggleFavorite}
+                  onExcel={handleExcel}
+                  onCSVExport={handleCSVExport}
+                  onPDF={handlePDF}
+                  onPrint={() => handlePrint('selected')}
+                  onShowPrintSettings={() => ws.setShowPrintSettings(true)}
+                  paperEstimator={estimatePaperCount}
+                  printCols={ws.printCols}
+                  onShowPrintQueue={() => ws.setShowPrintQueue(true)}
+                  onShowScanner={() => ws.setShowScanner(true)}
+                  onShowBackup={() => ws.setShowBackupModal(true)}
+                  onShowTaxBookExport={() => setShowTaxBookModal(true)}
+                  onAuthAction={ws.serverMode ? handleLogout : handleLoginGoToServer}
+                  authActionLabel={ws.serverMode ? 'خروج از حساب' : 'ورود به سرور'}
+                  onTabChange={setTab}
+                />
               )}
 
               {tab === 'history' && (
@@ -1036,7 +1088,45 @@ export default function App() {
 
               {tab === 'dashboard' && (
                 <Suspense fallback={<DashboardSkeleton />}>
-                  <DashboardTab records={currentRecords} customFields={ws.customFields} tags={ws.tags} activityLog={ws.activityLog} onTabChange={setTab} />
+                  <DashboardTab
+                    records={currentRecords}
+                    customFields={ws.customFields}
+                    tags={ws.tags}
+                    activityLog={ws.activityLog}
+                    onTabChange={setTab}
+                    workspaceName={ws.currentWs?.name}
+                    isViewer={ws.isViewer}
+                    refreshing={ws.serverLoading}
+                    onRefresh={() => {
+                      if (ws.serverMode) {
+                        ws.refreshServerRecords();
+                        ws.handleRefreshActivity();
+                      }
+                    }}
+                    onOpenScanner={() => ws.setShowScanner(true)}
+                    onViewRecord={(r) => {
+                      const idx = currentRecords.findIndex(x => x.id === r.id || x.code === r.code);
+                      if (idx !== -1) handleView(idx);
+                    }}
+                    onFilterToRecords={(kind, value) => {
+                      list.setSearch('');
+                      list.setFilterType('');
+                      list.setFilterParty('');
+                      list.setFilterDateFrom('');
+                      list.setFilterDateTo('');
+                      list.setFilterAmountMin('');
+                      list.setFilterAmountMax('');
+                      list.setSelectedTagFilter(null);
+                      if (kind === 'type') list.setFilterType(value);
+                      else list.setFilterParty(value);
+                      list.setPage(1);
+                      setTab('records');
+                    }}
+                    onAskHermes={(prompt) => {
+                      setHermesPrompt(prompt || '');
+                      setTab('assistant');
+                    }}
+                  />
                 </Suspense>
               )}
 
@@ -1044,8 +1134,11 @@ export default function App() {
                 <Suspense fallback={<StatsSkeleton />}>
                   <div className="aiw-embedded">
                     <ChatPage
+                      workspaceId={ws.currentWorkspaceId}
                       workspaceName={ws.workspaces.find(w => w.id === ws.currentWorkspaceId)?.name}
                       recordCount={currentRecords.length}
+                      initialPrompt={hermesPrompt || undefined}
+                      onPromptConsumed={() => setHermesPrompt('')}
                     />
                   </div>
                 </Suspense>
