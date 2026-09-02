@@ -6,8 +6,7 @@ import { AppError, asyncHandler } from '../errors.js';
 import { sanitize, sanitizeObject } from '../utils/sanitize.js';
 import { triggerWebhooks } from '../utils/webhooks.js';
 import { notifyWorkspace } from '../utils/notifications.js';
-
-const ROLE_HIERARCHY = { owner: 10, admin: 8, editor: 5, viewer: 1 };
+import { ROLE_HIERARCHY, assertWorkspaceRole, loadRecordForUser, resolveWorkspaceId } from '../lib/authz.js';
 
 const router = Router();
 
@@ -50,7 +49,8 @@ router.get('/', asyncHandler((req, res) => {
     workspace_id: filterWorkspace = '',
   } = req.query;
 
-  const limitNum = Math.min(10000, Math.max(1, parseInt(limit, 10) || 50));
+  // Bounded payloads: never return unbounded collections.
+  const limitNum = Math.min(1000, Math.max(1, parseInt(limit, 10) || 50));
 
   const allowedSortFields = ['code', 'project', 'type', 'date', 'party', 'amount', 'created_at', 'updated_at', 'sort_order'];
   const safeSortBy = allowedSortFields.includes(sortBy) ? sortBy : 'created_at';
@@ -167,11 +167,11 @@ router.get('/check-code', asyncHandler((req, res) => {
 
 router.post('/', asyncHandler((req, res) => {
   const body = sanitizeObject(req.body);
-  const { code, project, type, date, party, amount, related, tags, image, color, workspace_id } = body;
+  const { code, project, type, date, party, amount, related, tags, image, color } = body;
   if (!code || !code.trim()) throw new AppError('Code is required', 400, 'MISSING_CODE');
   if (!project || !project.trim()) throw new AppError('Project is required', 400, 'MISSING_PROJECT');
 
-  const wsId = workspace_id || 1;
+  const wsId = resolveWorkspaceId(req);
 
   // ── Idempotency: a retried request with the same key returns the original result ──
   const idempotencyKey = req.headers['idempotency-key'];
@@ -189,15 +189,7 @@ router.post('/', asyncHandler((req, res) => {
   const duplicate = db.prepare('SELECT id FROM records WHERE code = ? AND workspace_id = ?').get(code, wsId);
   if (duplicate) throw new AppError(`Code "${code}" already exists in this workspace`, 409, 'DUPLICATE_CODE');
 
-  const roleInfo = db.prepare(
-    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
-  ).get(wsId, req.user.id);
-
-  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
-
-  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
-    throw new AppError('Editing records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
-  }
+  assertWorkspaceRole(wsId, req.user.id, 'editor');
 
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), 0) as mx FROM records WHERE workspace_id = ?').get(wsId);
   const sortOrder = maxOrder.mx + 1;
@@ -237,17 +229,7 @@ router.put('/:id', asyncHandler((req, res) => {
   const body = sanitizeObject(req.body);
   const { code, project, type, date, party, amount, related, tags, image, color, notes } = body;
 
-  const existing = db.prepare('SELECT * FROM records WHERE id = ?').get(id);
-  if (!existing) throw new AppError('Record not found', 404, 'NOT_FOUND');
-
-  const roleInfo = db.prepare(
-    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
-  ).get(existing.workspace_id, req.user.id);
-
-  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
-  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
-    throw new AppError('Editing records requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
-  }
+  const { record: existing } = loadRecordForUser(id, req.user.id, 'editor');
 
   if (code && code !== existing.code) {
     const dup = db.prepare('SELECT id FROM records WHERE code = ? AND id != ? AND workspace_id = ?').get(code, id, existing.workspace_id);
@@ -365,7 +347,7 @@ router.delete('/trash/permanent', asyncHandler((req, res) => {
 }));
 
 router.post('/import-url', asyncHandler(async (req, res) => {
-  const { url, workspace_id } = req.body;
+  const { url } = req.body;
   if (!url || typeof url !== 'string') throw new AppError('URL is required', 400, 'MISSING_URL');
 
   let parsedUrl;
@@ -379,15 +361,8 @@ router.post('/import-url', asyncHandler(async (req, res) => {
     throw new AppError('Only http and https URLs are allowed', 400, 'INVALID_URL');
   }
 
-  const wsId = workspace_id || 1;
-  const roleInfo = db.prepare(
-    'SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
-  ).get(wsId, req.user.id);
-
-  if (!roleInfo) throw new AppError('Not a member of this workspace', 403, 'FORBIDDEN');
-  if ((ROLE_HIERARCHY[roleInfo.role] || 0) < ROLE_HIERARCHY.editor) {
-    throw new AppError('Importing requires "editor" role or higher', 403, 'INSUFFICIENT_ROLE');
-  }
+  const wsId = resolveWorkspaceId(req);
+  assertWorkspaceRole(wsId, req.user.id, 'editor');
 
   let response;
   try {
