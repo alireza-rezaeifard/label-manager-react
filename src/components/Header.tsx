@@ -68,7 +68,8 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground opacity-40" />
             <Input
               type="text"
-              placeholder="جستجو..."
+              placeholder="جستجو در اسناد، کد یا پروژه..."
+              aria-label="جستجو در اسناد"
               value={search}
               onChange={e => onSearchChange(e.target.value)}
               className="border-0 bg-transparent pl-10 focus-visible:ring-0"
@@ -79,7 +80,7 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
         <div className="header-right">
           {statusInfo && (
             <div
-              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+              className="header-status"
               style={{ background: `${statusInfo.color}15`, color: statusInfo.color }}
               title={statusInfo.label}
             >
@@ -88,28 +89,30 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
             </div>
           )}
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" onClick={onShortcutsHelp}>
-                <Keyboard className="h-4 w-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>میانبرهای صفحه کلید (Ctrl+/)</TooltipContent>
-          </Tooltip>
+          <div className="header-secondary-actions">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" onClick={onShortcutsHelp}>
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>میانبرهای صفحه کلید (Ctrl+/)</TooltipContent>
+            </Tooltip>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="outline" size="icon" className="relative">
-                <Bell className="h-4 w-4" />
-                {notifications.length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[0.6rem]">
-                    {notifications.length}
-                  </Badge>
-                )}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>اعلانها</TooltipContent>
-          </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="outline" size="icon" className="relative">
+                  <Bell className="h-4 w-4" />
+                  {notifications.length > 0 && (
+                    <Badge variant="destructive" className="absolute -top-1 -right-1 h-4 min-w-4 px-1 text-[0.6rem]">
+                      {notifications.length}
+                    </Badge>
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>اعلان‌ها</TooltipContent>
+            </Tooltip>
+          </div>
 
           <Tooltip>
             <TooltipTrigger asChild>
@@ -133,8 +136,8 @@ export default function Header({ search, onSearchChange, theme, onToggleTheme, o
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="user-dropdown" onClick={onProfileClick}>
-                <div className="user-avatar">A</div>
-                <span className="font-medium text-sm">Admin</span>
+                <div className="user-avatar">م</div>
+                <span className="font-medium text-sm">مدیر</span>
                 <ChevronDown className="h-3.5 w-3.5 opacity-50" />
               </button>
             </DropdownMenuTrigger>

@@ -796,7 +796,7 @@ export default function App() {
                   {tab === 'dashboard' && 'داشبورد'}
                   {tab === 'assistant' && 'دستیار هوشمند'}
                 </h1>
-                <p className="page-subtitle">ابزار مدیریت اسناد و چاپ برچسب</p>
+                <p className="page-subtitle">سامانه یکپارچه مدیریت، بایگانی و چاپ اسناد</p>
               </div>
 
               <div className="d-flex gap-2 flex-wrap align-items-center">

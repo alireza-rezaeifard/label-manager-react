@@ -138,8 +138,8 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             <div className="sb-emblem-ring" />
           </motion.div>
           <div className="sb-brand-text-wrap">
-            <span className="sidebar-brand-text sb-brand-name">Label Studio</span>
-            <span className="sb-brand-tagline">سیستم مدیریت برچسب</span>
+            <span className="sidebar-brand-text sb-brand-name">نگار برچسب</span>
+            <span className="sb-brand-tagline">سامانه مدیریت اسناد فارسی</span>
           </div>
         </div>
 
@@ -205,7 +205,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             <div className="nav-section-title sb-section-title">
               <div className="sb-section-left">
                 <span className="sb-section-numeral">V</span>
-                <span>فعالیتها</span>
+                <span>فعالیت‌ها</span>
                 <span className="sb-live-dot" title="بروزرسانی خودکار هر ۱۵ ثانیه" />
               </div>
             </div>
@@ -242,7 +242,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              {compact ? 'حالت گسترده' : 'حالت جمعوجور'}
+              {compact ? 'حالت گسترده' : 'حالت جمع‌وجور'}
             </TooltipContent>
           </Tooltip>
           <div className="sb-footer-info">
@@ -348,11 +348,11 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             font-size: 0.5625rem;
             font-weight: 700;
             color: var(--primary);
-            opacity: 0.5;
-            background: rgba(99, 102, 241, 0.06);
+            opacity: 0.7;
+            background: color-mix(in srgb, var(--primary) 8%, transparent);
             padding: 0.1rem 0.3rem;
             border-radius: 3px;
-            border: 1px solid rgba(99, 102, 241, 0.1);
+            border: 1px solid color-mix(in srgb, var(--primary) 14%, transparent);
             letter-spacing: 0.05em;
             min-width: 18px;
             text-align: center;
@@ -372,7 +372,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
           }
 
           .sb-nav-item.active {
-            background: rgba(99, 102, 241, 0.08) !important;
+            background: color-mix(in srgb, var(--primary) 10%, transparent) !important;
             color: var(--primary) !important;
             box-shadow: none !important;
           }
@@ -392,10 +392,10 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
           }
 
           .sb-nav-icon-wrap.active {
-            background: linear-gradient(135deg, var(--primary), #818cf8) !important;
+            background: linear-gradient(135deg, var(--primary), var(--persian-teal)) !important;
             color: white !important;
             opacity: 1;
-            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 35%, transparent);
           }
 
           .sb-nav-label {
@@ -416,8 +416,8 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
             width: 4px;
             height: 4px;
             border-radius: 50%;
-            background: var(--primary);
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+            background: var(--persian-gold);
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--persian-gold) 20%, transparent);
           }
 
           /* ── Activity Feed ── */

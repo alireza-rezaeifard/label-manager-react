@@ -622,7 +622,7 @@ export default function SettingsTab({
           width: 26px;
           height: 26px;
           border-radius: 7px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal));
           display: flex;
           align-items: center;
           justify-content: center;
@@ -640,10 +640,10 @@ export default function SettingsTab({
           font-size: 0.5625rem;
           font-weight: 700;
           color: var(--primary);
-          background: rgba(99, 102, 241, 0.06);
+          background: rgba(var(--primary-rgb), 0.06);
           padding: 0.1rem 0.35rem;
           border-radius: 3px;
-          border: 1px solid rgba(99, 102, 241, 0.1);
+          border: 1px solid rgba(var(--primary-rgb), 0.1);
         }
 
         .st-section-title {
@@ -732,7 +732,7 @@ export default function SettingsTab({
 
         .st-theme.active {
           border-color: var(--primary);
-          background: rgba(99, 102, 241, 0.04);
+          background: rgba(var(--primary-rgb), 0.04);
         }
 
         .st-theme-icon-wrap {
@@ -747,9 +747,9 @@ export default function SettingsTab({
         }
 
         .st-theme.active .st-theme-icon-wrap {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal));
           color: white;
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
         }
 
         .st-theme-icon {

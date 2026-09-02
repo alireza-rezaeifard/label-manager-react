@@ -137,11 +137,11 @@ export default function AutocompleteInput({
           ref={listRef}
           style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 1000,
-            background: 'var(--card-bg, #1e1e2f)',
-            border: '1px solid var(--border-color, #2d2d44)',
-            borderRadius: '0 0 8px 8px',
+            background: 'var(--card-bg)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '0 0 10px 10px',
             maxHeight: '220px', overflowY: 'auto',
-            boxShadow: '0 6px 20px rgba(0,0,0,0.4)',
+            boxShadow: 'var(--card-shadow-hover, 0 6px 20px rgba(0,0,0,0.2))',
           }}
         >
           {filtered.map((s, i) => (
@@ -151,10 +151,10 @@ export default function AutocompleteInput({
               onMouseEnter={() => setFocusedIdx(i)}
               style={{
                 padding: '8px 12px', cursor: 'pointer', direction: 'ltr', textAlign: 'left',
-                background: i === focusedIdx ? 'var(--hover-bg, #2a2a45)' : 'transparent',
-                color: i === focusedIdx ? 'var(--primary, #7367f0)' : 'var(--text, #e0e0e0)',
-                fontSize: '0.875rem', borderBottom: i < filtered.length - 1 ? '1px solid var(--border-color, #2d2d44)' : 'none',
-                transition: 'background 0.1s',
+                background: i === focusedIdx ? 'var(--hover-bg)' : 'transparent',
+                color: i === focusedIdx ? 'var(--primary)' : 'var(--text-color)',
+                fontSize: '0.875rem', borderBottom: i < filtered.length - 1 ? '1px solid var(--border-color)' : 'none',
+                transition: 'background 0.15s',
               }}
             >
               {s}

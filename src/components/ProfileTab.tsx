@@ -236,7 +236,7 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
           left: 0;
           right: 0;
           height: 3px;
-          background: linear-gradient(90deg, var(--primary), #818cf8, var(--primary));
+          background: linear-gradient(90deg, var(--primary), var(--persian-teal), var(--primary));
         }
 
         .pt-avatar-wrap {
@@ -248,11 +248,11 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
           width: 80px;
           height: 80px;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal));
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.3);
         }
 
         .pt-avatar-letter {
@@ -266,7 +266,7 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
           position: absolute;
           inset: -5px;
           border-radius: 50%;
-          border: 2px dashed rgba(99, 102, 241, 0.2);
+          border: 2px dashed rgba(var(--primary-rgb), 0.2);
           pointer-events: none;
         }
 
@@ -388,7 +388,7 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
           width: 26px;
           height: 26px;
           border-radius: 7px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal));
           display: flex;
           align-items: center;
           justify-content: center;
@@ -406,10 +406,10 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
           font-size: 0.5625rem;
           font-weight: 700;
           color: var(--primary);
-          background: rgba(99, 102, 241, 0.06);
+          background: rgba(var(--primary-rgb), 0.06);
           padding: 0.1rem 0.35rem;
           border-radius: 3px;
-          border: 1px solid rgba(99, 102, 241, 0.1);
+          border: 1px solid rgba(var(--primary-rgb), 0.1);
         }
 
         .pt-section-title {
@@ -585,14 +585,14 @@ export default function ProfileTab({ authUser, serverMode, recordCount, onLogin,
         }
 
         .pt-btn-sm.primary {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal));
           color: white;
           border: none;
-          box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+          box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.25);
         }
 
         .pt-btn-sm.primary:hover {
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
+          box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.35);
         }
 
         .pt-btn-sm.primary:disabled {

@@ -118,7 +118,7 @@ export default function ValidationRuleEditor({ rules, onChange, fieldType }: Pro
       <style>{`
         .vre { margin-top: 0.75rem; }
         .vre-rules { display: flex; flex-direction: column; gap: 0.375rem; margin-bottom: 0.625rem; }
-        .vre-rule { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.625rem; background: rgba(99, 102, 241, 0.04); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.75rem; }
+        .vre-rule { display: flex; align-items: center; gap: 0.5rem; padding: 0.375rem 0.625rem; background: rgba(var(--primary-rgb), 0.04); border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.75rem; }
         .vre-rule-icon { width: 13px; height: 13px; color: var(--warning); flex-shrink: 0; }
         .vre-rule-text { font-weight: 500; }
         .vre-rule-msg { opacity: 0.55; }
@@ -130,7 +130,7 @@ export default function ValidationRuleEditor({ rules, onChange, fieldType }: Pro
         .vre-btn { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-color); font-size: 0.75rem; cursor: pointer; font-family: inherit; }
         .vre-btn.primary { background: var(--primary); color: white; border-color: var(--primary); }
         .vre-add-btn { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.375rem 0.75rem; border-radius: 6px; border: 1px dashed var(--border-color); background: transparent; color: var(--primary); font-size: 0.75rem; cursor: pointer; font-family: inherit; transition: all 0.15s; }
-        .vre-add-btn:hover { border-color: var(--primary); background: rgba(99, 102, 241, 0.04); }
+        .vre-add-btn:hover { border-color: var(--primary); background: rgba(var(--primary-rgb), 0.04); }
       `}</style>
     </div>
   );

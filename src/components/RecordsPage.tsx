@@ -571,12 +571,12 @@ export default function RecordsPage({
         .rpg-emblem {
           width: 44px;
           height: 44px;
-          border-radius: 12px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          border-radius: 14px 5px 14px 5px;
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal, #16856b));
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+          box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent);
           flex-shrink: 0;
         }
 
@@ -628,7 +628,7 @@ export default function RecordsPage({
         .rpg-tb-btn:hover {
           border-color: var(--primary);
           color: var(--primary);
-          background: rgba(99, 102, 241, 0.04);
+          background: color-mix(in srgb, var(--primary) 6%, transparent);
         }
 
         .rpg-tb-btn-active {
@@ -643,12 +643,12 @@ export default function RecordsPage({
         }
 
         .rpg-tb-btn-danger {
-          border-color: rgba(239, 68, 68, 0.3);
+          border-color: color-mix(in srgb, var(--danger) 35%, transparent);
           color: var(--danger);
         }
 
         .rpg-tb-btn-danger:hover {
-          background: rgba(239, 68, 68, 0.06);
+          background: color-mix(in srgb, var(--danger) 8%, transparent);
           border-color: var(--danger);
         }
 
@@ -811,8 +811,8 @@ export default function RecordsPage({
         .rpg-filter-icon {
           width: 32px;
           height: 32px;
-          border-radius: 8px;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          border-radius: 10px 4px 10px 4px;
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal, #16856b));
           display: flex;
           align-items: center;
           justify-content: center;
@@ -873,7 +873,7 @@ export default function RecordsPage({
           gap: 0.25rem;
           padding: 0.375rem 0.625rem;
           border-radius: 6px;
-          border: 1px dashed rgba(239, 68, 68, 0.3);
+          border: 1px dashed color-mix(in srgb, var(--danger) 35%, transparent);
           background: transparent;
           color: var(--danger);
           font-size: 0.6875rem;
@@ -884,7 +884,7 @@ export default function RecordsPage({
         }
 
         .rpg-filter-clear:hover {
-          background: rgba(239, 68, 68, 0.06);
+          background: color-mix(in srgb, var(--danger) 8%, transparent);
           border-color: var(--danger);
         }
 
@@ -963,12 +963,12 @@ export default function RecordsPage({
           width: 80px;
           height: 80px;
           border-radius: 50%;
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal, #16856b));
           display: flex;
           align-items: center;
           justify-content: center;
           margin: 0 auto 1.5rem;
-          box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+          box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 25%, transparent);
           position: relative;
         }
 
@@ -1040,14 +1040,14 @@ export default function RecordsPage({
         }
 
         .rpg-empty-btn.primary {
-          background: linear-gradient(135deg, var(--primary), #818cf8);
+          background: linear-gradient(135deg, var(--primary), var(--persian-teal, #16856b));
           color: white;
           border: none;
-          box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent);
         }
 
         .rpg-empty-btn.primary:hover {
-          box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 6px 16px color-mix(in srgb, var(--primary) 40%, transparent);
           transform: translateY(-1px);
         }
 
@@ -1109,7 +1109,7 @@ export default function RecordsPage({
         .rpg-pg-btn.active {
           background: var(--primary);
           color: white;
-          box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 30%, transparent);
         }
 
         .rpg-pg-btn:disabled {

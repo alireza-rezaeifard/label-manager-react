@@ -678,7 +678,7 @@
 }
 
 .ai-chat-tool-badge-error {
-  background: rgba(239, 68, 68, 0.08);
+  background: rgba(var(--danger-rgb), 0.08);
   color: #dc2626;
 }
 
@@ -758,8 +758,8 @@
   padding: 10px 14px;
   margin: 12px 0;
   border-radius: 10px;
-  background: rgba(239, 68, 68, 0.05);
-  border: 1px solid rgba(239, 68, 68, 0.15);
+  background: rgba(var(--danger-rgb), 0.05);
+  border: 1px solid rgba(var(--danger-rgb), 0.15);
   color: var(--danger, #ef4444);
   font-size: 13px;
 }

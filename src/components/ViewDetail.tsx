@@ -146,7 +146,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
         .vd-image { max-width: 100%; max-height: 300px; border-radius: 12px; border: 1px solid var(--border-color); object-fit: contain; }
         .vd-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem; }
         .vd-header-left { display: flex; align-items: center; gap: 1rem; }
-        .vd-emblem { width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), #818cf8); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; flex-shrink: 0; }
+        .vd-emblem { width: 50px; height: 50px; border-radius: 12px; background: linear-gradient(135deg, var(--primary), var(--persian-teal)); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: white; flex-shrink: 0; }
         .vd-code { margin: 0; font-family: monospace; direction: ltr; }
         .vd-meta { opacity: 0.6; font-size: 0.875rem; }
         .vd-header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -167,7 +167,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
         .vd-rel-item { display: flex; align-items: center; justify-content: space-between; padding: 1rem; background: var(--bg-body); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
         .vd-rel-item:hover { background: var(--hover-bg); }
         .vd-rel-left { display: flex; align-items: center; gap: 0.75rem; }
-        .vd-rel-emblem { width: 36px; height: 36px; border-radius: 8px; background: rgba(6, 182, 212, 0.12); display: flex; align-items: center; justify-content: center; color: #06b6d4; }
+        .vd-rel-emblem { width: 36px; height: 36px; border-radius: 8px; background: rgba(var(--info-rgb), 0.12); display: flex; align-items: center; justify-content: center; color: #06b6d4; }
         .vd-rel-code { font-family: monospace; font-weight: 600; }
         .vd-rel-project { font-size: 0.8rem; opacity: 0.6; }
         .vd-rel-right { display: flex; align-items: center; gap: 0.5rem; }

@@ -101,7 +101,7 @@ export default function LoginPage({ onLogin }: {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, duration: 0.5 }}
               >
-                <h1 className="login-title">Label Studio</h1>
+                <h1 className="login-title">نگار برچسب</h1>
                 <div className="login-divider">
                   <span className="divider-line" />
                   <span className="divider-diamond" />
@@ -150,7 +150,7 @@ export default function LoginPage({ onLogin }: {
                   type="text"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="username"
+                  placeholder="نام کاربری"
                   required
                   className="classic-input"
                   dir="ltr"
@@ -317,12 +317,12 @@ export default function LoginPage({ onLogin }: {
           width: 100%;
           height: 100%;
           border-radius: 50%;
-          background: linear-gradient(145deg, var(--primary), #818cf8);
+          background: linear-gradient(145deg, var(--primary), var(--persian-teal, #16856b));
           display: flex;
           align-items: center;
           justify-content: center;
           box-shadow:
-            0 4px 16px rgba(99, 102, 241, 0.3),
+            0 4px 16px color-mix(in srgb, var(--primary) 30%, transparent),
             0 0 0 4px var(--card-bg),
             0 0 0 6px var(--primary);
           position: relative;
@@ -333,7 +333,7 @@ export default function LoginPage({ onLogin }: {
           width: 56px;
           height: 56px;
           border-radius: 50%;
-          background: linear-gradient(145deg, #818cf8, var(--primary));
+          background: linear-gradient(145deg, var(--persian-teal, #16856b), var(--primary));
           display: flex;
           align-items: center;
           justify-content: center;
@@ -491,7 +491,7 @@ export default function LoginPage({ onLogin }: {
 
         .classic-input:focus {
           border-color: var(--primary);
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
         }
 
         .classic-input::placeholder {
@@ -506,8 +506,8 @@ export default function LoginPage({ onLogin }: {
           gap: 0.5rem;
           padding: 0.75rem 1rem;
           border-radius: 10px;
-          background: rgba(239, 68, 68, 0.06);
-          border: 1px solid rgba(239, 68, 68, 0.15);
+          background: color-mix(in srgb, var(--danger) 8%, transparent);
+          border: 1px solid color-mix(in srgb, var(--danger) 18%, transparent);
           color: var(--danger);
           font-size: 0.8125rem;
         }
@@ -524,10 +524,10 @@ export default function LoginPage({ onLogin }: {
           border-radius: 10px;
           font-weight: 600;
           font-size: 0.9375rem;
-          background: linear-gradient(145deg, var(--primary), #818cf8);
+          background: linear-gradient(145deg, var(--primary), var(--persian-teal, #16856b));
           color: white;
           border: none;
-          box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+          box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 30%, transparent);
           transition: all 0.25s ease;
           display: flex;
           align-items: center;
@@ -537,7 +537,7 @@ export default function LoginPage({ onLogin }: {
         }
 
         .classic-submit:hover {
-          box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+          box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 40%, transparent);
           transform: translateY(-1px);
         }
 
