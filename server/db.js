@@ -406,23 +406,17 @@ rebuildFTS5();
 
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
-const existingUser = db.prepare('SELECT id FROM users WHERE username = ?').get(adminUsername);
-if (!existingUser) {
-  const hash = bcrypt.hashSync(adminPassword, 10);
-  db.prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)').run(adminUsername, hash, 'admin');
-  console.log(`Default admin user created (username: ${adminUsername})`);
-  console.log('IMPORTANT: Change the password immediately after first login.');
-}
+// Idempotent seeding: must be safe when multiple processes/suites initialize concurrently.
+db.prepare('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)').run(
+  adminUsername, bcrypt.hashSync(adminPassword, 10), 'admin'
+);
+const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get(adminUsername);
 
-const existingWorkspace = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
-if (!existingWorkspace) {
-  db.prepare('INSERT INTO workspaces (id, name, description, created_by) VALUES (1, ?, ?, NULL)').run(
-    'Personal Workspace', 'Default personal workspace'
-  );
-  const adminUser = db.prepare('SELECT id FROM users WHERE username = ?').get('admin');
-  if (adminUser) {
-    db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(adminUser.id, 'owner');
-  }
+db.prepare('INSERT OR IGNORE INTO workspaces (id, name, description, created_by) VALUES (1, ?, ?, NULL)').run(
+  'Personal Workspace', 'Default personal workspace'
+);
+if (adminUser) {
+  db.prepare('INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role) VALUES (1, ?, ?)').run(adminUser.id, 'owner');
 }
 
 export default db;

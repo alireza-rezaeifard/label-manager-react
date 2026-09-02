@@ -46,11 +46,13 @@ export function runMigrations() {
 
       const alreadyTracked = db.prepare('SELECT 1 FROM schema_migrations WHERE version = ?').get(version);
       if (!alreadyTracked) {
-        db.prepare('INSERT INTO schema_migrations (version) VALUES (?)').run(version);
+        // OR IGNORE: parallel test suites / processes may apply the same
+        // migration concurrently against the shared database file.
+        db.prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (?)').run(version);
       }
       const alreadyTrackedOld = db.prepare('SELECT 1 FROM schema_version WHERE version = ?').get(version);
       if (!alreadyTrackedOld) {
-        db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(version);
+        db.prepare('INSERT OR IGNORE INTO schema_version (version) VALUES (?)').run(version);
       }
       applied.push(file);
       console.log(`  ✓ ${file} applied`);
