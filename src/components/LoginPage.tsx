@@ -27,6 +27,7 @@ export default function LoginPage({ onLogin }: {
         ? await api.login(username, password)
         : await api.register(username, password);
       localStorage.setItem('auth_token', result.token);
+      if (result.refreshToken) localStorage.setItem('auth_refresh_token', result.refreshToken);
       localStorage.setItem('auth_user', JSON.stringify(result.user));
       toast.success(mode === 'login' ? 'خوش آمدید!' : 'حساب با موفقیت ایجاد شد');
       onLogin(result.user);

@@ -64,8 +64,8 @@ export function useWorkspace(deps: WorkspaceDeps) {
   }, [fetchedRef, setLocalMode, setServerMode, setAuthUser, setTab]);
 
   const handleLogout = useCallback(() => {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('auth_user');
+    // Fire-and-forget: revoke the server-side refresh-token session, then clear local state.
+    void import('../utils/api').then(({ api }) => api.logout());
     fetchedRef.current = false;
     setLocalMode(true);
     localStorage.setItem('local_mode', 'true');

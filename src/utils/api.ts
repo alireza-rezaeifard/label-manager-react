@@ -2,7 +2,48 @@ import type { RecordItem, CustomField } from '../types';
 
 const API_BASE = '/api';
 
-async function apiRequest(path: string, options: RequestInit = {}) {
+// ── Auth-token plumbing (audit S1: refresh-token rotation) ──
+// The access token is short-lived; on 401 the client transparently presents
+// the rotating refresh token once and retries the original request.
+let refreshInFlight: Promise<boolean> | null = null;
+
+export function clearAuthStorage() {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_refresh_token');
+  localStorage.removeItem('auth_user');
+  window.dispatchEvent(new Event('auth-change'));
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = localStorage.getItem('auth_refresh_token');
+  if (!refreshToken) return false;
+  // Deduplicate concurrent 401s into a single refresh call.
+  if (!refreshInFlight) {
+    refreshInFlight = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+        if (!res.ok) return false;
+        const data = await res.json();
+        if (!data.token || !data.refreshToken) return false;
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('auth_refresh_token', data.refreshToken);
+        if (data.user) localStorage.setItem('auth_user', JSON.stringify(data.user));
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshInFlight = null;
+      }
+    })();
+  }
+  return refreshInFlight;
+}
+
+async function apiRequest(path: string, options: RequestInit = {}, isRetry = false) {
   const token = localStorage.getItem('auth_token');
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers as Record<string, string>) };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -14,17 +55,20 @@ async function apiRequest(path: string, options: RequestInit = {}) {
     throw new Error('ارتباط با سرور برقرار نشد. مطمئن شوید سرور در حال اجراست (npm start در پوشه server)', { cause: err });
   }
 
+  if (res.status === 401 && !isRetry && !path.startsWith('/auth/')) {
+    // Access token may have expired — try one silent refresh, then retry once.
+    if (await refreshAccessToken()) {
+      return apiRequest(path, options, true);
+    }
+    clearAuthStorage();
+  }
+
   if (!res.ok) {
     let msg = res.status === 401 ? 'نشست منقضی شده. لطفا دوباره وارد شوید' : 'خطای سرور';
     try {
       const err = await res.json();
       if (err.error) msg = err.error;
     } catch { /* ignore parse error */ }
-    if (res.status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.dispatchEvent(new Event('auth-change'));
-    }
     throw new Error(msg);
   }
   return res.json();
@@ -49,6 +93,20 @@ export const api = {
 
   register: (username: string, password: string) =>
     apiRequest('/auth/register', { method: 'POST', body: JSON.stringify({ username, password }) }),
+
+  logout: async () => {
+    const refreshToken = localStorage.getItem('auth_refresh_token');
+    try {
+      if (refreshToken) {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken }),
+        });
+      }
+    } catch { /* best-effort — clear local session regardless */ }
+    clearAuthStorage();
+  },
 
   getRecords: (params: Record<string, string> = {}) => {
     const qs = new URLSearchParams();
