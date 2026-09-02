@@ -101,6 +101,40 @@ describe('Workspace isolation', () => {
 // runs with the IP rate limiter skipped — the unit suite shares one rate-limit
 // budget per IP and must stay within it.
 
+describe('Error envelope v2 (/api/v1)', () => {
+  it('returns the nested error shape for /api/v1 routes', async () => {
+    const res = await request(app)
+      .post('/api/v1/records')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeTypeOf('object');
+    expect(res.body.error.code).toBe('MISSING_CODE');
+    expect(res.body.error.message).toBeTypeOf('string');
+    expect(res.body.error.requestId).toBeTypeOf('string');
+  });
+
+  it('returns the nested 404 shape for unknown /api/v1 routes', async () => {
+    const res = await request(app)
+      .get('/api/v1/definitely-not-a-route')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBeTypeOf('object');
+    expect(res.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('keeps the flat legacy shape on /api routes', async () => {
+    const res = await request(app)
+      .post('/api/records')
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeTypeOf('string');
+    expect(res.body.code).toBe('MISSING_CODE');
+  });
+});
+
+
 
 describe('Health endpoint', () => {
   it('should return ok status', async () => {

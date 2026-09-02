@@ -1,12 +1,13 @@
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import db from './db.js';
+import config from './config/env.js';
 
-if (!process.env.JWT_SECRET) {
+const JWT_SECRET = config.JWT_SECRET;
+if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is not set.');
   process.exit(1);
 }
-const JWT_SECRET = process.env.JWT_SECRET;
 
 let io;
 
@@ -37,15 +38,18 @@ export function initWebSocket(server, allowedOrigins) {
     console.log(`WebSocket authenticated: ${socket.user.username} (${socket.id})`);
 
     socket.on('join-workspace', (workspaceId) => {
-      if (!workspaceId) return;
+      // Only well-formed, positive integer workspace ids are accepted; room
+      // membership is additionally gated by the workspace_members check below.
+      const id = parseInt(workspaceId, 10);
+      if (!Number.isInteger(id) || id <= 0) return;
 
       const membership = db.prepare(
         'SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?'
-      ).get(workspaceId, socket.user.id);
+      ).get(id, socket.user.id);
 
       if (membership) {
-        socket.join(`workspace:${workspaceId}`);
-        console.log(`Socket ${socket.id} (${socket.user.username}) joined workspace:${workspaceId}`);
+        socket.join(`workspace:${id}`);
+        console.log(`Socket ${socket.id} (${socket.user.username}) joined workspace:${id}`);
       }
     });
 

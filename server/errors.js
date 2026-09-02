@@ -32,8 +32,21 @@ function forceDropFTS5(db) {
 
 export function errorHandler(err, req, res, _next) {
   const requestId = req.requestId;
+  const isV1 = req.originalUrl?.startsWith('/api/v1');
+  // Error envelope v2 (audit A1): only under /api/v1, errors use the nested
+  // { error: { code, message, requestId } } shape. Legacy /api keeps the flat
+  // { error, code } shape for backward compatibility.
   const send = (status, payload) => {
     if (requestId) res.set('X-Request-Id', requestId);
+    if (isV1) {
+      return res.status(status).json({
+        error: {
+          code: payload.code ?? 'INTERNAL_ERROR',
+          message: payload.error,
+          requestId,
+        },
+      });
+    }
     return res.status(status).json(payload);
   };
 
@@ -122,6 +135,17 @@ export function errorHandler(err, req, res, _next) {
 
 export function notFoundHandler(req, res) {
   if (!req.path.startsWith('/api')) return;
+  const requestId = req.requestId;
+  if (req.originalUrl?.startsWith('/api/v1')) {
+    if (requestId) res.set('X-Request-Id', requestId);
+    return res.status(404).json({
+      error: {
+        code: 'NOT_FOUND',
+        message: `Route ${req.method} ${req.path} not found`,
+        requestId,
+      },
+    });
+  }
   res.status(404).json({ error: `Route ${req.method} ${req.path} not found`, code: 'NOT_FOUND' });
 }
 

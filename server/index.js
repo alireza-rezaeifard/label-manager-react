@@ -993,10 +993,12 @@ app.get('/api/version', (req, res) => {
 const distPath = join(__dirname, '..', 'dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
     if (!req.path.startsWith('/api')) {
-      res.sendFile(join(distPath, 'index.html'));
+      return res.sendFile(join(distPath, 'index.html'));
     }
+    // Unmatched API routes must reach the 404 handler, not the SPA fallback.
+    next();
   });
 }
 
@@ -1035,6 +1037,21 @@ const idempotencyPurgeTimer = setInterval(() => {
   }
 }, IDEMPOTENCY_PURGE_INTERVAL);
 
+// Purge expired/revoked refresh tokens every day (keep revoked ones for 7 days
+// so theft-detection (replay of a revoked token) still triggers during that window)
+const REFRESH_PURGE_INTERVAL = 24 * 60 * 60 * 1000;
+const refreshPurgeTimer = setInterval(() => {
+  try {
+    db.prepare(
+      `DELETE FROM refresh_tokens
+       WHERE expires_at < datetime('now')
+          OR (revoked_at IS NOT NULL AND revoked_at < datetime('now', '-7 days'))`
+    ).run();
+  } catch {
+    // Non-critical
+  }
+}, REFRESH_PURGE_INTERVAL);
+
 const ws = initWebSocket(server, allowedOrigins);
 
 if (process.env.NODE_ENV !== 'test' || process.env.E2E_LISTEN === '1') {
@@ -1046,6 +1063,7 @@ if (process.env.NODE_ENV !== 'test' || process.env.E2E_LISTEN === '1') {
     console.log(`\n${signal} received. Shutting down gracefully...`);
     clearInterval(checkpointTimer);
     clearInterval(idempotencyPurgeTimer);
+    clearInterval(refreshPurgeTimer);
 
     // Final checkpoint before shutdown
     try {
