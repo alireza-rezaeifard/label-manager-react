@@ -81,3 +81,25 @@ Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`
 
 **Test results**
 - Frontend: 85/85 passed (11 files). Build: ✅. Backend: 48/48 passed.
+
+---
+
+## Session 3 — Phase 8 (lockout), Phase 10 (E2E), D3 (indexes), IDOR fix
+
+**Security (Phase 8)**
+- Per-account brute-force lockout (audit S7): migration `005_auth_lockout.cjs` adds `users.failed_login_attempts` / `users.locked_until`; 5 failed logins → 15-minute lock returning `429 ACCOUNT_LOCKED`; successful login resets; no user enumeration. The standalone E2E server skips the IP login limiter (`E2E_LISTEN=1`) so lockout is tested deterministically.
+
+**IDOR fix (found by the new E2E suite)**
+- `GET /api/records`, `/api/records/all`, and `/api/records/trash` returned a workspace's records to **any authenticated user** who knew the workspace id, without verifying requester membership. Now non-members get an empty view (`WHERE 1=0` / `total: 0` / `[]`). Regression tests added at both API-E2E and unit (Supertest) level.
+
+**Database (D3)**
+- Migration `006_composite_indexes.cjs`: `records(workspace_id, deleted_at, created_at)` and `records(workspace_id, code)`.
+- Evidence (`server/explain-check.mjs`, kept as a tool): records-list query went from `SEARCH records USING INDEX idx_records_workspace_id` + `USE TEMP B-TREE FOR ORDER BY` → pure index search with no sort step; duplicate-code checks now use a covering index.
+
+**Testing (Phase 10)**
+- Playwright E2E scaffolding: `playwright.config.ts` (starts a real server on :3110 with isolated SQLite DB via `DB_PATH`, `NODE_ENV=test`, `E2E_LISTEN=1`) and `e2e/api/` suites: auth (login, lockout, no enumeration), records (CRUD, duplicate codes, idempotent creation replay, pagination caps), workspace isolation (read/update/delete/list from a non-member). 9 tests, no browsers needed.
+- `npm run test:e2e` added; CI runs the E2E suite.
+- Backend unit tests grew from 48 → 54 (workspace isolation + regression coverage for the IDOR fix). Login-lockout unit coverage lives in E2E because the unit suite shares one IP rate-limit budget.
+
+**Test results (quality gate)**
+- Backend: 54/54 ✅ · Frontend: 85/85 ✅ · Build: ✅ · E2E: 9/9 ✅
