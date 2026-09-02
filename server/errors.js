@@ -31,23 +31,29 @@ function forceDropFTS5(db) {
 }
 
 export function errorHandler(err, req, res, _next) {
+  const requestId = req.requestId;
+  const send = (status, payload) => {
+    if (requestId) res.set('X-Request-Id', requestId);
+    return res.status(status).json(payload);
+  };
+
   if (err.isOperational) {
-    return res.status(err.status).json({
+    return send(err.status, {
       error: err.message,
       code: err.code,
     });
   }
 
   if (err.message === 'Not allowed by CORS') {
-    return res.status(403).json({ error: 'Origin not allowed', code: 'CORS_ERROR' });
+    return send(403, { error: 'Origin not allowed', code: 'CORS_ERROR' });
   }
 
   if (err.name === 'SyntaxError' && err.type === 'entity.parse.failed') {
-    return res.status(400).json({ error: 'Invalid JSON in request body', code: 'INVALID_JSON' });
+    return send(400, { error: 'Invalid JSON in request body', code: 'INVALID_JSON' });
   }
 
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ error: 'File too large', code: 'FILE_TOO_LARGE' });
+    return send(400, { error: 'File too large', code: 'FILE_TOO_LARGE' });
   }
 
   // FTS5 virtual table corruption
@@ -65,7 +71,7 @@ export function errorHandler(err, req, res, _next) {
       try {
         _rebuildFTS5();
         console.log('[FTS5] Rebuilt successfully. Retry your request.');
-        return res.status(503).json({
+        return send(503, {
           error: 'Search index was corrupted and has been rebuilt. Please try again.',
           code: 'FTS5_REBUILT',
         });
@@ -74,7 +80,7 @@ export function errorHandler(err, req, res, _next) {
       }
     }
 
-    return res.status(503).json({
+    return send(503, {
       error: 'Search index is corrupted. Please restart the server.',
       code: 'FTS5_CORRUPTED',
     });
@@ -101,14 +107,14 @@ export function errorHandler(err, req, res, _next) {
   // better-sqlite3 specific errors
   if (err.message?.includes(' SQLITE_')) {
     console.error('[SQL ERROR]', err);
-    return res.status(500).json({
+    return send(500, {
       error: 'A database error occurred',
       code: 'DATABASE_ERROR',
     });
   }
 
   console.error('[ERROR]', err);
-  res.status(500).json({
+  return send(500, {
     error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message,
     code: 'INTERNAL_ERROR',
   });

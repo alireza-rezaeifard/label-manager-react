@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import http from 'http';
+import crypto from 'crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -9,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import fs from 'fs';
 import swaggerUi from 'swagger-ui-express';
+import config from './config/env.js';
 import { authMiddleware } from './middleware/auth.js';
 import { apiKeyAuth } from './middleware/apiKeyAuth.js';
 import { errorHandler, notFoundHandler, setFTS5Rebuilder, setDB } from './errors.js';
@@ -37,18 +39,26 @@ setFTS5Rebuilder(() => rebuildFTS5());
 const app = express();
 app.set('trust proxy', 'loopback');
 const server = http.createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = config.PORT;
 
 const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: config.LOG_LEVEL,
   transport: process.env.NODE_ENV !== 'production' ? { target: 'pino/file', options: { destination: 1 } } : undefined,
 });
+
+// Correlation ID: trust an incoming X-Request-Id (from a proxy) or generate one.
+const requestIdMiddleware = (req, res, next) => {
+  req.requestId = req.headers['x-request-id'] || crypto.randomUUID();
+  res.set('X-Request-Id', req.requestId);
+  next();
+};
 
 const requestLogger = (req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
     const logData = {
+      requestId: req.requestId,
       method: req.method,
       url: req.originalUrl,
       status: res.statusCode,
@@ -64,9 +74,7 @@ const requestLogger = (req, res, next) => {
   next();
 };
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
-  : ['http://localhost:5173', 'http://localhost:4173'];
+const allowedOrigins = config.ALLOWED_ORIGINS;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -83,7 +91,8 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: config.JSON_BODY_LIMIT }));
+app.use(requestIdMiddleware);
 app.use(requestLogger);
 
 const apiLimiter = rateLimit({
@@ -997,6 +1006,18 @@ const checkpointTimer = setInterval(() => {
   }
 }, CHECKPOINT_INTERVAL);
 
+// Purge expired idempotency keys every hour
+const IDEMPOTENCY_PURGE_INTERVAL = 60 * 60 * 1000;
+const idempotencyPurgeTimer = setInterval(() => {
+  try {
+    db.prepare(
+      `DELETE FROM idempotency_keys WHERE created_at < datetime('now', ?)`
+    ).run(`-${config.IDEMPOTENCY_TTL_HOURS} hours`);
+  } catch {
+    // Non-critical
+  }
+}, IDEMPOTENCY_PURGE_INTERVAL);
+
 const ws = initWebSocket(server, allowedOrigins);
 
 if (process.env.NODE_ENV !== 'test') {
@@ -1007,6 +1028,7 @@ if (process.env.NODE_ENV !== 'test') {
   const gracefulShutdown = (signal) => {
     console.log(`\n${signal} received. Shutting down gracefully...`);
     clearInterval(checkpointTimer);
+    clearInterval(idempotencyPurgeTimer);
 
     // Final checkpoint before shutdown
     try {

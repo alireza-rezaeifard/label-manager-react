@@ -173,6 +173,19 @@ router.post('/', asyncHandler((req, res) => {
 
   const wsId = workspace_id || 1;
 
+  // ── Idempotency: a retried request with the same key returns the original result ──
+  const idempotencyKey = req.headers['idempotency-key'];
+  if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.length <= 255) {
+    const key = `${req.user.id}:${idempotencyKey}`;
+    const existing = db.prepare(
+      'SELECT response_status, response_body FROM idempotency_keys WHERE key = ?'
+    ).get(key);
+    if (existing) {
+      res.set('Idempotency-Replayed', 'true');
+      return res.status(existing.response_status).json(JSON.parse(existing.response_body));
+    }
+  }
+
   const duplicate = db.prepare('SELECT id FROM records WHERE code = ? AND workspace_id = ?').get(code, wsId);
   if (duplicate) throw new AppError(`Code "${code}" already exists in this workspace`, 409, 'DUPLICATE_CODE');
 
@@ -204,7 +217,19 @@ router.post('/', asyncHandler((req, res) => {
   broadcastToWorkspace(wsId, 'record:created', parseRecord(record));
   triggerWebhooks(wsId, 'record:created', parseRecord(record));
   notifyWorkspace(wsId, 'record:created', parseRecord(record), req.user.id);
-  res.status(201).json(parseRecord(record));
+
+  const responseBody = parseRecord(record);
+  if (idempotencyKey && typeof idempotencyKey === 'string' && idempotencyKey.length <= 255) {
+    try {
+      db.prepare(
+        'INSERT OR IGNORE INTO idempotency_keys (key, user_id, workspace_id, method, path, response_status, response_body) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      ).run(`${req.user.id}:${idempotencyKey}`, req.user.id, wsId, 'POST', '/api/records', 201, JSON.stringify(responseBody));
+    } catch (err) {
+      console.warn('Idempotency key storage failed:', err.message);
+    }
+  }
+
+  res.status(201).json(responseBody);
 }));
 
 router.put('/:id', asyncHandler((req, res) => {

@@ -1,13 +1,12 @@
 import jwt from 'jsonwebtoken';
 import db from '../db.js';
+import config from '../config/env.js';
 
-if (!process.env.JWT_SECRET) {
+const JWT_SECRET = config.JWT_SECRET;
+if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET environment variable is not set.');
-  console.error('Set a strong secret via: set JWT_SECRET=your-strong-secret (Windows)');
-  console.error('Or: export JWT_SECRET=your-strong-secret (Linux/Mac)');
   process.exit(1);
 }
-const JWT_SECRET = process.env.JWT_SECRET;
 
 const ROLE_HIERARCHY = { owner: 10, admin: 8, editor: 5, viewer: 1 };
 
@@ -15,7 +14,7 @@ export function generateToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, role: user.role },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: config.JWT_EXPIRES_IN }
   );
 }
 
