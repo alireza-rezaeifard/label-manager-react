@@ -28,5 +28,8 @@
 - Structured Pino logs include `requestId`, user, status, duration. Passwords, tokens and secrets are never logged; production error responses hide internals.
 
 ## File uploads
-- Multer size limits + Sharp processing for images; MIME/extension validation in artifact routes.
-- multer 1.x upgrade to 2.x is tracked (Phase 8).
+- Artifact serving streams files from disk with server-side path-traversal guards and workspace membership checks.
+- The previously declared `multer`/`sharp` dependencies were **removed** — audit found zero import sites (upload handling is streamed/proxied, not buffered).
+
+## Type generation
+- `npm run generate:api-types` converts the OpenAPI spec (`server/swagger.js`) into `src/types/api-generated.d.ts` (dependency-free generator, see `scripts/generate-api-types.mjs`).

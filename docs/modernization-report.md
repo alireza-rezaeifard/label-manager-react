@@ -103,3 +103,21 @@ Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`
 
 **Test results (quality gate)**
 - Backend: 54/54 ✅ · Frontend: 85/85 ✅ · Build: ✅ · E2E: 9/9 ✅
+
+---
+
+## Session 4 — Phase 7 (typegen), Phase 8 (CSP), dependency cleanup
+
+**Security (Phase 8)**
+- Report-only Content-Security-Policy via Helmet (audit S6, staged): strict directives (`default-src 'self'`, no objects, no framing) with `reportOnly: true` so nothing breaks; flip to enforcing after monitoring violation reports.
+
+**API contract (Phase 7, audit A4)**
+- `scripts/generate-api-types.mjs` + `npm run generate:api-types`: converts the backend OpenAPI spec into `src/types/api-generated.d.ts` (7 schema interfaces + a `components` registry). Dependency-free on purpose — `openapi-typescript` requires TypeScript ^5 while the project is on TS 6.
+- The generated file is committed so CI needs no extra step.
+
+**Dependencies**
+- Removed from the server: `multer` 1.x (maintenance mode, audit Dep3) and `sharp` — **zero import sites confirmed by search** (audit had listed them as used; artifact handling is streamed, not buffered). Dockerfile build-tools comment updated (only better-sqlite3 needs compilation now).
+- Lockfile hygiene: all `mirror.abrha.net` tarball URLs in both lockfiles migrated to `registry.npmjs.org` — the mirror was intermittently unreachable (ECONNRESET) and would break CI's `npm ci`.
+
+**Test results (quality gate)**
+- Backend: 54/54 ✅ · E2E: 9/9 ✅ · Frontend: 85/85 ✅ · Build: ✅

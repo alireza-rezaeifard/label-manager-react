@@ -8,8 +8,13 @@ Base URL: `/api` (legacy alias) or `/api/v1`. Interactive docs: `/api/docs` (Swa
 
 ## Conventions
 - Errors: `{ "error": string, "code": string }` with `X-Request-Id` response header.
+- A report-only Content-Security-Policy is served on API/HTML responses (staged rollout — flip to enforcing once violation reports are clean).
 - Pagination: `?page=&limit=` (records list default 200, hard cap 1000).
 - Idempotency: send `Idempotency-Key: <uuid>` on `POST /api/records`; retries return the original 201 response with header `Idempotency-Replayed: true`. Keys are scoped per user and purged after 24h.
+
+## Typed frontend client
+- `npm run generate:api-types` → `src/types/api-generated.d.ts` (interfaces for all component schemas: Record, Workspace, WorkspaceMember, CustomField, ActivityLog, RecordVersion, Error).
+- Regenerate whenever `server/swagger.js` changes; the generated file is committed so CI needs no extra step.
 
 ## Records (`/api/records`)
 | Method | Path | Notes |
