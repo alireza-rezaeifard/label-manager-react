@@ -51,6 +51,31 @@ router.post('/register', (req, res) => {
   }
 });
 
+// ── Per-account brute-force protection (audit S7) ──
+const MAX_FAILED_LOGINS = 5;
+const LOCK_MINUTES = 15;
+
+function isLocked(user) {
+  if (!user?.locked_until) return false;
+  return new Date(user.locked_until).getTime() > Date.now();
+}
+
+function registerFailedLogin(user) {
+  const attempts = (user.failed_login_attempts || 0) + 1;
+  const lockedUntil =
+    attempts >= MAX_FAILED_LOGINS
+      ? new Date(Date.now() + LOCK_MINUTES * 60 * 1000).toISOString()
+      : user.locked_until;
+  db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?')
+    .run(attempts, lockedUntil, user.id);
+  return attempts;
+}
+
+function clearFailedLogins(user) {
+  db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?')
+    .run(user.id);
+}
+
 router.post('/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
@@ -58,9 +83,22 @@ router.post('/login', (req, res) => {
   }
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+
+  // Same response whether the account exists or not (no user enumeration).
+  if (user && isLocked(user)) {
+    const retryAfterMin = Math.ceil((new Date(user.locked_until).getTime() - Date.now()) / 60000);
+    return res.status(429).json({
+      error: `Account temporarily locked due to too many failed attempts. Try again in ${retryAfterMin} minute(s).`,
+      code: 'ACCOUNT_LOCKED',
+    });
+  }
+
   if (!user || !bcrypt.compareSync(password, user.password)) {
+    if (user) registerFailedLogin(user);
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+
+  clearFailedLogins(user);
 
   const defaultWs = db.prepare('SELECT id FROM workspaces WHERE id = 1').get();
   if (defaultWs) {

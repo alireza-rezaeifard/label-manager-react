@@ -106,6 +106,7 @@ app.use('/api', apiLimiter);
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 10,
+  skip: () => process.env.E2E_LISTEN === '1', // IP limiter is exercised by unit tests; e2e tests account lockout directly
   message: { error: 'Too many login attempts, please try again later.', code: 'AUTH_RATE_LIMIT' },
 });
 
@@ -1020,7 +1021,7 @@ const idempotencyPurgeTimer = setInterval(() => {
 
 const ws = initWebSocket(server, allowedOrigins);
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' || process.env.E2E_LISTEN === '1') {
   server.listen(PORT, () => {
     console.log(`Label Studio API running on http://localhost:${PORT}`);
   });
