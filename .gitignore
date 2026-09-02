@@ -43,3 +43,8 @@ tmp/
 # Stale directories
 path/
 /.opencode
+
+server/e2e-data.db*
+
+test-results/
+playwright-report/

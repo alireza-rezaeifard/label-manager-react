@@ -36,6 +36,9 @@ jobs:
           npm ci
           JWT_SECRET=ci-test-secret-0123456789abcdef0123456789abcdef npm test
 
+      - name: E2E tests (API-level, Playwright)
+        run: npm run test:e2e
+
       - name: npm audit (frontend)
         run: npm audit --audit-level=high || true
 
