@@ -1,9 +1,10 @@
 # TaxBook — Security
 
 ## Authentication
-- JWT bearer tokens; secret from `JWT_SECRET` (validated, ≥32 chars required in production — fail fast).
+- JWT bearer access tokens; secret from `JWT_SECRET` (validated, ≥32 chars required in production — fail fast).
 - Token TTL configurable via `JWT_EXPIRES_IN` (default 12h; was previously hardcoded 7d).
-- Passwords hashed with bcrypt (cost 10). Argon2id evaluation is a Phase 8 item.
+- **Rotating refresh tokens** (`POST /api/auth/refresh`, migration `007`): single-use, SHA-256-hashed at rest, 30-day TTL (`REFRESH_TOKEN_TTL_DAYS`), issued on login/register. Reuse of a rotated token is treated as theft and revokes **all** of the user's sessions. `POST /api/auth/logout` revokes the presented token. The frontend (`src/utils/api.ts`) refreshes silently once on 401 and retries the original request; concurrent 401s share one refresh call.
+- Passwords hashed with bcrypt (cost 10). Argon2id evaluation is a remaining Phase 8 item.
 - Default admin seeding is for local setup only — change the password immediately; production deployments should set `ADMIN_USERNAME`/`ADMIN_PASSWORD`.
 
 ## Tenancy

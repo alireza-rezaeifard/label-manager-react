@@ -3,7 +3,10 @@
 Base URL: `/api` (legacy alias) or `/api/v1`. Interactive docs: `/api/docs` (Swagger UI). Version: `GET /api/version`.
 
 ## Authentication
-- `POST /api/auth/login` — `{ username, password }` → `{ token }` (JWT, TTL via `JWT_EXPIRES_IN`, default 12h). Rate limited 10/15min.
+- `POST /api/auth/login` — `{ username, password }` → `{ token, refreshToken, user }` (JWT TTL via `JWT_EXPIRES_IN`, default 12h). Rate limited 10/15min. Per-account lockout after 5 failures (429 `ACCOUNT_LOCKED`).
+- `POST /api/auth/register` — `{ username, password }` → `{ token, refreshToken, user }`.
+- `POST /api/auth/refresh` — `{ refreshToken }` → rotated `{ token, refreshToken, user }`. Single-use; reuse triggers theft detection and revokes all of the user's sessions.
+- `POST /api/auth/logout` — `{ refreshToken }` → revokes the session.
 - `Authorization: Bearer <token>` on all protected routes.
 
 ## Conventions

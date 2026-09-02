@@ -106,6 +106,8 @@ Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`
 
 ---
 
+---
+
 ## Session 4 — Phase 7 (typegen), Phase 8 (CSP), dependency cleanup
 
 **Security (Phase 8)**
@@ -121,3 +123,22 @@ Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`
 
 **Test results (quality gate)**
 - Backend: 54/54 ✅ · E2E: 9/9 ✅ · Frontend: 85/85 ✅ · Build: ✅
+
+---
+
+## Session 5 — Phase 8: refresh-token rotation & revocation
+
+**Backend**
+- Migration `007_refresh_tokens.cjs`: `refresh_tokens` table (SHA-256 hash, expiry, revocation, user agent, FK cascade).
+- `server/lib/refresh-tokens.js`: `issueRefreshToken`, `rotateRefreshToken` (single-use rotation; **reuse of a rotated token revokes all of the user's sessions** — theft detection), `revokeRefreshToken`.
+- `routes/auth.js`: login/register now also issue a refresh token; new `POST /api/auth/refresh` and `POST /api/auth/logout` endpoints. Invalid/expired/reused → 401 `INVALID_REFRESH_TOKEN`.
+
+**Frontend**
+- `src/utils/api.ts`: silent single-flight refresh on 401 with one automatic retry of the original request; `api.logout()` revokes the server session; `clearAuthStorage()` centralizes session teardown. `LoginPage` persists the refresh token; `useWorkspace.handleLogout` now revokes server-side.
+
+**Tests**
+- New `src/__tests__/api-auth.test.ts` (5 unit tests, mocked fetch): refresh-and-retry carrying the new token, failure clears storage + `auth-change`, no refresh without a stored token, logout revocation, storage teardown.
+- New E2E cases in `e2e/api/auth.spec.ts`: rotation issues new pair + reuse rejected (401 `INVALID_REFRESH_TOKEN`) + replay triggers theft detection; logout revocation. E2E suite now 11 tests.
+
+**Test results (quality gate)**
+- Backend: 54/54 ✅ · E2E: 11/11 ✅ · Frontend: 90/90 (13 files) ✅ · Build: ✅
