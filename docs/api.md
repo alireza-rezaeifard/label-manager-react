@@ -10,7 +10,7 @@ Base URL: `/api` (legacy alias) or `/api/v1`. Interactive docs: `/api/docs` (Swa
 - `Authorization: Bearer <token>` on all protected routes.
 
 ## Conventions
-- Errors: `{ "error": string, "code": string }` with `X-Request-Id` response header.
+- Errors: `{ "error": string, "code": string }` with `X-Request-Id` response header — **except under `/api/v1`**, which serves the v2 nested envelope `{ "error": { code, message, requestId } }` (audit A1). Legacy `/api` keeps the flat shape for backward compatibility.
 - A report-only Content-Security-Policy is served on API/HTML responses (staged rollout — flip to enforcing once violation reports are clean).
 - Pagination: `?page=&limit=` (records list default 200, hard cap 1000).
 - Idempotency: send `Idempotency-Key: <uuid>` on `POST /api/records`; retries return the original 201 response with header `Idempotency-Replayed: true`. Keys are scoped per user and purged after 24h.
@@ -41,4 +41,4 @@ CRUD + membership management; role hierarchy `owner(10) > admin(8) > editor(5) >
 - `artifacts` — AI-generated artifact download.
 
 ## WebSocket
-Namespace `/`; events `record:created`, `record:updated`, `record:deleted` — all workspace-scoped.
+Namespace `/`; authenticated handshake (JWT via `socket.handshake.auth.token`); room join (`join-workspace`) is gated by workspace membership; `join-workspace` rejects malformed workspace ids. Events `record:created`, `record:updated`, `record:deleted` — all workspace-scoped.
