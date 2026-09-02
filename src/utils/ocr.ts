@@ -9,13 +9,13 @@ function extractFields(text: string): Record<string, string> {
   const lines = text.split('\n').filter(l => l.trim());
 
   const patterns: [RegExp, string][] = [
-    /(?:invoice|facture|شماره فاکتور|شماره)\s*[::\-]?\s*([\w\-/]+)/i,
-    /(?:date|تاریخ)\s*[::\-]?\s*([\d/]{4,}[\d/]*)/i,
-    /(?:total|amount|جمع کل|مبلغ)\s*[::\-]?\s*([\d,]+)/i,
-    /(?:customer|client|مشتری|طرف حساب)\s*[::\-]?\s*(.+)/i,
-    /(?:project|پروژه)\s*[::\-]?\s*(.+)/i,
-    /(?:tax|مالیات)\s*[::\-]?\s*([\d,]+)/i,
-    /(?:discount|تخفیف)\s*[::\-]?\s*([\d,]+)/i,
+    /(?:invoice|facture|شماره فاکتور|شماره)\s*[:-]?\s*([\w\-/]+)/i,
+    /(?:date|تاریخ)\s*[:-]?\s*([\d/]{4,}[\d/]*)/i,
+    /(?:total|amount|جمع کل|مبلغ)\s*[:-]?\s*([\d,]+)/i,
+    /(?:customer|client|مشتری|طرف حساب)\s*[:-]?\s*(.+)/i,
+    /(?:project|پروژه)\s*[:-]?\s*(.+)/i,
+    /(?:tax|مالیات)\s*[:-]?\s*([\d,]+)/i,
+    /(?:discount|تخفیف)\s*[:-]?\s*([\d,]+)/i,
   ];
 
   for (const [regex, key] of patterns) {
@@ -40,7 +40,7 @@ function extractFields(text: string): Record<string, string> {
       fields.amount = largest;
     }
     if (!fields.party && lines.length > 0) {
-      const nonEmpty = lines.filter(l => l.length > 3 && !l.match(/^[\d\s:/\-]+$/));
+      const nonEmpty = lines.filter(l => l.length > 3 && !l.match(/^[\d\s:/-]+$/));
       if (nonEmpty.length > 1) fields.party = nonEmpty[1];
     }
   }

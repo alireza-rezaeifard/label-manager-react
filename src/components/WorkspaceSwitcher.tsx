@@ -53,7 +53,9 @@ export default function WorkspaceSwitcher({
     try {
       const data = await api.getWorkspaceMembers(currentWorkspaceId);
       setMembers(data);
-    } catch {}
+    } catch {
+    // ignore: optional operation
+  }
     setMembersLoading(false);
   };
 

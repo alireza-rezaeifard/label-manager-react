@@ -38,8 +38,12 @@ export function QrCode({
 
   useEffect(() => {
     let active = true
-    setReady(false)
-    if (!canvasRef.current || !value) return
+    if (!canvasRef.current || !value) {
+      // Reset readiness only when a previous render had set it (avoids
+      // setState-in-effect cascading renders).
+      setReady(prev => (prev ? false : prev))
+      return
+    }
     QRCodeLib.toCanvas(
       canvasRef.current,
       value,

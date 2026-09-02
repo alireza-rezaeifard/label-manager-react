@@ -31,11 +31,15 @@ export function useRecordsList(currentRecords: RecordItem[], customFields: Custo
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    try { localStorage.setItem('view_mode', viewMode); } catch {}
+    try { localStorage.setItem('view_mode', viewMode); } catch {
+    // ignore: optional operation
+  }
   }, [viewMode]);
 
   useEffect(() => {
-    try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch {}
+    try { localStorage.setItem('use_virtual_scroll', String(useVirtualScroll)); } catch {
+    // ignore: optional operation
+  }
   }, [useVirtualScroll]);
 
   const recordToIndex = useMemo(
@@ -157,7 +161,11 @@ export function useRecordsList(currentRecords: RecordItem[], customFields: Custo
   const toggleSelect = useCallback((i: number) => {
     setSelected(prev => {
       const next = new Set(prev);
-      next.has(i) ? next.delete(i) : next.add(i);
+      if (next.has(i)) {
+        next.delete(i);
+      } else {
+        next.add(i);
+      }
       return next;
     });
   }, []);

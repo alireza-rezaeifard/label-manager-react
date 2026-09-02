@@ -10,13 +10,14 @@ export function useWebSocket(
   onRecordsChanged: () => void
 ) {
   const socketRef = useRef<Socket | null>(null);
-  const onRecordsChangedRef = useRef(onRecordsChanged);
-  onRecordsChangedRef.current = onRecordsChanged;
+  const onRecordsChangedRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    onRecordsChangedRef.current = onRecordsChanged;
+  });
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
 
   useEffect(() => {
     const token = localStorage.getItem('auth_token');
-    setConnectionStatus('connecting');
     const socket: Socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,

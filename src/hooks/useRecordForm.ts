@@ -11,19 +11,25 @@ function loadRecordCustomFieldsCache() {
   try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CACHE_KEY) || '{}'); } catch { return {}; }
 }
 function saveRecordCustomFieldsCache(data: Record<string, unknown>) {
-  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CACHE_KEY, JSON.stringify(data)); } catch {
+    // ignore: optional operation
+  }
 }
 function loadRecordCustomFieldsCodeCache() {
   try { return JSON.parse(localStorage.getItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY) || '{}'); } catch { return {}; }
 }
 function saveRecordCustomFieldsCodeCache(data: Record<string, unknown>) {
-  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch {}
+  try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch {
+    // ignore: optional operation
+  }
 }
 function loadTemplates() {
   try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]'); } catch { return []; }
 }
 function saveTemplates(t: Template[]) {
-  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {}
+  try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {
+    // ignore: optional operation
+  }
 }
 
 interface UseRecordFormDeps {
@@ -55,6 +61,10 @@ export function useRecordForm(deps: UseRecordFormDeps) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateKey, setTemplateKey] = useState(0);
   const formDraftRef = useRef<RecordItem | null>(null);
+  // Ref setter: consumers must not mutate refs directly (React compiler rule).
+  const setFormDraft = useCallback((data: RecordItem | null) => {
+    formDraftRef.current = data;
+  }, []);
 
   const [templates, setTemplatesState] = useState<Template[]>(() => {
     try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]'); } catch { return []; }
@@ -226,7 +236,7 @@ export function useRecordForm(deps: UseRecordFormDeps) {
     templateName, setTemplateName,
     showTemplates, setShowTemplates,
     templateKey, setTemplateKey,
-    formDraftRef,
+    formDraftRef, setFormDraft,
     templates,
     editRecord,
     availLabels,

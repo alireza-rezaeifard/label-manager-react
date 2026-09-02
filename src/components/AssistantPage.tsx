@@ -178,8 +178,12 @@ export default function AssistantPage() {
   }, []);
 
   // ── Persist ──
-  useEffect(() => {
-    if (!activeSessionId) return;
+  // Derive persisted sessions at render time when messages change (avoids
+  // setState-in-effect cascading renders).
+  const [prevPersistKey, setPrevPersistKey] = useState('');
+  const persistKey = `${activeSessionId}|${state.messages.length}|${state.messages.length > 0 ? state.messages[state.messages.length - 1].id : ''}`;
+  if (activeSessionId && persistKey !== prevPersistKey) {
+    setPrevPersistKey(persistKey);
     setSessions(prev => {
       const updated = prev.map(s =>
         s.id === activeSessionId
@@ -189,7 +193,7 @@ export default function AssistantPage() {
       saveSessions(updated);
       return updated;
     });
-  }, [state.messages, activeSessionId]);
+  }
 
   // ── Cleanup ──
   useEffect(() => {

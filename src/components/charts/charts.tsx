@@ -1,12 +1,11 @@
 "use client"
 
-import React from "react"
 import Chart from "react-apexcharts"
 import { useTheme } from "@/hooks/useTheme"
 import type { ApexOptions } from "apexcharts"
+import { CHART_COLORS } from "./chartColors"
 
-/** Re-usable chart color tokens that follow the "Ink Ledger" palette. */
-export const CHART_COLORS = ["#0f766e", "#c9a227", "#059669", "#0284c7", "#d97706", "#dc2626", "#8b5cf6", "#14b8a6"]
+export { CHART_COLORS } from "./chartColors"
 
 function baseTheme(primary: string, isDark: boolean): ApexOptions {
   return {

@@ -196,7 +196,7 @@ Return ONLY the JSON array. No markdown. [ ... ]`;
 async function callAIWithRetry(
   fullUrl: string, headers: Record<string, string>, body: string, corsProxy: string = '',
 ): Promise<Response> {
-  let lastError = '';
+  const errors: string[] = [];
 
   // Skip proxy for localhost — no CORS needed
   const isLocal = fullUrl.includes('localhost') || fullUrl.includes('127.0.0.1');
@@ -213,17 +213,17 @@ async function callAIWithRetry(
       }
       const r = await fetch(proxyUrl, { method: 'POST', headers, body });
       if (r.ok) return r;
-      lastError = `Proxy responded ${r.status}`;
-    } catch (e: any) { lastError = e.message || 'proxy failed'; }
+      errors.push(`Proxy responded ${r.status}`);
+    } catch (e: any) { errors.push(e.message || 'proxy failed'); }
   }
 
   // 2: Direct
   try {
     const r = await fetch(fullUrl, { method: 'POST', headers, body });
     if (r.ok) return r;
-    lastError = `Direct responded ${r.status}`;
+    errors.push(`Direct responded ${r.status}`);
   } catch (e: any) {
-    lastError = e.message || 'direct failed';
+    errors.push(e.message || 'direct failed');
   }
 
   // 3: Built-in CORS proxies (non-local only)
@@ -232,25 +232,36 @@ async function callAIWithRetry(
       try {
         const r = await fetch(proxyFn(fullUrl), { method: 'POST', headers, body });
         if (r.ok) return r;
-      } catch { continue; }
+      } catch {
+        // ignore: built-in proxies are best-effort
+        continue;
+      }
     }
   }
 
-  throw new Error(lastError || 'FAILED');
+  throw new Error(errors.join('; ') || 'FAILED');
 }
 
 function extractEntries(content: string): unknown[] | null {
   // 1: code block
   const m1 = content.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-  if (m1) { try { const a = JSON.parse(m1[1].trim()); if (Array.isArray(a)) return a; if (a && typeof a === 'object') return [a]; } catch {} }
+  if (m1) { try { const a = JSON.parse(m1[1].trim()); if (Array.isArray(a)) return a; if (a && typeof a === 'object') return [a]; } catch {
+    // ignore: optional operation
+  } }
   // 2: raw array
   const m2 = content.match(/\[[\s\S]*?\]/);
-  if (m2) { try { const a = JSON.parse(m2[0]); if (Array.isArray(a)) return a; } catch {} }
+  if (m2) { try { const a = JSON.parse(m2[0]); if (Array.isArray(a)) return a; } catch {
+    // ignore: optional operation
+  } }
   // 3: outermost brackets
   const fi = content.indexOf('['), li = content.lastIndexOf(']');
-  if (fi !== -1 && li > fi) { try { const a = JSON.parse(content.substring(fi, li + 1)); if (Array.isArray(a)) return a; } catch {} }
+  if (fi !== -1 && li > fi) { try { const a = JSON.parse(content.substring(fi, li + 1)); if (Array.isArray(a)) return a; } catch {
+    // ignore: optional operation
+  } }
   // 4: single object
-  try { const o = JSON.parse(content.trim()); if (o && typeof o === 'object' && !Array.isArray(o)) return [o]; } catch {}
+  try { const o = JSON.parse(content.trim()); if (o && typeof o === 'object' && !Array.isArray(o)) return [o]; } catch {
+    // ignore: optional operation
+  }
   return null;
 }
 
@@ -297,13 +308,16 @@ export async function convertWithAIAgent(
         `خطا در اتصال به API (دسته ${bi + 1}/${totalBatches}):\n${errMsg}\n\n` +
         `آدرس: ${fullUrl}\n` +
         `اگر مشکل CORS است، proxy-server.cjs را اجرا کنید\n` +
-        `و در تنظیمات CORS Proxy را http://localhost:3002/ قرار دهید.`
+        `و در تنظیمات CORS Proxy را http://localhost:3002/ قرار دهید.`,
+        { cause: e }
       );
     }
 
     if (!response.ok) {
       let detail = '';
-      try { detail = await response.text(); } catch {}
+      try { detail = await response.text(); } catch {
+    // ignore: optional operation
+  }
       throw new Error(`خطای API (${response.status}) دسته ${bi + 1}: ${detail || response.statusText}`);
     }
 
@@ -313,6 +327,7 @@ export async function convertWithAIAgent(
     let jsonStr = rawText.trim();
 
     // Strip invisible chars (BOM, null bytes, etc.)
+    // eslint-disable-next-line no-control-regex -- intentional: stripping control characters from AI output
     jsonStr = jsonStr.replace(/[\x00-\x1f\x7f]/g, (ch) => {
       // Keep newlines and tabs for SSE detection
       if (ch === '\n' || ch === '\r' || ch === '\t') return ch;

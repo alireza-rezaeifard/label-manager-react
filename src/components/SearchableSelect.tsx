@@ -51,9 +51,13 @@ export default function SearchableSelect({
     }
   }, [isOpen]);
 
-  useEffect(() => {
+  // Reset highlight when the search text changes — derived at render time
+  // (avoids setState-in-effect cascading renders).
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
     setHighlightIndex(-1);
-  }, [search]);
+  }
 
   const selectOption = (opt: string) => {
     onChange(opt);

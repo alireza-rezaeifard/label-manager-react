@@ -245,7 +245,9 @@ export const api = {
 
     if (!res.ok) {
       let msg = 'AI request failed';
-      try { const e = await res.json(); msg = e.error || msg; } catch {}
+      try { const e = await res.json(); msg = e.error || msg; } catch {
+    // ignore: optional operation
+  }
       throw new Error(msg);
     }
 

@@ -75,11 +75,15 @@ export default function App() {
   const [tab, setTabState] = useState(initialTab);
   const viewCode = location.pathname.startsWith('/view/') ? decodeURIComponent(location.pathname.split('/')[2] || '') : '';
 
-  useEffect(() => {
+  // Derive tab from the URL at render time (React-endorsed alternative to
+  // setState-in-effect, which triggers cascading renders).
+  const [prevPathname, setPrevPathname] = useState(location.pathname);
+  if (location.pathname !== prevPathname) {
+    setPrevPathname(location.pathname);
     const p = location.pathname.replace('/', '').split('/')[0] || 'records';
     const t = validTabs.includes(p) ? p : 'records';
     setTabState(prev => prev !== t ? t : prev);
-  }, [location.pathname]);
+  }
 
   const setTab = useCallback((t: string) => {
     const target = '/' + t;
@@ -135,11 +139,17 @@ export default function App() {
   const [showTaxBookModal, setShowTaxBookModal] = useState(false);
   const [hermesPrompt, setHermesPrompt] = useState('');
 
-  useEffect(() => {
-    if (!viewCode || currentRecords.length === 0) return;
-    const idx = currentRecords.findIndex(r => r.code === viewCode);
-    if (idx !== -1) setViewIndex(idx);
-  }, [viewCode, currentRecords]);
+  // Derive view index from the URL code at render time (avoids
+  // setState-in-effect cascading renders).
+  const [prevViewKey, setPrevViewKey] = useState('');
+  const viewKey = `${viewCode}|${currentRecords.length}`;
+  if (viewKey !== prevViewKey) {
+    setPrevViewKey(viewKey);
+    if (viewCode && currentRecords.length > 0) {
+      const idx = currentRecords.findIndex(r => r.code === viewCode);
+      if (idx !== -1) setViewIndex(idx);
+    }
+  }
 
   const handleView = useCallback((i: number) => {
     setViewIndex(i);
@@ -378,7 +388,7 @@ export default function App() {
     }
     if (ws.serverMode) {
       ws.setServerLoading(true);
-      ws.isRestoringRef.current = true;
+      ws.setIsRestoring(true);
       try {
         if (restoredCustomFields.length > 0) {
           await api.batchSaveCustomFields(restoredCustomFields, ws.currentWorkspaceId!);
@@ -404,8 +414,12 @@ export default function App() {
             if (r.code) codeCache[r.code] = entry;
           }
         }
-        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(existingCache)); } catch {}
-        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(existingCache)); } catch {
+    // ignore: optional operation
+  }
+        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {
+    // ignore: optional operation
+  }
         ws.setRefreshKey(k => k + 1);
         ws.setServerLoading(false);
         ws.setShowBackupModal(false);
@@ -414,7 +428,7 @@ export default function App() {
         ws.setServerLoading(false);
         addToast('خطا در بازیابی: ' + err.message, 'error');
       } finally {
-        ws.isRestoringRef.current = false;
+        ws.setIsRestoring(false);
         setTimeout(() => { ws.refreshServerRecordsRef.current(); }, 100);
       }
     } else {
@@ -447,10 +461,14 @@ export default function App() {
         if (Object.keys(cfields).length > 0) {
           const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
           cache[record.id] = cfields;
-          try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {}
+          try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {
+    // ignore: optional operation
+  }
           const codeCache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-code-cache') || '{}'); } catch { return {}; } })();
           if (updated.code) codeCache[updated.code] = cfields;
-          try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+          try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {
+    // ignore: optional operation
+  }
         }
         ws.setServerLoading(false);
         ws.refreshServerRecords();
@@ -557,8 +575,12 @@ export default function App() {
             }
           }
         });
-        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {}
-        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {}
+        try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {
+    // ignore: optional operation
+  }
+        try { localStorage.setItem('label-studio-record-cfields-code-cache', JSON.stringify(codeCache)); } catch {
+    // ignore: optional operation
+  }
         ws.setServerLoading(false);
         ws.setShowBulkEdit(false);
         setBulkEditField('');
@@ -651,7 +673,9 @@ export default function App() {
         ws.setServerRecords(finalRecords);
         pushUndo({ records: snapshot, label: 'renumber' });
       } else {
-        try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {}
+        try { localStorage.setItem('label-studio-records', JSON.stringify(finalRecords)); } catch {
+    // ignore: optional operation
+  }
         setRecords(finalRecords);
         pushUndo({ records: snapshot, label: 'renumber' });
         ws.setRefreshKey(k => k + 1);
@@ -933,7 +957,7 @@ export default function App() {
                   serverMode={ws.serverMode}
                   allTags={ws.tags}
                   loading={ws.serverLoading}
-                  onFormChange={(data: RecordItem) => { formState.formDraftRef.current = data; }}
+                  onFormChange={(data: RecordItem) => { formState.setFormDraft(data); }}
                   fieldSuggestions={formState.fieldSuggestions}
                   templateName={formState.templateName}
                   setTemplateName={formState.setTemplateName}

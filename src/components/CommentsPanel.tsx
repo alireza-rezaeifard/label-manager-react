@@ -9,7 +9,9 @@ function loadComments(): Record<string, Comment[]> {
 }
 
 function saveComments(all: Record<string, Comment[]>) {
-  try { localStorage.setItem(COMMENTS_KEY, JSON.stringify(all)); } catch {} 
+  try { localStorage.setItem(COMMENTS_KEY, JSON.stringify(all)); } catch {
+    // ignore: optional operation
+  } 
 }
 
 interface CommentsPanelProps {
@@ -31,10 +33,14 @@ export default function CommentsPanel({ recordId, recordCode, teamMembers, serve
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const mentionRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // Load comments for this record — derived at render when recordId changes
+  // (avoids setState-in-effect cascading renders).
+  const [prevRecordId, setPrevRecordId] = useState(recordId);
+  if (recordId !== prevRecordId) {
+    setPrevRecordId(recordId);
     const all = loadComments();
     setComments(all[recordId] || []);
-  }, [recordId]);
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {

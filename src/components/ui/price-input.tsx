@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useState } from "react"
 
 import { Input } from "@/components/ui/input"
 import { useControllableState } from "@/hooks/useControllableState"
@@ -64,9 +64,15 @@ function PriceInput({
     formatValue(numericValue, locale)
   )
 
-  React.useEffect(() => {
-    setText(formatValue(numericValue, locale))
-  }, [numericValue, locale])
+  // Keep the display text in sync with the numeric value — derived at render
+  // time when the value/locale change (avoids setState-in-effect).
+  const [prevNumeric, setPrevNumeric] = useState(numericValue);
+  const [prevLocale, setPrevLocale] = useState(locale);
+  if (numericValue !== prevNumeric || locale !== prevLocale) {
+    setPrevNumeric(numericValue);
+    setPrevLocale(locale);
+    setText(formatValue(numericValue, locale));
+  }
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const raw = toEnDigits(event.target.value).replace(/[^\d]/g, "")

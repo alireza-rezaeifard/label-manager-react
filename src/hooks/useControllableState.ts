@@ -24,8 +24,10 @@ export function useControllableState<T>({
   const isControlled = prop !== undefined
   const value = isControlled ? prop : uncontrolledProp
 
-  const valueRef = React.useRef(value)
-  valueRef.current = value
+  const valueRef = React.useRef(value);
+  React.useEffect(() => {
+    valueRef.current = value;
+  });
 
   const onChangeRef = React.useRef(onChange)
   React.useEffect(() => {

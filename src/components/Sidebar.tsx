@@ -90,7 +90,9 @@ function loadCollapsed() {
   try { return JSON.parse(localStorage.getItem('sidebar-collapsed-sections') || '{}'); } catch { return {}; }
 }
 function saveCollapsed(s: Record<string, boolean>) {
-  try { localStorage.setItem('sidebar-collapsed-sections', JSON.stringify(s)); } catch {}
+  try { localStorage.setItem('sidebar-collapsed-sections', JSON.stringify(s)); } catch {
+    // ignore: optional operation
+  }
 }
 
 interface SidebarProps {

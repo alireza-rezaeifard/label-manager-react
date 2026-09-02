@@ -134,19 +134,19 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     if (onFormChange) onFormChange(form);
   }, [form, onFormChange]);
 
-  useEffect(() => {
+  // Duplicate-code check: derive check state from debouncedCode at render
+  // time, then async-verify (avoids setState-in-effect cascading renders).
+  const [prevDebouncedCode, setPrevDebouncedCode] = useState(debouncedCode);
+  if (debouncedCode !== prevDebouncedCode) {
+    setPrevDebouncedCode(debouncedCode);
     const code = debouncedCode.trim();
     if (!code) {
       setCodeDuplicate(false);
       setCodeChecking(false);
-      return;
-    }
-    if (isDuplicateCode(code, editIndex)) {
+    } else if (isDuplicateCode(code, editIndex)) {
       setCodeDuplicate(true);
       setCodeChecking(false);
-      return;
-    }
-    if (checkDuplicateCode && serverMode) {
+    } else if (checkDuplicateCode && serverMode) {
       setCodeChecking(true);
       const excludeId = editRecord?.id ? String(editRecord.id) : null;
       checkDuplicateCode(code, excludeId)
@@ -156,7 +156,7 @@ export default function RecordForm({ editRecord, editIndex, availableLabels, isD
     } else {
       setCodeDuplicate(false);
     }
-  }, [debouncedCode, editIndex, serverMode, isDuplicateCode, checkDuplicateCode, editRecord?.id]);
+  }
 
   const setField = (key: string, value: unknown) => {
     setForm((p: RecordFormState) => ({ ...p, [key]: value }));

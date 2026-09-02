@@ -12,19 +12,25 @@ export function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
 }
 export function saveHistory(h: unknown[]) {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {}
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); } catch {
+    // ignore: optional operation
+  }
 }
 export function loadCustomFields() {
   try { return JSON.parse(localStorage.getItem(CUSTOM_FIELDS_KEY) || '[]'); } catch { return []; }
 }
 export function saveCustomFields(f: CustomField[]) {
-  try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch {}
+  try { localStorage.setItem(CUSTOM_FIELDS_KEY, JSON.stringify(f)); } catch {
+    // ignore: optional operation
+  }
 }
 export function loadTags() {
   try { return JSON.parse(localStorage.getItem(TAGS_KEY) || '[]'); } catch { return []; }
 }
 export function saveTags(t: string[]) {
-  try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch {}
+  try { localStorage.setItem(TAGS_KEY, JSON.stringify(t)); } catch {
+    // ignore: optional operation
+  }
 }
 
 export function useWorkspaceData() {
@@ -108,7 +114,11 @@ export function useWorkspaceData() {
     fetchServerRecords,
   );
 
+  // Sync SWR data into local state. The TanStack-compat shim re-runs
+  // observer.setOptions on every render, so syncing during render would
+  // interact with it and cause render loops — keep this effect-based.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- see comment above
     if (swrData) setServerRecords(swrData);
   }, [swrData]);
 
@@ -118,14 +128,18 @@ export function useWorkspaceData() {
     await revalidate();
   }, [revalidate, serverMode, currentWorkspaceId]);
 
-  const refreshServerRecordsRef = useRef(refreshServerRecords);
-  refreshServerRecordsRef.current = refreshServerRecords;
+  const refreshServerRecordsRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => {
+    refreshServerRecordsRef.current = refreshServerRecords;
+  });
 
   const { connectionStatus } = useWebSocket(serverMode ? currentWorkspaceId : null, refreshServerRecords);
 
   useEffect(() => {
     if (currentWorkspaceId) {
-      try { localStorage.setItem('current_workspace_id', String(currentWorkspaceId)); } catch {}
+      try { localStorage.setItem('current_workspace_id', String(currentWorkspaceId)); } catch {
+    // ignore: optional operation
+  }
     }
   }, [currentWorkspaceId]);
 
@@ -161,16 +175,21 @@ export function useWorkspaceData() {
     }
   }, [serverMode, currentWorkspaceId]);
 
-  // Sync enabledCustomFieldKeys with customFields
-  useEffect(() => {
+  // Sync enabledCustomFieldKeys with customFields.
+  // Derived state computed at render time (React-endorsed pattern) instead of
+  // setState-in-effect, which triggers cascading renders.
+  const [prevCustomFields, setPrevCustomFields] = useState(customFields);
+  if (customFields !== prevCustomFields) {
+    setPrevCustomFields(customFields);
     setEnabledCustomFieldKeys(prev => {
       const next = new Set(prev);
       for (const f of customFields) next.add(f.key);
       const arr = [...next];
+      if (arr.length === prev.length && arr.every((k, i) => k === prev[i])) return prev;
       localStorage.setItem('label-studio-enabled-cfields', JSON.stringify(arr));
       return arr;
     });
-  }, [customFields]);
+  }
 
   // Theme effect
   useEffect(() => {
@@ -227,7 +246,9 @@ export function useWorkspaceData() {
   const toggleSidebarCompact = useCallback(() => {
     setSidebarCompact(p => {
       const next = !p;
-      try { localStorage.setItem('sidebar-compact', String(next)); } catch {}
+      try { localStorage.setItem('sidebar-compact', String(next)); } catch {
+    // ignore: optional operation
+  }
       return next;
     });
   }, []);
@@ -238,6 +259,12 @@ export function useWorkspaceData() {
   const clearHistory = useCallback(() => {
     setPrintHistory([]);
     saveHistory([]);
+  }, []);
+
+  // Ref setters: refs must be mutated through callbacks, not directly by
+  // consumers during render/events (React compiler rule).
+  const setIsRestoring = useCallback((v: boolean) => {
+    isRestoringRef.current = v;
   }, []);
 
   const currentWs = workspaces.find(w => w.id === currentWorkspaceId);
@@ -251,7 +278,7 @@ export function useWorkspaceData() {
     serverRecords, setServerRecords,
     serverLoading, setServerLoading,
     refreshKey, setRefreshKey,
-    fetchedRef, isRestoringRef,
+    fetchedRef, isRestoringRef, setIsRestoring,
     theme, setTheme, toggleTheme,
     printHistory, setPrintHistory, saveHistory, loadHistory, clearHistory,
     customFields, setCustomFields, saveCustomFields, loadCustomFields,

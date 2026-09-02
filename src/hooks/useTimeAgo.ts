@@ -24,10 +24,16 @@ export function useTimeAgo(date?: Date | string | number, refreshMs = 60_000): s
     return toFaDigits(Math.floor(day / 365)) + ' سال پیش';
   };
 
+  // Derived value recomputed at render when `date` changes; interval only
+  // refreshes over time (avoids setState-in-effect cascading renders).
+  const [prevDate, setPrevDate] = useState(date);
   const [text, setText] = useState<string>(compute);
+  if (date !== prevDate) {
+    setPrevDate(date);
+    setText(compute());
+  }
 
   useEffect(() => {
-    setText(compute());
     if (!target) return;
     const id = setInterval(() => setText(compute()), refreshMs);
     return () => clearInterval(id);

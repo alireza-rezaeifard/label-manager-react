@@ -57,9 +57,13 @@ export default function AutocompleteInput({
     inputRef.current?.focus();
   }, [onChange]);
 
-  useEffect(() => {
+  // Reset focus index when the dropdown closes — derived at render time
+  // (avoids setState-in-effect cascading renders).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) setFocusedIdx(-1);
-  }, [open]);
+  }
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!open || filtered.length === 0) {
