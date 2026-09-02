@@ -1,6 +1,5 @@
 "use client"
 
-import { Tabs as TabsPrimitive } from "@base-ui/react/tabs"
 import { cva } from "class-variance-authority"
 import { motion } from "framer-motion"
 import * as React from "react"
@@ -56,6 +55,7 @@ const staticActiveStylesByVariant: Record<TabsVariant, string> = {
 interface TabsContextValue {
   activeValue: unknown
   variant: TabsVariant
+  onValueChange?: (value: string) => void
 }
 const TabsContext = React.createContext<TabsContextValue | null>(null)
 const TabsIndicatorMeasuredContext = React.createContext(false)
@@ -66,8 +66,12 @@ function useTabsContext(component: string) {
   return context
 }
 
-interface TabsProps extends TabsPrimitive.Root.Props {
+interface TabsProps extends React.HTMLAttributes<HTMLDivElement> {
+  defaultValue?: string
+  value?: string
+  onValueChange?: (value: string) => void
   variant?: TabsVariant
+  orientation?: "horizontal" | "vertical"
 }
 
 function Tabs({
@@ -78,21 +82,12 @@ function Tabs({
   variant = "default",
   ...props
 }: TabsProps) {
-  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue ?? null)
+  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue ?? "")
   const activeValue = value !== undefined ? value : uncontrolledValue
 
   return (
-    <TabsContext.Provider value={{ activeValue, variant }}>
-      <TabsPrimitive.Root
-        data-slot="tabs"
-        value={activeValue}
-        onValueChange={(next, eventDetails) => {
-          if (value === undefined) setUncontrolledValue(next)
-          onValueChange?.(next, eventDetails)
-        }}
-        className={className}
-        {...props}
-      />
+    <TabsContext.Provider value={{ activeValue, variant, onValueChange }}>
+      <div data-slot="tabs" className={className} {...props} />
     </TabsContext.Provider>
   )
 }
@@ -104,7 +99,7 @@ interface IndicatorRect {
   height: number
 }
 
-function TabsList({ className, children, ...props }: TabsPrimitive.List.Props) {
+function TabsList({ className, children, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   const { activeValue, variant } = useTabsContext("TabsList")
   const listRef = React.useRef<HTMLDivElement>(null)
   const [rect, setRect] = React.useState<IndicatorRect | null>(null)
@@ -138,8 +133,9 @@ function TabsList({ className, children, ...props }: TabsPrimitive.List.Props) {
   const indicatorStyle = indicatorStylesByVariant[variant]
 
   return (
-    <TabsPrimitive.List
+    <div
       ref={listRef}
+      role="tablist"
       data-slot="tabs-list"
       className={cn(tabsListVariants({ variant }), className)}
       {...props}
@@ -157,18 +153,28 @@ function TabsList({ className, children, ...props }: TabsPrimitive.List.Props) {
         )}
         {children}
       </TabsIndicatorMeasuredContext.Provider>
-    </TabsPrimitive.List>
+    </div>
   )
 }
 
-function TabsTrigger({ className, value, ...props }: TabsPrimitive.Tab.Props) {
-  const { variant } = useTabsContext("TabsTrigger")
+function TabsTrigger({
+  className,
+  value,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { value: string }) {
+  const { activeValue, variant, onValueChange } = useTabsContext("TabsTrigger")
   const measured = React.useContext(TabsIndicatorMeasuredContext)
+  const isActive = activeValue === value
 
   return (
-    <TabsPrimitive.Tab
+    <button
+      type="button"
+      role="tab"
+      aria-selected={isActive}
       data-slot="tabs-trigger"
-      value={value}
+      data-value={value}
+      data-active={isActive ? "" : undefined}
+      onClick={() => onValueChange?.(value)}
       className={cn(
         tabsTriggerVariants({ variant }),
         !measured && staticActiveStylesByVariant[variant],
@@ -182,10 +188,12 @@ function TabsTrigger({ className, value, ...props }: TabsPrimitive.Tab.Props) {
 function TabsContent({
   className,
   children,
+  value: _value,
   ...props
-}: Omit<TabsPrimitive.Panel.Props, "className"> & { className?: string }) {
+}: React.HTMLAttributes<HTMLDivElement> & { value?: string }) {
   return (
-    <TabsPrimitive.Panel
+    <div
+      role="tabpanel"
       data-slot="tabs-content"
       className="focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
       {...props}
@@ -198,7 +206,7 @@ function TabsContent({
       >
         {children}
       </motion.div>
-    </TabsPrimitive.Panel>
+    </div>
   )
 }
 

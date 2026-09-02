@@ -1,84 +1,63 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
+import { toast as sonner } from 'sonner';
 import { useToast } from '../hooks/useToast';
 
-beforeEach(() => {
-  vi.useFakeTimers();
-});
+// The hook delegates to Sonner: `toasts` stays empty and `removeToast` is a
+// compatibility no-op (Sonner manages its own dismissal state).
+vi.mock('sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  }),
+}));
 
-afterEach(() => {
-  vi.useRealTimers();
-});
-
-describe('useToast', () => {
+describe('useToast (Sonner-backed)', () => {
   it('initializes with empty toasts', () => {
     const { result } = renderHook(() => useToast());
     expect(result.current.toasts).toEqual([]);
   });
 
-  it('addToast adds a toast with default type', () => {
+  it('addToast routes default type to sonner.success', () => {
     const { result } = renderHook(() => useToast());
 
     act(() => {
       result.current.addToast('Test message');
     });
 
-    expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toasts[0].message).toBe('Test message');
-    expect(result.current.toasts[0].type).toBe('success');
+    expect(sonner.success).toHaveBeenCalledWith('Test message');
   });
 
-  it('addToast adds a toast with specified type', () => {
+  it('addToast routes specified type to the matching sonner method', () => {
     const { result } = renderHook(() => useToast());
 
     act(() => {
       result.current.addToast('Error message', 'error');
     });
 
-    expect(result.current.toasts[0].type).toBe('error');
+    expect(sonner.error).toHaveBeenCalledWith('Error message');
   });
 
-  it('addToast auto-removes toast after duration', () => {
+  it('addToast falls back to plain toast for unknown types', () => {
     const { result } = renderHook(() => useToast());
 
     act(() => {
-      result.current.addToast('Auto remove', 'success', 3000);
-    });
-    expect(result.current.toasts).toHaveLength(1);
-
-    act(() => {
-      vi.advanceTimersByTime(3000);
+      // @ts-expect-error unknown type on purpose
+      result.current.addToast('Other message', 'weird');
     });
 
-    expect(result.current.toasts).toHaveLength(0);
+    expect(sonner).toHaveBeenCalledWith('Other message');
   });
 
-  it('removeToast removes a toast by id', () => {
+  it('removeToast is a safe no-op', () => {
     const { result } = renderHook(() => useToast());
 
-    act(() => {
-      result.current.addToast('Message 1');
-      result.current.addToast('Message 2');
-    });
-
-    const id = result.current.toasts[0].id;
-
-    act(() => {
-      result.current.removeToast(id);
-    });
-
-    expect(result.current.toasts).toHaveLength(1);
-    expect(result.current.toasts[0].id).not.toBe(id);
-  });
-
-  it('addToast generates unique ids', () => {
-    const { result } = renderHook(() => useToast());
-
-    act(() => {
-      result.current.addToast('Message 1');
-      result.current.addToast('Message 2');
-    });
-
-    expect(result.current.toasts[0].id).not.toBe(result.current.toasts[1].id);
+    expect(() => {
+      act(() => {
+        result.current.removeToast(1);
+      });
+    }).not.toThrow();
   });
 });

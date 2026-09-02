@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
-import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { Spinner } from "@/components/ui/spinner"
@@ -70,7 +69,8 @@ function Button({ className, variant = "default", size = "default", loading = fa
   }
 
   return (
-    <ButtonPrimitive
+    <button
+      type="button"
       data-slot="button"
       data-loading={loading ? "" : undefined}
       disabled={disabled || loading}
@@ -79,7 +79,7 @@ function Button({ className, variant = "default", size = "default", loading = fa
     >
       {indicator}
       {children}
-    </ButtonPrimitive>
+    </button>
   )
 }
 

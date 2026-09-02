@@ -40,10 +40,33 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // Split heavy vendor libraries out of the main bundle so the initial
+        // payload stays small; they are loaded on demand by their features.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/.test(id)) return 'vendor-react';
+          if (/[\\/]node_modules[\\/](apexcharts|react-apexcharts|svg.pan-zoom)[\\/]/.test(id)) return 'vendor-charts';
+          if (/[\\/]node_modules[\\/](jspdf|html2canvas|xlsx|canvg|core-js|raf|dompurify)[\\/]/.test(id)) return 'vendor-export';
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/setupTests.ts',
-    exclude: ['node_modules/**', 'server/**'],
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    exclude: [
+      'node_modules/**',
+      '.mimocode/**',
+      '.opencode/**',
+      '.kiro/**',
+      'hermes/**',
+      'dist/**',
+    ],
   },
 })
