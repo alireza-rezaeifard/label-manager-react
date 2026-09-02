@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../lib/refresh-tokens.js';
 
 const router = Router();
 
@@ -41,7 +42,11 @@ router.post('/register', (req, res) => {
     }
 
     const token = generateToken(user);
-    res.json({ token, user: { id: user.id, username: user.username, role: user.role } });
+    res.json({
+      token,
+      refreshToken: issueRefreshToken(userId, req.headers['user-agent']),
+      user: { id: user.id, username: user.username, role: user.role },
+    });
   } catch (err) {
     const msg = err?.message || String(err);
     if (msg.includes('UNIQUE')) {
@@ -108,8 +113,35 @@ router.post('/login', (req, res) => {
   const token = generateToken(user);
   res.json({
     token,
+    refreshToken: issueRefreshToken(user.id, req.headers['user-agent']),
     user: { id: user.id, username: user.username, role: user.role },
   });
+});
+
+// POST /api/auth/refresh — rotate a refresh token for a new access token.
+// The presented refresh token is single-use: it is revoked and replaced.
+router.post('/refresh', (req, res) => {
+  const { refreshToken } = req.body;
+  const rotated = rotateRefreshToken(refreshToken, req.headers['user-agent']);
+  if (!rotated) {
+    return res.status(401).json({ error: 'Invalid or expired refresh token', code: 'INVALID_REFRESH_TOKEN' });
+  }
+  const user = db.prepare('SELECT id, username, role FROM users WHERE id = ?').get(rotated.userId);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid or expired refresh token', code: 'INVALID_REFRESH_TOKEN' });
+  }
+  res.json({
+    token: generateToken(user),
+    refreshToken: rotated.refreshToken,
+    user: { id: user.id, username: user.username, role: user.role },
+  });
+});
+
+// POST /api/auth/logout — revoke the presented refresh token (server-side session end).
+router.post('/logout', (req, res) => {
+  const { refreshToken } = req.body || {};
+  revokeRefreshToken(refreshToken);
+  res.json({ ok: true });
 });
 
 router.get('/me', authMiddleware, (req, res) => {
