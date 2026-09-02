@@ -8,7 +8,7 @@ RUN npm run build
 
 # ── Stage 2: production runtime ──
 FROM docker.arvancloud.ir/library/node:20-alpine
-# Build tools needed only to compile better-sqlite3/sharp native modules
+# Build tools needed to compile better-sqlite3's native module on musl
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 

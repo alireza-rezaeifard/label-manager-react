@@ -86,9 +86,25 @@ app.use(cors({
   },
 }));
 
+// Report-only CSP (audit S6, staged rollout): violations are reported by the
+// browser console but nothing is blocked yet. Once no violations appear in
+// production logs, flip `reportOnly: false`.
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    reportOnly: true,
+    useDefaults: true,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'"],
+      'style-src': ["'self'", "'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'blob:'],
+      'font-src': ["'self'", 'data:'],
+      'connect-src': ["'self'"],
+      'object-src': ["'none'"],
+      'frame-ancestors': ["'self'"],
+    },
+  },
 }));
 
 app.use(express.json({ limit: config.JSON_BODY_LIMIT }));
