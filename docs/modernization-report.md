@@ -1,6 +1,6 @@
 # TaxBook — Modernization Report (Phase 1)
 
-Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`. Later phases remain planned there.
+Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`, plus Phases 3 & 5 increments (see "Session 2" below). Later phases remain planned.
 
 ## Changed files
 **Backend**
@@ -54,9 +54,30 @@ Implements the "Immediate (Phase 1) decisions" from `docs/modernization-plan.md`
 
 ## Remaining technical debt
 - `App.tsx` (72 KB) feature extraction (Phase 2).
-- `useSWR` → TanStack Query migration (Phase 3).
-- `loadRecordForUser` helper to deduplicate tenant checks; `workspace_id || 1` fallback tightening (Phase 5).
 - Error envelope v2 under `/api/v1`; OpenAPI typegen (Phases 5/7).
 - Refresh-token rotation, account lockout, CSP, multer 2.x, Argon2id evaluation (Phase 8).
-- FTS5 rebuild gating on startup; composite-index EXPLAIN verification (D1/D3).
+- Composite-index EXPLAIN verification (D3).
 - Playwright E2E suite (Phase 10).
+
+---
+
+## Session 2 — Phase 3 (server state) & Phase 5 (tenancy) increments
+
+**Dependencies**
+- Added: `@tanstack/react-query` ^5.102.8 (the only new dependency; no Zustand yet — no client/UI state needs it).
+
+**Server state (Phase 3)**
+- `src/hooks/useSWR.ts` reimplemented on top of TanStack Query (`QueryClient` singleton + `QueryObserver` via `useSyncExternalStore`), preserving the exact public API (`useSWR`, `useSWRMutation`, `invalidateCache`) so **all existing callers migrated transparently with zero code changes**.
+- Semantics preserved: no retries (retry: false), 30s staleTime, optional refetch interval, optimistic `mutate` with functional updates, error surface as before. `null` results normalized to `undefined`.
+- New regression tests: `src/__tests__/useSWR.test.tsx` (9 tests: fetch, cache sharing, key isolation, optimistic mutate, functional updater, invalidation refetch, error state, disabled-null-key, mutation).
+
+**Backend tenancy (Phase 5)**
+- New `server/lib/authz.js`: `getWorkspaceRole`, `assertWorkspaceRole`, `loadRecordForUser(recordId, userId, minRole)` (user → membership → role → resource ownership in one call), `resolveWorkspaceId(req)`.
+- `records.js`: POST /, PUT /:id and /import-url now use the shared helpers (duplicated inline membership checks removed); the `workspace_id || 1` silent fallback is replaced by `resolveWorkspaceId` (explicit → single membership → legacy ws-1-if-member → 400 `MISSING_WORKSPACE`). No test or frontend behavior change.
+- `GET /api/records` limit hard cap reduced from 10,000 → 1,000 (bounded payloads, audit A2).
+
+**Database (D1)**
+- FTS5 rebuild on startup is now gated by `isFTS5Healthy()` (table exists + triggers exist + row counts match). Healthy databases skip the full reindex; corruption still force-rebuilds via the error-handler path.
+
+**Test results**
+- Frontend: 85/85 passed (11 files). Build: ✅. Backend: 48/48 passed.

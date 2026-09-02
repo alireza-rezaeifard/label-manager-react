@@ -7,7 +7,7 @@ TaxBook is a Persian (RTL) financial record manager. Records (code, project, typ
 - React 19 + Vite 8 (Rolldown) + TypeScript + Tailwind CSS 4.
 - Single-page app shell (`src/App.tsx`) with route-per-tab and lazy-loaded pages/chunks.
 - UI primitives in `src/components/ui` (Radix-based; native fallbacks where Radix isn't available).
-- Server state via a custom SWR-like hook (`src/lib/useSWR.ts`); planned migration to TanStack Query (see `modernization-plan.md` Phase 3).
+- Server state is managed by **TanStack Query** behind a `useSWR`-compatible shim (`src/hooks/useSWR.ts`): all caching, deduplication, invalidation and refetching goes through a module-level `QueryClient` singleton. `Zustand` is reserved for client/UI state in a later phase; never put server data in client state.
 - Offline/local persistence: `src/hooks/useWorkspaceData.ts` (localStorage), PWA service worker (`public/sw.js`).
 - Vendor chunking: `vendor-react`, `vendor-charts` (apexcharts), `vendor-export` (jspdf/html2canvas/xlsx) configured in `vite.config.js`.
 

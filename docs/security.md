@@ -8,8 +8,8 @@
 
 ## Authorization / tenancy
 - Every workspace-owned query verifies `user → workspace_members → role → resource.workspace_id`.
-- Role hierarchy: owner(10) > admin(8) > editor(5) > viewer(1); enforced per route.
-- Known hardening item (Phase 5): extract a single `loadRecordForUser(minRole)` helper to remove per-route duplication.
+- Role hierarchy: owner(10) > admin(8) > editor(5) > viewer(1); enforced per route via `server/lib/authz.js` (`assertWorkspaceRole`, `loadRecordForUser`, `resolveWorkspaceId`).
+- `resolveWorkspaceId` resolves the target workspace for writes: explicit `workspace_id` wins; otherwise the user's single membership; legacy fallback to workspace 1 only if the user is a member — never a silent cross-tenant write.
 
 ## Transport & headers
 - Helmet enabled (CSP currently disabled — Phase 8 will add a report-only CSP first).

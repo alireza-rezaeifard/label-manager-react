@@ -9,6 +9,7 @@ SQLite (better-sqlite3) in WAL mode with `foreign_keys = ON`. Path: `server/data
 ## Migrations
 - Directory `server/migrations/`, ordered `NNN_name.(sql|cjs)`, tracked in `schema_migrations` / `schema_version`.
 - Seeding (admin user, workspace 1) is idempotent (`INSERT OR IGNORE`) and safe under concurrent starts.
+- FTS5 is verified on startup (`isFTS5Healthy`: table + triggers + row-count match) and rebuilt only when unhealthy.
 
 ## Schema highlights
 - `users`, `workspaces`, `workspace_members (workspace_id, user_id, role)`
