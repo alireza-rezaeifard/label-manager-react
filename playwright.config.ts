@@ -23,6 +23,9 @@ export default defineConfig({
       JWT_SECRET: 'e2e-test-secret-0123456789abcdef0123456789abcdef',
       DB_PATH: 'server/e2e-data.db',
       LOG_LEVEL: 'warn',
+      // The UI test loads the SPA from this origin; ES-module requests carry an
+      // Origin header, so it must be in the CORS allow-list.
+      ALLOWED_ORIGINS: `http://127.0.0.1:${PORT},http://localhost:${PORT}`,
     },
   },
 });

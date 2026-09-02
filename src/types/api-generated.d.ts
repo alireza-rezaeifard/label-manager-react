@@ -74,6 +74,34 @@ export interface RecordVersion {
     "created_at"?: string;
 }
 
+export interface TokenPair {
+    /** Short-lived JWT access token */
+    "token"?: string;
+    /** Single-use rotating refresh token */
+    "refreshToken"?: string;
+    "user"?: User;
+}
+
+export interface User {
+    "id"?: number;
+    "username"?: string;
+    "role"?: string;
+}
+
+export interface RecordInput {
+    "code": string;
+    "project": string;
+    "type"?: string;
+    "date"?: string;
+    "party"?: string;
+    "amount"?: string;
+    "related"?: Array<string>;
+    "tags"?: Array<string>;
+    "image"?: string;
+    "color"?: string;
+    "workspace_id"?: number;
+}
+
 /** Registry of all component schemas, mirroring the OpenAPI document. */
 export interface components {
   schemas: {
@@ -84,5 +112,8 @@ export interface components {
     CustomField: CustomField;
     ActivityLog: ActivityLog;
     RecordVersion: RecordVersion;
+    TokenPair: TokenPair;
+    User: User;
+    RecordInput: RecordInput;
   };
 }
