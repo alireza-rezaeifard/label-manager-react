@@ -322,6 +322,31 @@ db.exec(`
 `);
 
 // ── FTS5 full-text search ──
+/** Checks (cheaply) that the FTS5 table, triggers and row counts are consistent. */
+function isFTS5Healthy(targetDb = db) {
+  try {
+    const table = targetDb.prepare(
+      "SELECT name FROM sqlite_master WHERE name = 'records_fts'"
+    ).get();
+    if (!table) return false;
+
+    for (const t of ['records_fts_insert', 'records_fts_update', 'records_fts_delete']) {
+      const trigger = targetDb.prepare(
+        "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name = ?"
+      ).get(t);
+      if (!trigger) return false;
+    }
+
+    const liveCount = targetDb.prepare(
+      'SELECT COUNT(*) as c FROM records WHERE deleted_at IS NULL'
+    ).get().c;
+    const ftsCount = targetDb.prepare('SELECT COUNT(*) as c FROM records_fts').get().c;
+    return ftsCount === liveCount;
+  } catch {
+    return false; // any error here means the index is suspect → rebuild
+  }
+}
+
 export function rebuildFTS5(targetDb = db) {
   console.log('Rebuilding FTS5 index...');
 
@@ -401,8 +426,13 @@ export function rebuildFTS5(targetDb = db) {
   } catch {}
 }
 
-// Always rebuild FTS5 on startup to ensure it's healthy
-rebuildFTS5();
+// Rebuild FTS5 on startup only when it is actually unhealthy — avoids a
+// full reindex (slow on large datasets) on every boot.
+if (isFTS5Healthy()) {
+  console.log('FTS5 index is healthy, skipping rebuild.');
+} else {
+  rebuildFTS5();
+}
 
 const adminUsername = process.env.ADMIN_USERNAME || 'admin';
 const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
