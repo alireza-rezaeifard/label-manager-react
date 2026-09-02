@@ -34,6 +34,11 @@ server/data/
 
 # Temp files
 tmp/
+*.tmp
+*.tFcgf7rS.*
+
+# Editor artifact junk (mis-parsed CLI args creating literal files)
+--clip*
 
 # AI/IDE tool directories (personal, not for public)
 .mimocode/
