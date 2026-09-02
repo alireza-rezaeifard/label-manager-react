@@ -2,14 +2,105 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 
+const uniq = (p) => `${p}_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+
+async function registerUser(username) {
+  const res = await request(app).post('/api/auth/register').send({
+    username,
+    password: 'goodpass1',
+  });
+  return res.body.token;
+}
+
 let token;
+let ownerToken;
+let outsiderToken;
+let privateWorkspaceId;
+let privateRecord;
 
 beforeAll(async () => {
-  const res = await request(app)
+  const adminRes = await request(app)
     .post('/api/auth/login')
     .send({ username: 'admin', password: 'admin123' });
-  token = res.body.token;
+  token = adminRes.body.token;
+
+  ownerToken = await registerUser(uniq('iso_owner'));
+  outsiderToken = await registerUser(uniq('iso_out'));
+
+  const ws = await request(app)
+    .post('/api/workspaces')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ name: uniq('Private WS') });
+  privateWorkspaceId = ws.body.id;
+
+  const rec = await request(app)
+    .post('/api/records')
+    .set('Authorization', `Bearer ${ownerToken}`)
+    .send({ code: uniq('SEC'), project: 'Secret', workspace_id: privateWorkspaceId });
+  privateRecord = rec.body;
 });
+
+describe('Workspace isolation', () => {
+  it('non-members cannot list a workspace they do not belong to', async () => {
+    const res = await request(app)
+      .get(`/api/records?workspace_id=${privateWorkspaceId}`)
+      .set('Authorization', `Bearer ${outsiderToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.records.map((r) => r.id)).not.toContain(privateRecord.id);
+  });
+
+  it('non-members get an empty paged view of a foreign workspace', async () => {
+    const res = await request(app)
+      .get(`/api/records/all?workspace_id=${privateWorkspaceId}`)
+      .set('Authorization', `Bearer ${outsiderToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.records).toHaveLength(0);
+    expect(res.body.total).toBe(0);
+  });
+
+  it('non-members cannot see a workspace trash', async () => {
+    const res = await request(app)
+      .get(`/api/records/trash?workspace_id=${privateWorkspaceId}`)
+      .set('Authorization', `Bearer ${outsiderToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(0);
+  });
+
+  it('non-members cannot update a foreign workspace record', async () => {
+    const res = await request(app)
+      .put(`/api/records/${privateRecord.id}`)
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .send({ amount: '999' });
+    expect(res.status).toBe(403);
+  });
+
+  it('non-members cannot delete a foreign workspace record', async () => {
+    const res = await request(app)
+      .delete('/api/records/batch')
+      .set('Authorization', `Bearer ${outsiderToken}`)
+      .send({ ids: [privateRecord.id] });
+    expect(res.status).toBe(403);
+  });
+
+  it('the owner still has full access to their own workspace records', async () => {
+    const list = await request(app)
+      .get(`/api/records?workspace_id=${privateWorkspaceId}`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(list.status).toBe(200);
+    expect(list.body.records.map((r) => r.id)).toContain(privateRecord.id);
+
+    const put = await request(app)
+      .put(`/api/records/${privateRecord.id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ amount: '500' });
+    expect(put.status).toBe(200);
+  });
+});
+
+// NOTE: login lockout is covered by e2e/api/auth.spec.ts (Playwright), which
+// runs with the IP rate limiter skipped — the unit suite shares one rate-limit
+// budget per IP and must stay within it.
+
 
 describe('Health endpoint', () => {
   it('should return ok status', async () => {

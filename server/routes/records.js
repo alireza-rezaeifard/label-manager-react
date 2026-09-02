@@ -6,7 +6,7 @@ import { AppError, asyncHandler } from '../errors.js';
 import { sanitize, sanitizeObject } from '../utils/sanitize.js';
 import { triggerWebhooks } from '../utils/webhooks.js';
 import { notifyWorkspace } from '../utils/notifications.js';
-import { ROLE_HIERARCHY, assertWorkspaceRole, loadRecordForUser, resolveWorkspaceId } from '../lib/authz.js';
+import { ROLE_HIERARCHY, assertWorkspaceRole, getWorkspaceRole, loadRecordForUser, resolveWorkspaceId } from '../lib/authz.js';
 
 const router = Router();
 
@@ -61,15 +61,20 @@ router.get('/', asyncHandler((req, res) => {
 
   if (filterWorkspace) {
     const wsId = parseInt(filterWorkspace, 10);
-    const memberIds = db.prepare(
-      'SELECT user_id FROM workspace_members WHERE workspace_id = ?'
-    ).all(wsId).map(m => m.user_id);
-
-    if (memberIds.length > 0) {
-      where = `WHERE workspace_id = ? AND user_id IN (${memberIds.map(() => '?').join(',')}) AND deleted_at IS NULL`;
-      params.push(wsId, ...memberIds);
-    } else {
+    // Tenant isolation: non-members must never see a workspace's contents.
+    if (!getWorkspaceRole(wsId, req.user.id)) {
       where = 'WHERE 1=0';
+    } else {
+      const memberIds = db.prepare(
+        'SELECT user_id FROM workspace_members WHERE workspace_id = ?'
+      ).all(wsId).map(m => m.user_id);
+
+      if (memberIds.length > 0) {
+        where = `WHERE workspace_id = ? AND user_id IN (${memberIds.map(() => '?').join(',')}) AND deleted_at IS NULL`;
+        params.push(wsId, ...memberIds);
+      } else {
+        where = 'WHERE 1=0';
+      }
     }
   } else {
     where = 'WHERE user_id = ? AND deleted_at IS NULL';
@@ -142,6 +147,10 @@ router.get('/all', asyncHandler((req, res) => {
   let total;
   if (workspace_id) {
     const wsId = parseInt(workspace_id, 10);
+    // Tenant isolation: non-members get an empty view of the workspace.
+    if (!getWorkspaceRole(wsId, req.user.id)) {
+      return res.json({ records: [], total: 0, page: pageNum, limit: limitNum, totalPages: 0 });
+    }
     total = db.prepare('SELECT COUNT(*) as c FROM records WHERE workspace_id = ? AND deleted_at IS NULL').get(wsId).c;
     records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(wsId, limitNum, offset);
   } else {
@@ -302,7 +311,12 @@ router.get('/trash', asyncHandler((req, res) => {
   const { workspace_id } = req.query;
   let records;
   if (workspace_id) {
-    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC').all(workspace_id);
+    const wsId = parseInt(workspace_id, 10);
+    // Tenant isolation: non-members must not see a workspace's trash.
+    if (!getWorkspaceRole(wsId, req.user.id)) {
+      return res.json([]);
+    }
+    records = db.prepare('SELECT * FROM records WHERE workspace_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC').all(wsId);
   } else {
     records = db.prepare('SELECT * FROM records WHERE user_id = ? AND deleted_at IS NOT NULL ORDER BY deleted_at DESC').all(req.user.id);
   }
