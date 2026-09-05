@@ -51,7 +51,7 @@ test.describe('workspace isolation', () => {
     });
     expect(list.status()).toBe(200);
     const body = await list.json();
-    expect(body.records.map((r: any) => r.id)).not.toContain(record.id);
+    expect(body.records.map((r: Record<string, unknown>) => r.id)).not.toContain(record.id);
 
     // Owner can still modify their own record
     const ownerPut = await request.put(`/api/records/${record.id}`, {

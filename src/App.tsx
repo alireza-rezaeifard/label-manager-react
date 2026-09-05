@@ -1,19 +1,19 @@
-import React, { useState, useCallback, useEffect, useRef, useMemo, lazy, Suspense, startTransition } from 'react';
+import React, { useState, useCallback, useMemo, lazy, Suspense, startTransition } from 'react';
 import { DirectionProvider } from '@radix-ui/react-direction';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useRecords } from './hooks/useRecords';
 import { useToast } from './hooks/useToast';
-import { useSWR, invalidateCache } from './hooks/useSWR';
 import { usePrintExport } from './hooks/usePrintExport';
 import { useWorkspace } from './hooks/useWorkspace';
 import { useCustomFields } from './hooks/useCustomFields';
 import { useRecordForm } from './hooks/useRecordForm';
 import { useRecordsList } from './hooks/useRecordsList';
-import { useWorkspaceData, loadHistory, saveHistory, loadCustomFields, saveCustomFields, loadTags, saveTags } from './hooks/useWorkspaceData';
-import { FIELDS, LABEL_PRINT_COLS, LABEL_WIDTH, LABEL_HEIGHT } from './data/fields';
-import { formatAmount, parseCode, formatCode } from './utils/formatters';
+import { useWorkspaceData, saveHistory, saveCustomFields, saveTags } from './hooks/useWorkspaceData';
+import { FIELDS } from './data/fields';
+import { parseCode, formatCode } from './utils/formatters';
 import { estimatePaperCount } from './utils/printHelpers';
-import { api, isAuthenticated, getAuthUser } from './utils/api';
+import { api, getAuthUser } from './utils/api';
+import { invalidateCache } from './hooks/useSWR';
 
 import SearchableSelect from './components/SearchableSelect';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -34,13 +34,12 @@ import {
   ImportSkeleton, StatsSkeleton,
 } from './components/LoadingSkeleton';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
-import type { RecordItem, Template, Workspace, FilterPreset, FilterState, CustomField, FormField, ActivityLogEntry } from './types';
-import RecordsPage from './components/RecordsPage';
+import type { RecordItem, CustomField } from './types';
 import LabelsWorkspace from './components/labels/LabelsWorkspace';
 import {
   FileSpreadsheet, Printer, ArrowRight,
-  ScanLine, CloudDownload, Lock, LayoutTemplate, Save, Trash2, Undo2,
-  X, Palette, Tags, Check, ArrowLeft, Loader2,
+  ScanLine, CloudDownload, Undo2,
+  X, Palette, Tags, Check,
 } from 'lucide-react';
 
 const StatsCards = lazy(() => import('./components/StatsCards'));
@@ -124,15 +123,16 @@ export default function App() {
   });
 
   // ========== NAVIGATION CALLBACKS (depend on formState) ==========
+  const { setEditIndex: setFormEditIndex, setTemplateData: setFormTemplateData, setShowTemplates: setFormShowTemplates, setTemplateKey: setFormTemplateKey } = formState;
   const handleTabChange = useCallback((t: string) => {
     startTransition(() => {
       setTab(t);
-      formState.setEditIndex(null);
-      formState.setTemplateData(null);
-      formState.setShowTemplates(false);
-      formState.setTemplateKey(k => k + 1);
+      setFormEditIndex(null);
+      setFormTemplateData(null);
+      setFormShowTemplates(false);
+      setFormTemplateKey(k => k + 1);
     });
-  }, [setTab, formState.setEditIndex, formState.setTemplateData, formState.setShowTemplates, formState.setTemplateKey]);
+  }, [setTab, setFormEditIndex, setFormTemplateData, setFormShowTemplates, setFormTemplateKey]);
 
   // ========== VIEW STATE ==========
   const [viewIndex, setViewIndex] = useState<number | null>(null);
@@ -157,10 +157,10 @@ export default function App() {
   }, [setTab]);
 
   const handleEdit = useCallback((i: number) => {
-    formState.setEditIndex(i);
-    formState.setTemplateData(null);
+    setFormEditIndex(i);
+    setFormTemplateData(null);
     setTab('add');
-  }, [formState.setEditIndex, formState.setTemplateData, setTab]);
+  }, [setFormEditIndex, setFormTemplateData, setTab]);
 
   // ========== EXPORT & PRINT ==========
   const enabledSet = new Set(ws.enabledCustomFieldKeys);
@@ -238,24 +238,26 @@ export default function App() {
     }
   };
 
+  const { serverMode: wsServerMode, setServerRecords: setWsServerRecords, refreshServerRecords: wsRefreshServerRecords } = ws;
   const handleReorder = useCallback(async (from: number, to: number) => {
-    if (ws.serverMode) {
+    if (wsServerMode) {
       const reordered = [...currentRecords];
       const [moved] = reordered.splice(from, 1);
       reordered.splice(to, 0, moved);
       const ids = reordered.map((r: RecordItem) => r.id).filter(Boolean);
-      ws.setServerRecords(reordered);
+      setWsServerRecords(reordered);
       try {
         await api.reorder(ids as number[]);
-        await ws.refreshServerRecords();
-      } catch (err: any) {
-        ws.setServerRecords(currentRecords);
-        addToast('خطا در مرتب‌سازی: ' + err.message, 'error');
+        await wsRefreshServerRecords();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        setWsServerRecords(currentRecords);
+        addToast('خطا در مرتب‌سازی: ' + message, 'error');
       }
     } else {
       reorderRecords(from, to);
     }
-  }, [ws.serverMode, currentRecords, reorderRecords, ws.refreshServerRecords, addToast]);
+  }, [wsServerMode, setWsServerRecords, wsRefreshServerRecords, currentRecords, reorderRecords, addToast]);
 
   const handleImport = async (imported: RecordItem[]) => {
     let ok = true;
@@ -281,25 +283,27 @@ export default function App() {
     handleView(idx);
   };
 
+  const { setVersionHistoryRecord: setWsVersionHistoryRecord } = ws;
   const handleShowVersionHistory = useCallback((id: string, code: string) => {
-    ws.setVersionHistoryRecord({ id, code });
-  }, []);
+    setWsVersionHistoryRecord({ id, code });
+  }, [setWsVersionHistoryRecord]);
 
   const handleRestoreVersion = useCallback(async (versionId: number) => {
     if (!ws.versionHistoryRecord) return;
     try {
-      if (ws.serverMode) {
+      if (wsServerMode) {
         await api.restoreRecordVersion(ws.versionHistoryRecord.id, versionId);
-        await ws.refreshServerRecords();
+        await wsRefreshServerRecords();
         addToast('نسخه با موفقیت بازگردانی شد', 'success');
       } else {
         addToast('بازگردانی نسخه فقط در حالت سرور پشتیبانی می‌شود', 'error');
       }
-    } catch (err: any) {
-      addToast('خطا در بازگردانی نسخه: ' + err.message, 'error');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast('خطا در بازگردانی نسخه: ' + message, 'error');
     }
-    ws.setVersionHistoryRecord(null);
-  }, [ws.versionHistoryRecord, ws.serverMode]);
+    setWsVersionHistoryRecord(null);
+  }, [setWsVersionHistoryRecord, ws.versionHistoryRecord, wsServerMode, wsRefreshServerRecords, addToast]);
 
   const handleDragStart = (e: React.DragEvent, idx: number | null) => {
     list.setDragIndex(idx);
@@ -439,25 +443,26 @@ export default function App() {
   };
 
   // ========== INLINE EDIT & FAVORITE ==========
+  const { setServerLoading: setWsServerLoading, setRefreshKey: setWsRefreshKey, customFields: wsCustomFields } = ws;
   const handleInlineEdit = useCallback((index: number, field: string, value: string) => {
-    if (ws.serverMode) {
+    if (wsServerMode) {
       const record = currentRecords[index];
       if (!record) return;
       if (record.locked_by) {
         addToast(`این رکورد توسط ${record.locked_by} قفل شده و قابل ویرایش نیست`, 'warning');
         return;
       }
-      ws.setServerLoading(true);
+      setWsServerLoading(true);
       api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
-        ws.setServerRecords((prev: RecordItem[]) => {
+        setWsServerRecords((prev: RecordItem[]) => {
           const idx = prev.findIndex(r => r.id === record.id);
           if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
           return prev;
         });
-        ws.setRefreshKey(k => k + 1);
+        setWsRefreshKey(k => k + 1);
         const merged: RecordItem = { ...record, [field]: value };
         const cfields: Record<string, unknown> = {};
-        ws.customFields.forEach((f: CustomField) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
+        wsCustomFields.forEach((f: CustomField) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
         if (Object.keys(cfields).length > 0) {
           const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
           cache[record.id] = cfields;
@@ -470,17 +475,17 @@ export default function App() {
     // ignore: optional operation
   }
         }
-        ws.setServerLoading(false);
-        ws.refreshServerRecords();
-      }).catch(() => ws.setServerLoading(false));
+        setWsServerLoading(false);
+        wsRefreshServerRecords();
+      }).catch(() => setWsServerLoading(false));
     } else {
       const record = currentRecords[index];
       if (!record) return;
       updateRecord(index, { ...record, [field]: value });
-      ws.setRefreshKey(k => k + 1);
+      setWsRefreshKey(k => k + 1);
     }
     addToast('فیلد با موفقیت ویرایش شد', 'success');
-  }, [ws.serverMode, currentRecords, ws.customFields, updateRecord, addToast]);
+  }, [wsServerMode, setWsServerRecords, wsRefreshServerRecords, setWsServerLoading, setWsRefreshKey, wsCustomFields, currentRecords, updateRecord, addToast]);
 
   const handleToggleFavorite = useCallback(async (index: number) => {
     const record = currentRecords[index];

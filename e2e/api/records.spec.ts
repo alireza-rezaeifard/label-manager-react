@@ -52,7 +52,7 @@ test.describe('records', () => {
     // Record is in trash, restorable
     const trash = await request.get('/api/records/trash?workspace_id=1', { headers: auth });
     const trashBody = await trash.json();
-    expect(trashBody.map((r: any) => r.id)).toContain(record.id);
+    expect(trashBody.map((r: Record<string, unknown>) => r.id)).toContain(record.id);
   });
 
   test('supports idempotent creation via Idempotency-Key', async ({ request }) => {
