@@ -93,16 +93,33 @@ app.post('/chat', async (req, res) => {
       },
     });
 
-    // Stream text deltas
+    // Stream the full stream so provider errors are surfaced — iterating only
+    // textStream silently ends when the LLM call fails before any text part,
+    // which made the chat respond "with nothing".
     let deltaCount = 0;
-    for await (const delta of result.textStream) {
-      deltaCount++;
-      res.write(`data: ${JSON.stringify({ type: 'text-delta', text: delta })}\n\n`);
+    let streamError: string | null = null;
+    for await (const part of result.fullStream) {
+      if (part.type === 'text-delta') {
+        deltaCount++;
+        res.write(`data: ${JSON.stringify({ type: 'text-delta', text: part.textDelta })}\n\n`);
+      } else if (part.type === 'error') {
+        const err = part.error as any;
+        streamError =
+          err?.responseBody ||
+          err?.message ||
+          (err instanceof Error ? err.message : String(err));
+        log.error({ error: streamError }, 'Provider stream error');
+        res.write(`data: ${JSON.stringify({ type: 'error', error: streamError })}\n\n`);
+      }
     }
     log.info({ deltaCount }, 'Text stream iteration done');
 
     const elapsed = Date.now() - startTime;
-    log.info({ elapsed, model: config.model }, 'Chat request completed');
+    if (streamError) {
+      log.error({ elapsed, model: config.model }, 'Chat request failed (provider error)');
+    } else {
+      log.info({ elapsed, model: config.model }, 'Chat request completed');
+    }
 
     res.write(`data: ${JSON.stringify({ type: 'done', elapsed })}\n\n`);
     res.end();

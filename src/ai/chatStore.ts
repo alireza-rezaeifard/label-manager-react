@@ -242,6 +242,10 @@ async function runStream(opts: SendMessageOptions) {
     }
     if (signal.aborted) {
       finalize('cancelled');
+    } else if (!fullText.trim() && artifacts.length === 0 && toolCalls.length === 0) {
+      // Empty stream (e.g. provider failed silently) — show an honest error
+      // instead of silently dropping the assistant message.
+      finalize('failed', 'پاسخی از دستیار دریافت نشد. تنظیمات مدل (آدرس API، کلید و نام مدل) را بررسی کنید.');
     } else {
       finalize('completed');
     }
