@@ -7,7 +7,7 @@ import { CHART_COLORS } from "./chartColors"
 
 export { CHART_COLORS } from "./chartColors"
 
-function baseTheme(primary: string, isDark: boolean): ApexOptions {
+function baseTheme(isDark: boolean): ApexOptions {
   return {
     chart: { foreColor: isDark ? "#e4ece9" : "#24302d", fontFamily: "inherit", toolbar: { show: false }, zoom: { enabled: false } },
     colors: CHART_COLORS,
@@ -32,9 +32,9 @@ export function AreaChart({
   categories: string[]
   height?: number
 }) {
-  const { isDark, primary } = useTheme()
+  const { isDark } = useTheme()
   const options: ApexOptions = {
-    ...baseTheme(primary, isDark),
+    ...baseTheme(isDark),
     xaxis: { categories, labels: { rotate: -45, style: { fontSize: "11px" } } },
     fill: { type: "gradient", gradient: { opacityFrom: 0.35, opacityTo: 0.05 } },
     dataLabels: { enabled: false },
@@ -52,9 +52,9 @@ export function BarChart({
   categories: string[]
   height?: number
 }) {
-  const { isDark, primary } = useTheme()
+  const { isDark } = useTheme()
   const options: ApexOptions = {
-    ...baseTheme(primary, isDark),
+    ...baseTheme(isDark),
     xaxis: { categories, labels: { rotate: -45, style: { fontSize: "11px" } } },
     plotOptions: { bar: { borderRadius: 4, columnWidth: "55%", distributed: series.length === 1 } },
     dataLabels: { enabled: false },
@@ -70,12 +70,12 @@ export function PieChart({
   data: ChartDataPoint[]
   height?: number
 }) {
-  const { isDark, primary } = useTheme()
+  const { isDark } = useTheme()
   const labels = data.map((d) => d.name)
   const values = data.map((d) => d.value)
   const colors = data.map((d, i) => d.color ?? CHART_COLORS[i % CHART_COLORS.length])
   const options: ApexOptions = {
-    ...baseTheme(primary, isDark),
+    ...baseTheme(isDark),
     labels,
     colors,
     legend: { position: "bottom" },

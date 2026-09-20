@@ -1,7 +1,7 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Bubble } from "@/components/ui/bubble"
-import { Item, ItemContent, ItemMedia, ItemAction } from "@/components/ui/item"
+import { Item, ItemContent, ItemMedia } from "@/components/ui/item"
 
 /** PersianLabs/ui `message` — composable chat message with avatar + content. */
 export interface MessagePart {

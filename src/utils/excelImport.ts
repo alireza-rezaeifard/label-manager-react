@@ -10,7 +10,7 @@ export function importExcel(file: File): Promise<Record<string, any>[]> {
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const json = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
         resolve(json as Record<string, any>[]);
-      } catch (err) {
+      } catch {
         reject(new Error('خطا در خواندن فایل اکسل'));
       }
     };

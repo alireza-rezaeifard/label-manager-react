@@ -24,7 +24,6 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  Star,
   Download,
 } from 'lucide-react';
 

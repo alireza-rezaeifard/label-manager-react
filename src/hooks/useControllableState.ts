@@ -18,7 +18,6 @@ export function useControllableState<T>({
   prop,
   defaultProp,
   onChange = () => {},
-  caller,
 }: UseControllableStateParams<T>): [T, SetStateFn<T>] {
   const [uncontrolledProp, setUncontrolledProp] = React.useState(defaultProp)
   const isControlled = prop !== undefined

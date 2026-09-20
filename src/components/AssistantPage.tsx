@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import {
-  ArrowUp, Square, Settings, Plus, MessageSquare, Search,
+  Settings, Plus, MessageSquare, Search,
   X, Trash2, PanelLeft, ChevronRight, Loader2,
 } from 'lucide-react';
 import { api } from '../utils/api';
@@ -363,7 +363,10 @@ export default function AssistantPage() {
           role: 'assistant',
           content: fullText,
           attachments: agentAttachments,
-          toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          // AIToolCall uses `toolName`; the local stream state uses `name`.
+          toolCalls: toolCalls.length > 0
+            ? toolCalls.map(t => ({ toolName: t.name, args: t.args }))
+            : undefined,
           timestamp: Date.now(),
         };
         dispatch({ type: 'ADD_MESSAGE', message: assistantMsg });

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, copyFileSync, renameSync } from 'fs';
 import bcrypt from 'bcryptjs';
+import config from './config/env.js';
 import {
   getDbPath,
   createBackup,
@@ -434,8 +435,10 @@ if (isFTS5Healthy()) {
   rebuildFTS5();
 }
 
-const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+// Single source of truth for env (config/env.js validates + fails fast in
+// production); do not read process.env for these values anywhere else.
+const adminUsername = config.ADMIN_USERNAME;
+const adminPassword = config.ADMIN_PASSWORD;
 // Idempotent seeding: must be safe when multiple processes/suites initialize concurrently.
 db.prepare('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)').run(
   adminUsername, bcrypt.hashSync(adminPassword, 10), 'admin'

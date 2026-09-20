@@ -23,7 +23,7 @@ interface CommentsPanelProps {
   userId?: number;
 }
 
-export default function CommentsPanel({ recordId, recordCode, teamMembers, serverMode, userName, userId }: CommentsPanelProps) {
+export default function CommentsPanel({ recordId, recordCode, teamMembers, userName, userId }: CommentsPanelProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);

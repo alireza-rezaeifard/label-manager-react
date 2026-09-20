@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { createElement } from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -7,7 +7,6 @@ import { useLocation } from 'react-router-dom';
 import { useRecords } from '../hooks/useRecords';
 import { useToast } from '../hooks/useToast';
 import { useSWR } from '../hooks/useSWR';
-import { api } from '../utils/api';
 
 // Simple components using hooks
 function SimpleRecords() {

@@ -174,7 +174,7 @@ export function useRecordsList(currentRecords: RecordItem[], customFields: Custo
     const filtered = getSortedRecords();
     setSelected(prev => {
       if (prev.size === filtered.length) return new Set();
-      return new Set(filtered.map(r => r.__lid !== undefined ? r.__lid : currentRecords.indexOf(r)));
+      return new Set(filtered.map(r => (r.__lid as number | undefined) ?? currentRecords.indexOf(r)));
     });
   }, [getSortedRecords, currentRecords]);
 

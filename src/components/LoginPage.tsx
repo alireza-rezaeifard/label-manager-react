@@ -7,9 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { AlertCircle, Loader2, Shield, Award, Star, BadgeCheck } from 'lucide-react';
+import type { AuthUser } from '../types';
 
 export default function LoginPage({ onLogin }: {
-  onLogin: (user: Record<string, unknown> | null) => void;
+  // The server returns { id, username, role }; typed as AuthUser so callers
+  // passing (user: AuthUser | null) handlers typecheck.
+  onLogin: (user: AuthUser | null) => void;
 }) {
   const [mode, setMode] = useState('login');
   const [username, setUsername] = useState('');

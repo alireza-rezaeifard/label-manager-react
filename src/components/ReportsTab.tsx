@@ -1,5 +1,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import Chart from 'react-apexcharts';
+import type { ApexChartEventOpts } from 'apexcharts';
 import type { RecordItem } from '../types';
 
 const COLORS = ['#0f766e', '#28c76f', '#ea5455', '#ff9f43', '#00cfe8', '#a8aaaf', '#6d62e0', '#20a862'];
@@ -81,8 +82,10 @@ export default function ReportsTab({ records, onFilter }: Props) {
     onFilter(reportType, entry.name);
   }, [onFilter, reportType]);
 
-  const handleDataPointSelection = useCallback((_e: unknown, _ctx: unknown, config: { dataPointIndex: number }) => {
-    const idx = config.dataPointIndex;
+  // Typed per the ApexCharts event contract; the library always supplies
+  // the config object, but the parameter is optional in the lib types.
+  const handleDataPointSelection = useCallback((_e: MouseEvent, _ctx: unknown, config?: ApexChartEventOpts) => {
+    const idx = config?.dataPointIndex ?? -1;
     if (idx >= 0 && idx < currentData.length) {
       handleChartClick(currentData[idx]);
     }

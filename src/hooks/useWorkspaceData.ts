@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSWR, invalidateCache } from './useSWR';
 import { useWebSocket } from './useWebSocket';
-import { api, getAuthUser } from '../utils/api';
+import { api, getAuthUser, isAuthenticated } from '../utils/api';
 import type { RecordItem, CustomField, Workspace, ActivityLogEntry } from '../types';
 
 const HISTORY_KEY = 'label-studio-print-history';
@@ -102,7 +102,9 @@ export function useWorkspaceData() {
     return data.map((serverRecord: RecordItem) => {
       const merged: RecordItem = { ...serverRecord };
       for (const key of customKeys) {
-        const val = cache[serverRecord.id]?.[key] ?? codeCache[serverRecord.code]?.[key];
+        // Server records always carry id/code; the assertion is type-level
+        // only (a miss behaves exactly as before: falls through to ?? ).
+        const val = cache[serverRecord.id!]?.[key] ?? codeCache[serverRecord.code]?.[key];
         if (val !== undefined) merged[key] = val;
       }
       return merged;

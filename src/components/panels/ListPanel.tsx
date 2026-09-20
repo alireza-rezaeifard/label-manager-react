@@ -50,8 +50,8 @@ interface ListPanelProps {
   onToggleFavorite: (index: number) => void;
   onApplyPreset: (filters: FilterState) => void;
   onTabChange: (t: string) => void;
-  onSetViewMode: (m: string) => void;
-  onSetUseVirtualScroll: (v: boolean) => void;
+  onSetViewMode: React.Dispatch<React.SetStateAction<string>>;
+  onSetUseVirtualScroll: React.Dispatch<React.SetStateAction<boolean>>;
   onSetFilterType: (v: string) => void;
   onSetFilterParty: (v: string) => void;
   onSetFilterDateFrom: (v: string) => void;
@@ -59,10 +59,10 @@ interface ListPanelProps {
   onSetFilterAmountMin: (v: string) => void;
   onSetFilterAmountMax: (v: string) => void;
   onSetSelectedTagFilter: (v: string | null) => void;
-  onSetPage: (p: number) => void;
+  onSetPage: React.Dispatch<React.SetStateAction<number>>;
   onShowRenumberConfirm: (s: boolean) => void;
   onShowBulkEdit: (s: boolean) => void;
-  onSetEnabledCustomFieldKeys: (fn: (prev: string[]) => string[]) => void;
+  onSetEnabledCustomFieldKeys: React.Dispatch<React.SetStateAction<string[]>>;
   onClearSelection: () => void;
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
 }

@@ -88,8 +88,16 @@ const markdownComponents = {
 // ── Tool Card ──
 function truncateResult(result: unknown, maxLen = 500): string {
   const str = typeof result === 'string' ? result : JSON.stringify(result, null, 2);
+  if (!str) return '';
   if (str.length <= maxLen) return str;
   return str.slice(0, maxLen) + '\n... (truncated)';
+}
+
+// Normalizes persisted tool calls for display. Current shape is
+// AIToolCall { toolName, args }; sessions stored by older builds used
+// { name, args } — tolerate both so history never renders blank names.
+function toToolCardProps(tc: { toolName?: string; name?: string; args?: Record<string, unknown>; result?: unknown }) {
+  return { name: tc.toolName ?? tc.name ?? 'tool', args: tc.args ?? {}, result: tc.result };
 }
 
 const ToolCard = memo(function ToolCard({ tc }: { tc: { name: string; args: Record<string, unknown>; result?: unknown } }) {
@@ -203,7 +211,6 @@ function FileAttachments({ attachments }: { attachments: ChatAttachment[] }) {
 // ── Preview Message ──
 export const PreviewMessage = memo(function PreviewMessage({
   msg,
-  isLoading,
 }: {
   msg: AIChatMessage;
   isLoading: boolean;
@@ -237,7 +244,7 @@ export const PreviewMessage = memo(function PreviewMessage({
           )}
           {isAssistant && msg.toolCalls && msg.toolCalls.length > 0 && (
             <div className="ai-chat-message-tools">
-              {msg.toolCalls.map((tc, i) => <ToolCard key={i} tc={tc} />)}
+              {msg.toolCalls.map((tc, i) => <ToolCard key={i} tc={toToolCardProps(tc)} />)}
             </div>
           )}
           {isAssistant && <MessageActions text={msg.content} />}

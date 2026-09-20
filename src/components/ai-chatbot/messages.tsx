@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import { ArrowDownIcon } from './icons';
 import { Greeting } from './greeting';
 import { PreviewMessage, ThinkingMessage } from './message';
@@ -47,7 +47,7 @@ export function Messages({
         onScroll={onScroll}
       >
         <div className="ai-chat-messages-inner">
-          {messages.map((msg, i) => (
+          {messages.map((msg) => (
             <PreviewMessage
               key={msg.id}
               msg={msg}

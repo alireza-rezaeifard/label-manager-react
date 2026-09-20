@@ -62,6 +62,24 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
 
   const FIELD_KEYS = new Set(FIELDS.map(f => f.key));
 
+  const MAX_IMPORT_FILE_BYTES = 10 * 1024 * 1024;
+  const MAX_IMPORT_ROWS = 10000;
+
+  // xlsx / papaparse hand back `unknown` cells; downstream (validateRows)
+  // String()-coerces every value, so normalize once at the boundary.
+  function normalizeRows(raw: unknown): Record<string, string>[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((row) => {
+      const out: Record<string, string> = {};
+      if (row && typeof row === 'object') {
+        for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+          out[k] = v == null ? '' : String(v);
+        }
+      }
+      return out;
+    });
+  }
+
   function validateRows(data: Record<string, string>[]): ImportRow[] {
     const codesInFile = new Set<string>();
     const existingCodes = new Set(existingRecords.map(r => r.code));
@@ -121,11 +139,22 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
   }
 
   function parseFile(file: File) {
+    // Hardening caps: parsing runs in the user's own browser, but an
+    // unbounded file still freezes the tab — and a successful parse then
+    // fires one POST per row. Refuse early with a clear message.
+    if (file.size > MAX_IMPORT_FILE_BYTES) {
+      addToast('حجم فایل بیش از حد مجاز است (حداکثر ۱۰ مگابایت)', 'error');
+      return;
+    }
     setFileName(file.name);
 
     const onData = (raw: Record<string, string>[]) => {
       if (raw.length === 0) {
         addToast('فایل خالی است', 'error');
+        return;
+      }
+      if (raw.length > MAX_IMPORT_ROWS) {
+        addToast('تعداد ردیف‌ها بیش از حد مجاز است (حداکثر ۱۰٬۰۰۰ ردیف)', 'error');
         return;
       }
       const colMap = buildColumnMap(raw[0]);
@@ -141,7 +170,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
           const workbook = XLSX.read(data, { type: 'array' });
           const sheet = workbook.Sheets[workbook.SheetNames[0]];
           const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-          onData(json);
+          onData(normalizeRows(json));
         } catch {
           addToast('خطا در خواندن فایل اکسل', 'error');
         }
@@ -152,7 +181,7 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
       Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
-        complete: (res) => onData(res.data),
+        complete: (res) => onData(normalizeRows(res.data)),
         error: () => addToast('خطا در پردازش فایل', 'error'),
       });
     }
@@ -181,7 +210,9 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
     if (!rows) return;
     setImporting(true);
     const validRows = rows.filter(r => r.valid).map(r => {
-      const record: Record<string, any> = {
+      // All required RecordItem fields are set below; extras ride the
+      // RecordItem index signature ([key: string]: unknown).
+      const record: RecordItem = {
         code: r.data.code,
         project: r.data.project,
         type: r.data.type,
@@ -197,7 +228,6 @@ export default function ImportCSV({ onImport, addToast, existingRecords = [], cu
       }
       return record;
     });
-    console.log('ImportCSV — sample record:', JSON.stringify(validRows[0], null, 2));
     await onImport(validRows);
     setImporting(false);
     setRows(null);

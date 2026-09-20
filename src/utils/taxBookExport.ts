@@ -93,14 +93,6 @@ const CORS_PROXIES = [
   (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
 ];
 
-function withCorsProxy(url: string, customProxy?: string): string {
-  if (customProxy) {
-    // If user entered a custom proxy, append the target URL
-    return customProxy + encodeURIComponent(url);
-  }
-  return url;
-}
-
 // ── Fetch available models from API ──
 export async function fetchAvailableModels(apiUrl: string, apiKey: string): Promise<string[]> {
   // Normalize first, then derive models URL

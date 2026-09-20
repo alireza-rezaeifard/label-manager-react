@@ -120,7 +120,10 @@ export const api = {
     return apiRequest(`/records${qs}`).then((r: { records?: RecordItem[] } | RecordItem[]) => Array.isArray(r) ? r : (r.records ?? []));
   },
 
-  createRecord: (record: RecordItem) =>
+  // RecordItem already declares workspace_id?: number; Omit + re-add widens
+  // it to the nullable reality (call sites pass currentWorkspaceId as-is and
+  // the server rejects a missing/null workspace with a 400 either way).
+  createRecord: (record: Omit<RecordItem, 'workspace_id'> & { workspace_id?: number | null }) =>
     apiRequest('/records', { method: 'POST', body: JSON.stringify(record) }),
 
   updateRecord: (id: string, record: Partial<RecordItem>) =>
@@ -132,7 +135,7 @@ export const api = {
   reorder: (ids: string[]) =>
     apiRequest('/records/reorder', { method: 'POST', body: JSON.stringify({ ids }) }),
 
-  renumberRecords: (records: RecordItem[]) =>
+  renumberRecords: (records: Array<{ id: string | number; newCode: string }>) =>
     apiRequest('/records/renumber', { method: 'POST', body: JSON.stringify({ records }) }),
 
   backup: (workspaceId?: string | number) =>

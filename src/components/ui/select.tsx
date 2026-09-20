@@ -14,7 +14,7 @@ interface SelectContextValue {
   value: unknown
   onValueChange?: (value: string) => void
 }
-const SelectContext = React.createContext<SelectContextValue>({})
+const SelectContext = React.createContext<SelectContextValue>({ value: '' })
 
 function Select({
   value,

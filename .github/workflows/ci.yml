@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [main, taxbook-v2]
   push:
-    branches: [main]
+    branches: [main, taxbook-v2]
 
 jobs:
   quality:

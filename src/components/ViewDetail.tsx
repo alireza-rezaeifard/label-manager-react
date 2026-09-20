@@ -71,7 +71,7 @@ export default function ViewDetail({ record, relatedRecords, onEdit, onNavigateT
             <div key={f.key} className="vd-field-card">
               <div className="vd-field-label">{f.fa}</div>
               <div className={`vd-field-value ${f.key === 'amount' ? 'ltr' : ''}`}>
-                {f.key === 'amount' ? formatAmount(record[f.key]) : (record[f.key] || '—')}
+                {f.key === 'amount' ? formatAmount(record[f.key]) : String(record[f.key] || '—')}
               </div>
             </div>
           ))}

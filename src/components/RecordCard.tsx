@@ -49,7 +49,13 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, onToggleFavori
       className={`label-card ${selected ? 'selected' : ''} fade-in`}
       onClick={onToggle}
       draggable
-      onDragStart={(e: React.DragEvent) => { e.dataTransfer.setData('text/plain', String(index)); onDragStart?.(e); }}
+      onDragStart={(_e, _info) => {
+        // framer-motion types this handler with its own event union, but at
+        // runtime the HTML5 dragstart DragEvent (with dataTransfer) arrives.
+        const de = _e as unknown as React.DragEvent;
+        de.dataTransfer.setData('text/plain', String(index));
+        onDragStart?.(de);
+      }}
       onDragOver={(e: React.DragEvent) => { e.preventDefault(); onDragOver?.(e); }}
       onDragEnd={onDragEnd}
       onDrop={(e: React.DragEvent) => { e.preventDefault(); onDrop?.(e); }}
@@ -67,7 +73,9 @@ function RecordCard({ record, selected, onToggle, onEdit, onView, onToggleFavori
             {record.code ? <SearchHighlight text={record.code} query={searchQuery} /> : '—'}
           </span>
           {record.locked_by && (
-            <Lock className="h-3.5 w-3.5 text-warning" title={`قفل شده توسط ${record.locked_by}`} />
+            <span title={`قفل شده توسط ${record.locked_by}`}>
+              <Lock className="h-3.5 w-3.5 text-warning" />
+            </span>
           )}
         </div>
         {onToggleFavorite && (

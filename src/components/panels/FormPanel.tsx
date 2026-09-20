@@ -1,4 +1,4 @@
-import React from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import RecordForm from '../RecordForm';
 import type { RecordItem, Template, CustomField } from '../../types';
 import { INVOICE_TEMPLATES } from '../../data/invoiceTemplates';
@@ -25,7 +25,9 @@ interface FormPanelProps {
   templateName: string;
   setTemplateName: (n: string) => void;
   showTemplates: boolean;
-  setShowTemplates: (s: boolean) => void;
+  // Widened to the real setter type: the toggle button uses the functional
+  // updater form (`p => !p`), which the real useState setter supports.
+  setShowTemplates: Dispatch<SetStateAction<boolean>>;
   templates: Template[];
   handleSaveTemplate: () => void;
   handleLoadTemplate: (t: Template) => void;
@@ -42,7 +44,7 @@ export default function FormPanel({
   templateName, setTemplateName,
   showTemplates, setShowTemplates,
   templates, handleSaveTemplate, handleLoadTemplate, handleDeleteTemplate,
-  templateKey,
+  templateKey, onAddTemplateCustomFields,
 }: FormPanelProps) {
   if (isViewer) {
     return (

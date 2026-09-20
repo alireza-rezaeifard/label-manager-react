@@ -1,5 +1,5 @@
 // SuggestedActions — clickable suggestion cards
-import { memo, useCallback } from 'react';
+import { memo } from 'react';
 
 export const SuggestedActions = memo(function SuggestedActions({
   onSelect,

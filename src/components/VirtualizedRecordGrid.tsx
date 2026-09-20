@@ -93,7 +93,7 @@ export default function VirtualizedRecordGrid({
   customFields = [],
 }: VirtualizedRecordGridProps) {
   const [containerWidth, setContainerWidth] = useState(1100);
-  const [cardHeight, _setCardHeight] = useState(380);
+  const [cardHeight] = useState(380);
   const containerRef = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 

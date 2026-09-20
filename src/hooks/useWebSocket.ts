@@ -50,13 +50,16 @@ export function useWebSocket(
       console.warn('WebSocket connection error:', err.message);
     });
 
-    socket.on('record:created', () => onRecordsChangedRef.current());
-    socket.on('record:updated', () => onRecordsChangedRef.current());
-    socket.on('record:deleted', () => onRecordsChangedRef.current());
-    socket.on('record:locked', () => onRecordsChangedRef.current());
-    socket.on('record:unlocked', () => onRecordsChangedRef.current());
-    socket.on('records:reordered', () => onRecordsChangedRef.current());
-    socket.on('records:restored', () => onRecordsChangedRef.current());
+    // The ref is assigned in an effect that runs before this subscription
+    // effect, but optional chaining keeps a missed race from throwing
+    // inside socket handlers (a no-op refresh is always safe to skip).
+    socket.on('record:created', () => onRecordsChangedRef.current?.());
+    socket.on('record:updated', () => onRecordsChangedRef.current?.());
+    socket.on('record:deleted', () => onRecordsChangedRef.current?.());
+    socket.on('record:locked', () => onRecordsChangedRef.current?.());
+    socket.on('record:unlocked', () => onRecordsChangedRef.current?.());
+    socket.on('records:reordered', () => onRecordsChangedRef.current?.());
+    socket.on('records:restored', () => onRecordsChangedRef.current?.());
 
     socketRef.current = socket;
 

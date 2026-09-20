@@ -11,8 +11,15 @@ node_modules
 dist
 dist-ssr
 *.local
+# Environment files (any directory, any variant) — never commit secrets.
+# `.env` matches the basename in every subdirectory (incl. server/, hermes/).
 .env
+.env.*
 server/.env
+hermes/.env
+!.env.example
+!server/.env.example
+!hermes/.env.example
 
 # Editor directories and files
 .vscode/*
@@ -31,6 +38,11 @@ server/.env
 *.db-shm
 *.db.bak
 server/data/
+server/uploads/
+uploads/
+
+# Generated report PDFs (hermes fixtures excluded from history)
+hermes/dist/
 
 # Temp files
 tmp/

@@ -14,7 +14,9 @@ export function generateToken(user) {
   return jwt.sign(
     { id: user.id, username: user.username, role: user.role },
     JWT_SECRET,
-    { expiresIn: config.JWT_EXPIRES_IN }
+    // Pin the algorithm: the server only ever issues HS256 tokens, so
+    // verification must not honor any other `alg` presented by a client.
+    { expiresIn: config.JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
 }
 
@@ -26,7 +28,7 @@ export function authMiddleware(req, res, next) {
 
   try {
     const token = header.split(' ')[1];
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid token' });

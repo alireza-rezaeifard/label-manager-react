@@ -1,6 +1,5 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import { api } from '../utils/api';
-import { FIELDS } from '../data/fields';
 import type { RecordItem, Template, CustomField } from '../types';
 
 const RECORD_CUSTOM_FIELDS_CACHE_KEY = 'label-studio-record-cfields-cache';
@@ -22,9 +21,6 @@ function saveRecordCustomFieldsCodeCache(data: Record<string, unknown>) {
   try { localStorage.setItem(RECORD_CUSTOM_FIELDS_CODE_CACHE_KEY, JSON.stringify(data)); } catch {
     // ignore: optional operation
   }
-}
-function loadTemplates() {
-  try { return JSON.parse(localStorage.getItem(TEMPLATES_KEY) || '[]'); } catch { return []; }
 }
 function saveTemplates(t: Template[]) {
   try { localStorage.setItem(TEMPLATES_KEY, JSON.stringify(t)); } catch {
@@ -112,12 +108,14 @@ export function useRecordForm(deps: UseRecordFormDeps) {
         }
         setServerLoading(true);
         try {
-          const updated = await api.updateRecord(record.id, recordData);
+          // `record` is guarded non-null above and server records always
+          // carry an id; the assertions are type-level only.
+          const updated = await api.updateRecord(record.id!, recordData);
           const cfields: Record<string, unknown> = {};
           customFields.forEach((f: CustomField) => { if (recordData[f.key] !== undefined) cfields[f.key] = recordData[f.key]; });
           if (Object.keys(cfields).length > 0) {
             const cache = loadRecordCustomFieldsCache();
-            cache[record.id] = cfields;
+            cache[record.id!] = cfields;
             saveRecordCustomFieldsCache(cache);
             const codeCache = loadRecordCustomFieldsCodeCache();
             if (updated.code) codeCache[updated.code] = cfields;

@@ -4,18 +4,18 @@ interface OCRResult {
   fields: Record<string, string>;
 }
 
-function extractFields(text: string): Record<string, string> {
+export function extractFields(text: string): Record<string, string> {
   const fields: Record<string, string> = {};
   const lines = text.split('\n').filter(l => l.trim());
 
   const patterns: [RegExp, string][] = [
-    /(?:invoice|facture|شماره فاکتور|شماره)\s*[:-]?\s*([\w\-/]+)/i,
-    /(?:date|تاریخ)\s*[:-]?\s*([\d/]{4,}[\d/]*)/i,
-    /(?:total|amount|جمع کل|مبلغ)\s*[:-]?\s*([\d,]+)/i,
-    /(?:customer|client|مشتری|طرف حساب)\s*[:-]?\s*(.+)/i,
-    /(?:project|پروژه)\s*[:-]?\s*(.+)/i,
-    /(?:tax|مالیات)\s*[:-]?\s*([\d,]+)/i,
-    /(?:discount|تخفیف)\s*[:-]?\s*([\d,]+)/i,
+    [/(?:invoice|facture|شماره فاکتور|شماره)\s*[:-]?\s*([\w\-/]+)/i, 'code'],
+    [/(?:date|تاریخ)\s*[:-]?\s*([\d/]{4,}[\d/]*)/i, 'date'],
+    [/(?:total|amount|جمع کل|مبلغ)\s*[:-]?\s*([\d,]+)/i, 'amount'],
+    [/(?:customer|client|مشتری|طرف حساب)\s*[:-]?\s*(.+)/i, 'party'],
+    [/(?:project|پروژه)\s*[:-]?\s*(.+)/i, 'project'],
+    [/(?:tax|مالیات)\s*[:-]?\s*([\d,]+)/i, 'tax'],
+    [/(?:discount|تخفیف)\s*[:-]?\s*([\d,]+)/i, 'discount'],
   ];
 
   for (const [regex, key] of patterns) {

@@ -82,7 +82,7 @@ function Tabs({
   variant = "default",
   ...props
 }: TabsProps) {
-  const [uncontrolledValue, setUncontrolledValue] = React.useState(defaultValue ?? "")
+  const [uncontrolledValue] = React.useState(defaultValue ?? "")
   const activeValue = value !== undefined ? value : uncontrolledValue
 
   return (

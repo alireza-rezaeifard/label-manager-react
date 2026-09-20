@@ -18,7 +18,7 @@ export function useCustomFields(
   newFieldType: string,
   setNewFieldType: (t: string) => void,
   setSelectedTagFilter: React.Dispatch<React.SetStateAction<string | null>>,
-  addToast: (msg: string, type?: string) => void,
+  addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void,
   _invalidateCache: (pattern?: string) => void,
 ) {
   const handleToggleCustomField = useCallback((key: string) => {

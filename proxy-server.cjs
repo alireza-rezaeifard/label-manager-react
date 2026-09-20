@@ -1,3 +1,10 @@
+/**
+ * DEV-ONLY CORS proxy helper. NEVER deploy to production or expose to a
+ * network: it forwards any URL with the caller's Authorization header
+ * (open relay / SSRF). Local development use only — it binds to
+ * 127.0.0.1 for that reason. Prefer configuring the AI provider's
+ * endpoint directly instead of routing through this proxy.
+ */
 const http = require('http');
 const https = require('https');
 const url = require('url');
@@ -55,7 +62,8 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+// Bound to loopback only: this helper must never listen on a public interface.
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`\n  CORS Proxy running at http://localhost:${PORT}\n`);
   console.log(`  Usage in app settings:`);
   console.log(`    API URL: http://localhost:${PORT}/https://openrouter.ai/api/v1/chat/completions`);

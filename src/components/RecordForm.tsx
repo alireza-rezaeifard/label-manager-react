@@ -6,8 +6,6 @@ import "@daypicker/react/style.css";
 import { FIELDS } from "../data/fields";
 import { toJalaliDate } from "../utils/formatters";
 import { api } from "../utils/api";
-import { PriceInput } from "@/components/ui/price-input"
-import { useControllableState } from "@/hooks/useControllableState"
 import { extractTextFromImage } from "../utils/ocr";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 import SearchableSelect from "./SearchableSelect";
@@ -17,7 +15,7 @@ import type { RecordItem, ValidationRule } from "../types";
 import { useDebounce } from "../hooks/useDebounce";
 import {
   Grid3X3, Calendar, Palette, ImageIcon, Link2, Tags, Trash2, Check, Plus, Pencil,
-  FileText, Hash, Building2, Type, CalendarDays, Users, DollarSign, ScanText, Shield,
+  FileText, Hash, Building2, Type, CalendarDays, Users, DollarSign, ScanText,
 } from 'lucide-react';
 
 interface RecordFormState {

@@ -186,7 +186,9 @@ export default function App() {
     ws.serverMode, ws.currentWorkspaceId, ws.customFields, ws.setCustomFields, saveCustomFields,
     ws.tags, ws.setTags, saveTags, ws.setEnabledCustomFieldKeys, ws.enabledCustomFieldKeys,
     ws.newFieldName, ws.setNewFieldName, ws.newFieldType, ws.setNewFieldType,
-    (v: string | null) => list.setSelectedTagFilter(v), addToast, invalidateCache,
+    // list.setSelectedTagFilter is the real useState setter: it accepts the
+    // functional updater form that useCustomFields uses internally.
+    (v: React.SetStateAction<string | null>) => list.setSelectedTagFilter(v), addToast, invalidateCache,
   );
 
   // ========== WORKSPACE ACTIONS ==========
@@ -215,13 +217,13 @@ export default function App() {
     if (count === 0) return;
     ws.setShowDeleteConfirm(false);
     if (ws.serverMode) {
-      const ids = [...list.selected].map(i => currentRecords[i]?.id).filter(Boolean);
+      const ids = [...list.selected].map(i => currentRecords[i]?.id).filter((id): id is string => Boolean(id));
       if (ids.length === 0) { addToast('هیچ رکوردی برای حذف انتخاب نشده', 'error'); return; }
       ws.setServerLoading(true);
       try {
         await api.deleteRecords(ids);
         const idSet = new Set(ids);
-        ws.setServerRecords(prev => prev.filter(r => !idSet.has(r.id)));
+        ws.setServerRecords(prev => prev.filter(r => !idSet.has(r.id!)));
         ws.setRefreshKey(k => k + 1);
         list.setSelected(new Set());
         await ws.refreshServerRecords();
@@ -244,10 +246,10 @@ export default function App() {
       const reordered = [...currentRecords];
       const [moved] = reordered.splice(from, 1);
       reordered.splice(to, 0, moved);
-      const ids = reordered.map((r: RecordItem) => r.id).filter(Boolean);
+      const ids = reordered.map((r: RecordItem) => r.id).filter((id): id is string => Boolean(id));
       setWsServerRecords(reordered);
       try {
-        await api.reorder(ids as number[]);
+        await api.reorder(ids);
         await wsRefreshServerRecords();
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
@@ -333,7 +335,7 @@ export default function App() {
       const merged = { ...r };
       for (const f of ws.customFields) {
         if (merged[f.key] === undefined) {
-          const val = cache[r.id]?.[f.key] ?? codeCache[r.code]?.[f.key];
+          const val = cache[r.id!]?.[f.key] ?? codeCache[r.code]?.[f.key];
           if (val !== undefined) merged[f.key] = val;
         }
       }
@@ -371,7 +373,9 @@ export default function App() {
           }
         }
         if (customKeys.size > 0) {
-          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, fieldType: 'text' }));
+          // Both `type` (canonical) and `fieldType` (legacy readers) are set:
+          // restored fields must satisfy every consumer shape.
+          restoredCustomFields = [...customKeys].map(k => ({ key: k, fa: k, label: k, type: 'text', fieldType: 'text' }));
         }
       }
       if (restoredCustomFields.length > 0) {
@@ -433,7 +437,7 @@ export default function App() {
         addToast('خطا در بازیابی: ' + err.message, 'error');
       } finally {
         ws.setIsRestoring(false);
-        setTimeout(() => { ws.refreshServerRecordsRef.current(); }, 100);
+        setTimeout(() => { ws.refreshServerRecordsRef.current?.(); }, 100);
       }
     } else {
       setRecords(restoredRecords);
@@ -453,7 +457,7 @@ export default function App() {
         return;
       }
       setWsServerLoading(true);
-      api.updateRecord(record.id, { ...record, [field]: value }).then((updated) => {
+      api.updateRecord(record.id!, { ...record, [field]: value }).then((updated) => {
         setWsServerRecords((prev: RecordItem[]) => {
           const idx = prev.findIndex(r => r.id === record.id);
           if (idx >= 0) { const c = [...prev]; c[idx] = { ...updated, ...record }; return c; }
@@ -465,7 +469,7 @@ export default function App() {
         wsCustomFields.forEach((f: CustomField) => { if (merged[f.key] !== undefined) cfields[f.key] = merged[f.key]; });
         if (Object.keys(cfields).length > 0) {
           const cache = (() => { try { return JSON.parse(localStorage.getItem('label-studio-record-cfields-cache') || '{}'); } catch { return {}; } })();
-          cache[record.id] = cfields;
+          cache[record.id!] = cfields;
           try { localStorage.setItem('label-studio-record-cfields-cache', JSON.stringify(cache)); } catch {
     // ignore: optional operation
   }
@@ -492,7 +496,7 @@ export default function App() {
     if (!record) return;
     if (ws.serverMode) {
       try {
-        const updated = await api.toggleFavorite(record.id);
+        const updated = await api.toggleFavorite(record.id!);
         ws.setServerRecords((prev: RecordItem[]) => prev.map(r => r.id === record.id ? { ...r, is_favorite: updated.is_favorite } : r));
         addToast(updated.is_favorite ? 'به علاقه‌مندی‌ها اضافه شد' : 'از علاقه‌مندی‌ها حذف شد', 'success');
       } catch (err: any) {
@@ -559,7 +563,7 @@ export default function App() {
         const record = currentRecords[i];
         if (!record) return Promise.resolve(null);
         const updates = buildUpdates(record);
-        return api.updateRecord(record.id, { ...record, ...updates });
+        return api.updateRecord(record.id!, { ...record, ...updates });
       })).then((results) => {
         const updatedMap = new Map(results.filter(Boolean).map(r => [r.id, r]));
         if (updatedMap.size > 0) {
@@ -574,8 +578,8 @@ export default function App() {
             const cfields: Record<string, unknown> = {};
             ws.customFields.forEach((f: CustomField) => { if (record[f.key] !== undefined) cfields[f.key] = record[f.key]; });
             if (Object.keys(cfields).length > 0) {
-              const updated = updatedMap.get(record.id) || record;
-              cache[record.id] = cfields;
+              const updated = updatedMap.get(record.id!) || record;
+              cache[record.id!] = cfields;
               if (updated.code) codeCache[updated.code] = cfields;
             }
           }
@@ -657,14 +661,15 @@ export default function App() {
         return yearB.localeCompare(yearA);
       });
       const newRecordsOrder: { record: RecordItem }[] = [];
-      const updates: { id: number; newCode: string }[] = [];
+      const updates: { id: string | number; newCode: string }[] = [];
       for (const groupKey of groupKeys) {
         const items = groups[groupKey];
         const { projectNum, type, year } = items[0].parsed!;
         items.forEach((item, seqIdx) => {
           const newCode = formatCode(projectNum, type, year, seqIdx + 1);
-          if (currentRecords[item.index]?.id) {
-            updates.push({ id: currentRecords[item.index].id, newCode });
+          const rec = currentRecords[item.index];
+          if (rec?.id) {
+            updates.push({ id: rec.id, newCode });
           }
           newRecordsOrder.push({ record: { ...item.record, code: newCode } });
         });
@@ -1007,7 +1012,7 @@ export default function App() {
                     }}
                     onShowHistory={ws.serverMode ? () => {
                       const r = currentRecords[viewIndex];
-                      handleShowVersionHistory(r.id, r.code);
+                      handleShowVersionHistory(r.id!, r.code);
                     } : undefined}
                     onLock={ws.serverMode ? handleLockRecord : undefined}
                     onUnlock={ws.serverMode ? handleUnlockRecord : undefined}
@@ -1326,6 +1331,7 @@ export default function App() {
                   const pr = ws.pendingRestore;
                   ws.setShowRestoreConfirm(false);
                   ws.setPendingRestore(null);
+                  if (!pr) return;
                   executeRestore(pr.records, pr.customFields);
                 }}>
                   بازیابی با فیلدها

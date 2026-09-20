@@ -62,7 +62,14 @@ const config = {
     'http://localhost:3001',
   ]),
   ADMIN_USERNAME: process.env.ADMIN_USERNAME || 'admin',
-  ADMIN_PASSWORD: process.env.ADMIN_PASSWORD || 'admin123',
+  // The bootstrap admin password must never fall back to a public default in
+  // production: a fresh production database would otherwise get a well-known
+  // admin credential. Fail fast so the operator sets ADMIN_PASSWORD.
+  ADMIN_PASSWORD: (() => {
+    if (process.env.ADMIN_PASSWORD) return process.env.ADMIN_PASSWORD;
+    if (isProduction) problems.push('ADMIN_PASSWORD is required in production (no default seed password)');
+    return 'admin123';
+  })(),
   LOG_LEVEL: process.env.LOG_LEVEL || (isProduction ? 'info' : 'debug'),
   // Hard cap on request body size.
   JSON_BODY_LIMIT: process.env.JSON_BODY_LIMIT || '10mb',

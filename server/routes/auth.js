@@ -2,9 +2,19 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import db from '../db.js';
 import { generateToken, authMiddleware } from '../middleware/auth.js';
-import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken } from '../lib/refresh-tokens.js';
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, revokeAllUserRefreshTokens } from '../lib/refresh-tokens.js';
 
 const router = Router();
+
+function validateUsername(username) {
+  if (!username || typeof username !== 'string' || !username.trim()) {
+    return 'Username is required';
+  }
+  if (username.length < 3 || username.length > 64) {
+    return 'Username must be between 3 and 64 characters';
+  }
+  return null;
+}
 
 function validatePassword(password) {
   if (!password || password.length < 6) {
@@ -26,6 +36,10 @@ router.post('/register', (req, res) => {
   }
 
   try {
+    const nameError = validateUsername(username);
+    if (nameError) {
+      return res.status(400).json({ error: nameError });
+    }
     const pwError = validatePassword(password);
     if (pwError) {
       return res.status(400).json({ error: pwError });
@@ -167,6 +181,9 @@ router.post('/change-password', authMiddleware, (req, res) => {
 
     const hash = bcrypt.hashSync(newPassword, 10);
     db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, req.user.id);
+    // A password change ends all other sessions: issued access tokens expire
+    // on their own, but no new ones can be minted from old refresh tokens.
+    revokeAllUserRefreshTokens(req.user.id);
     res.json({ ok: true, message: 'رمز عبور با موفقیت تغییر کرد' });
   } catch (err) {
     res.status(500).json({ error: 'خطا در تغییر رمز عبور' });

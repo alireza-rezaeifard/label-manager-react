@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function SparklesIcon({ size = 13, className }: { size?: number; className?: string }) {
   return (
     <svg

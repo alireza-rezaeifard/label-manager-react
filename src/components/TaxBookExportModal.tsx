@@ -25,13 +25,6 @@ interface Props {
 
 type Step = 'config' | 'processing' | 'result' | 'error';
 
-const STEP_LABELS: Record<Step, string> = {
-  config: 'تنظیمات',
-  processing: 'در حال پردازش',
-  result: 'نتیجه',
-  error: 'خطا',
-};
-
 const STEP_ORDER: Step[] = ['config', 'processing', 'result'];
 
 export default function TaxBookExportModal({

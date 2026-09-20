@@ -42,6 +42,13 @@ export interface CustomField {
   label: string;
   fa: string;
   type: string;
+  // `fieldType` is the legacy/alternate name for `type` produced by the
+  // backup-restore path and older settings payloads; both shapes exist at
+  // runtime, so both are accepted here. New code should use `type`.
+  fieldType?: string;
+  // Present when the object is sent to / received from the server
+  // (the custom_fields table is workspace-scoped).
+  workspace_id?: number | null;
   options?: string[];
   required?: boolean;
   validationRules?: ValidationRule[];
@@ -80,7 +87,7 @@ export interface ToastType {
   exiting?: boolean;
 }
 
-export type Record = RecordItem;
+export type LabelRecord = RecordItem;
 
 export interface Template {
   name: string;
@@ -131,7 +138,9 @@ export interface FilterState {
   sortOrder?: string;
   filterType?: string;
   filterParty?: string;
-  selectedTagFilter?: string;
+  // Nullable at runtime everywhere (useRecordsList state, LabelsToolbar,
+  // RecordsPage props); `|| null` normalization depends on it.
+  selectedTagFilter?: string | null;
   filterDateFrom?: string;
   filterDateTo?: string;
   filterAmountMin?: string;

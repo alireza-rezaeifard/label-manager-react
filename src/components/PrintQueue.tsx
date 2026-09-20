@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import * as exportUtils from '../utils/exporters';
 import { FIELDS } from '../data/fields';
-import type { Record } from '../types';
+import type { LabelRecord } from '../types';
 import { Printer, Plus, X, Play, Loader2, Check, AlertCircle, Trash2, PrinterX } from 'lucide-react';
 
 const QUEUE_KEY = 'label-studio-print-queue';
@@ -30,8 +30,8 @@ export default function PrintQueue({
   addToast,
   onClose,
 }: {
-  records: Record[];
-  selectedRecords: Record[];
+  records: LabelRecord[];
+  selectedRecords: LabelRecord[];
   addToast: (msg: string, type?: 'success' | 'error' | 'info' | 'warning') => void;
   onClose: () => void;
 }) {

@@ -1,12 +1,12 @@
 import { memo, useState, useMemo } from 'react';
 import { FIELDS } from '../data/fields';
 import { formatAmount } from '../utils/formatters';
-import type { Record } from '../types';
+import type { LabelRecord } from '../types';
 
 function TableView({
   records, selected, onToggle, onEdit, onView: _onView, onSort, sortBy, sortOrder, recordToIndex, customFields = [],
 }: {
-  records: Record[];
+  records: LabelRecord[];
   selected: Set<number>;
   onToggle: (i: number) => void;
   onEdit: (i: number) => void;
@@ -14,7 +14,7 @@ function TableView({
   onSort?: (field: string) => void;
   sortBy?: string | null;
   sortOrder?: string;
-  recordToIndex: Map<Record, number>;
+  recordToIndex: Map<LabelRecord, number>;
   customFields?: any[];
 }) {
   const displayFields = useMemo(() => [...FIELDS.filter(f => f.key !== 'related'), ...customFields], [customFields]);

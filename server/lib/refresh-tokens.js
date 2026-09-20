@@ -59,3 +59,16 @@ export function revokeRefreshToken(rawToken) {
   ).run(hashToken(rawToken));
   return result.changes > 0;
 }
+
+/**
+ * Revokes every live refresh token for a user (password change, suspected
+ * compromise). Access tokens already issued stay valid until they expire —
+ * this ends the ability to mint new ones, i.e. all other sessions.
+ */
+export function revokeAllUserRefreshTokens(userId) {
+  if (!userId) return 0;
+  const result = db.prepare(
+    "UPDATE refresh_tokens SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL"
+  ).run(userId);
+  return result.changes;
+}

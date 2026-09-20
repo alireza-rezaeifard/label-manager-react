@@ -10,7 +10,32 @@ const log = createChildLogger('server');
 const app = express();
 const PORT = parseInt(process.env.HERMES_PORT || '3002', 10);
 
-app.use(cors());
+// Hermes is called server-to-server by the backend (/api/ai/*); browsers
+// never need direct access. Default-deny CORS: only explicitly listed
+// origins (local dev frontends) are accepted. The previous open `cors()`
+// would have let any website drive the file/shell/db tool agent if the
+// port were ever reachable beyond the compose network.
+const HERMES_ALLOWED_ORIGINS = (process.env.HERMES_ALLOWED_ORIGINS || [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+].join(',')).split(',').map((o) => o.trim()).filter(Boolean);
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Non-browser callers (curl, server-to-server) send no Origin.
+    if (!origin || HERMES_ALLOWED_ORIGINS.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+}));
 app.use(express.json({ limit: '10mb' }));
 
 // Health check

@@ -11,7 +11,6 @@ interface ShimmerProps {
 
 export function Shimmer({
   children,
-  as: Component = 'p',
   className = '',
   duration = 2,
   spread = 2,

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
-import type { ActivityEntry } from '../types';
+import type { ActivityLogEntry } from '../types';
 import {
   LayoutDashboard,
   Files,
@@ -103,7 +103,7 @@ interface SidebarProps {
   onResetForm: () => void;
   isViewer: boolean;
   serverMode: boolean;
-  activityLog: ActivityEntry[];
+  activityLog: ActivityLogEntry[];
   compact: boolean;
   onToggleCompact: () => void;
   onRefreshActivity?: () => void;
@@ -163,7 +163,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
 
         {/* ── Navigation ── */}
         <nav className="sidebar-nav sb-nav">
-          {visibleSections.map((section, sIdx) => (
+          {visibleSections.map((section) => (
             <div key={section.key} className="nav-section sb-section">
               <div
                 className={`nav-section-title sb-section-title ${collapsedSections[section.key] ? 'collapsed' : ''}`}
@@ -221,7 +221,7 @@ export default function Sidebar({ tab, onTabChange, sidebarOpen, onClose, onRese
               </div>
             </div>
             <div className="activity-feed sb-feed">
-              {activityLog.slice(0, 8).map((a: ActivityEntry, i) => (
+              {activityLog.slice(0, 8).map((a: ActivityLogEntry, i) => (
                 <motion.div
                   key={i}
                   initial={{ opacity: 0, x: -8 }}
